@@ -1,9 +1,13 @@
 from __future__ import annotations
 
+from urllib.parse import quote
+
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import Response
 
 from Api.agent import interviewer_agent
 from Api.database import get_connection
+from Api.pdf_report_service import pdf_report_service
 from Api.schemas import (
     AgentMessageRequest,
     AgentReply,
@@ -266,3 +270,45 @@ def get_skill_assessments(user_id: int, session_id: int) -> list[SkillAssessment
         ).fetchall()
 
     return [SkillAssessmentResponse(**dict(row)) for row in rows]
+
+
+@router.get("/{user_id}/assessment/{session_id}/report.pdf")
+def download_skill_assessment_pdf(user_id: int, session_id: int) -> Response:
+    with get_connection() as connection:
+        user_row = connection.execute(
+            "SELECT id FROM users WHERE id = %s",
+            (user_id,),
+        ).fetchone()
+        if user_row is None:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        session_row = connection.execute(
+            """
+            SELECT id
+            FROM user_sessions
+            WHERE id = %s
+              AND user_id = %s
+            """,
+            (session_id, user_id),
+        ).fetchone()
+        if session_row is None:
+            raise HTTPException(status_code=404, detail="Assessment session not found")
+
+        try:
+            filename, pdf_bytes = pdf_report_service.build_pdf(connection, user_id, session_id)
+        except FileNotFoundError as exc:
+            raise HTTPException(status_code=500, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": (
+                'attachment; '
+                'filename="competency_profile.pdf"; '
+                f"filename*=UTF-8''{quote(filename)}"
+            ),
+        },
+    )

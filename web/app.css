@@ -1340,6 +1340,12 @@ button {
   line-height: 1.5;
 }
 
+.interview-complete-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 14px;
+}
+
 .interview-form {
   display: grid;
   gap: 14px;
@@ -1376,6 +1382,12 @@ button {
   font-size: 12px;
   text-transform: uppercase;
   letter-spacing: 0.08em;
+}
+
+.interview-panel.completed .interview-messages,
+.interview-panel.completed .interview-form,
+.interview-panel.completed .interview-footnote {
+  display: none;
 }
 
 .interview-footnote {

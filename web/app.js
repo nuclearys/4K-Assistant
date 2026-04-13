@@ -158,6 +158,8 @@ const interviewCaseStatus = document.getElementById('interview-case-status');
 const interviewTimerBadge = document.getElementById('interview-timer-badge');
 const interviewMessages = document.getElementById('interview-messages');
 const interviewSummary = document.getElementById('interview-summary');
+const interviewCompleteActions = document.getElementById('interview-complete-actions');
+const interviewGoProcessingButton = document.getElementById('interview-go-processing-button');
 const interviewForm = document.getElementById('interview-form');
 const interviewTextarea = document.getElementById('interview-textarea');
 const interviewSubmitButton = document.getElementById('interview-submit-button');
@@ -239,6 +241,146 @@ const showLoader = (title, text) => {
 
 const hideLoader = () => {
   appLoader.classList.add('hidden');
+};
+
+const STORAGE_KEYS = {
+  pendingUser: 'agent4k.pendingUser',
+  dashboard: 'agent4k.dashboard',
+  assessmentSessionId: 'agent4k.assessmentSessionId',
+  assessmentSessionCode: 'agent4k.assessmentSessionCode',
+  assessmentTotalCases: 'agent4k.assessmentTotalCases',
+  completionPending: 'agent4k.completionPending',
+};
+
+const memoryStorage = new Map();
+
+const safeStorage = {
+  getItem(key) {
+    try {
+      return window.sessionStorage.getItem(key);
+    } catch (_error) {
+      return memoryStorage.has(key) ? memoryStorage.get(key) : null;
+    }
+  },
+  setItem(key, value) {
+    try {
+      window.sessionStorage.setItem(key, value);
+    } catch (_error) {
+      memoryStorage.set(key, value);
+    }
+  },
+  removeItem(key) {
+    try {
+      window.sessionStorage.removeItem(key);
+    } catch (_error) {
+      memoryStorage.delete(key);
+    }
+  },
+};
+
+const persistAssessmentContext = () => {
+  if (state.pendingUser) {
+    safeStorage.setItem(STORAGE_KEYS.pendingUser, JSON.stringify(state.pendingUser));
+  }
+  if (state.dashboard) {
+    safeStorage.setItem(STORAGE_KEYS.dashboard, JSON.stringify(state.dashboard));
+  }
+  if (state.assessmentSessionId) {
+    safeStorage.setItem(STORAGE_KEYS.assessmentSessionId, String(state.assessmentSessionId));
+  }
+  if (state.assessmentSessionCode) {
+    safeStorage.setItem(STORAGE_KEYS.assessmentSessionCode, state.assessmentSessionCode);
+  }
+  if (state.assessmentTotalCases) {
+    safeStorage.setItem(STORAGE_KEYS.assessmentTotalCases, String(state.assessmentTotalCases));
+  }
+};
+
+const restoreAssessmentContext = () => {
+  try {
+    const storedUser = safeStorage.getItem(STORAGE_KEYS.pendingUser);
+    const storedDashboard = safeStorage.getItem(STORAGE_KEYS.dashboard);
+    const storedSessionId = safeStorage.getItem(STORAGE_KEYS.assessmentSessionId);
+    const storedSessionCode = safeStorage.getItem(STORAGE_KEYS.assessmentSessionCode);
+    const storedTotalCases = safeStorage.getItem(STORAGE_KEYS.assessmentTotalCases);
+
+    if (storedUser) {
+      state.pendingUser = JSON.parse(storedUser);
+    }
+    if (storedDashboard) {
+      state.dashboard = JSON.parse(storedDashboard);
+    }
+    if (storedSessionId) {
+      state.assessmentSessionId = Number(storedSessionId);
+    }
+    if (storedSessionCode) {
+      state.assessmentSessionCode = storedSessionCode;
+    }
+    if (storedTotalCases) {
+      state.assessmentTotalCases = Number(storedTotalCases);
+    }
+  } catch (error) {
+    console.error('Failed to restore assessment context', error);
+  }
+};
+
+const clearAssessmentContext = () => {
+  Object.values(STORAGE_KEYS).forEach((key) => {
+    safeStorage.removeItem(key);
+  });
+};
+
+const restoreAssessmentContextFromParams = (params) => {
+  const userId = params.get('user_id');
+  const sessionId = params.get('session_id');
+  const sessionCode = params.get('session_code');
+  const totalCases = params.get('total_cases');
+  const fullName = params.get('full_name');
+  const jobDescription = params.get('job_description');
+
+  if (userId) {
+    state.pendingUser = {
+      ...(state.pendingUser || {}),
+      id: Number(userId),
+      full_name: fullName || state.pendingUser?.full_name || 'Пользователь',
+      job_description: jobDescription || state.pendingUser?.job_description || 'Должность не указана',
+    };
+  }
+
+  if (sessionId) {
+    state.assessmentSessionId = Number(sessionId);
+  }
+
+  if (sessionCode) {
+    state.assessmentSessionCode = sessionCode;
+  }
+
+  if (totalCases) {
+    state.assessmentTotalCases = Number(totalCases);
+  }
+};
+
+const navigateToScreen = (screen) => {
+  persistAssessmentContext();
+  const params = new URLSearchParams({
+    screen,
+    ui: String(Date.now()),
+  });
+  if (state.pendingUser?.id) {
+    params.set('user_id', String(state.pendingUser.id));
+    params.set('full_name', state.pendingUser.full_name || 'Пользователь');
+    params.set('job_description', state.pendingUser.job_description || 'Должность не указана');
+  }
+  if (state.assessmentSessionId) {
+    params.set('session_id', String(state.assessmentSessionId));
+  }
+  if (state.assessmentSessionCode) {
+    params.set('session_code', state.assessmentSessionCode);
+  }
+  if (state.assessmentTotalCases) {
+    params.set('total_cases', String(state.assessmentTotalCases));
+  }
+  window.location.replace('/?' + params.toString());
 };
 
 const readApiResponse = async (response, fallbackMessage) => {
@@ -333,6 +475,8 @@ const resetChat = () => {
   interviewMessages.innerHTML = '';
   interviewSummary.classList.add('hidden');
   interviewSummary.textContent = '';
+  interviewCompleteActions.classList.add('hidden');
+  interviewPanel.classList.remove('completed');
   interviewTextarea.value = '';
   interviewTextarea.disabled = false;
   interviewSubmitButton.disabled = false;
@@ -458,8 +602,31 @@ const openDashboard = () => {
   dashboardPanel.classList.remove('hidden');
 };
 
+const hasIncompleteAssessment = () => {
+  if (!state.dashboard || !state.dashboard.active_assessment) {
+    return false;
+  }
+  const progress = Number(state.dashboard.active_assessment.progress_percent || 0);
+  return progress > 0 && progress < 100;
+};
+
+const renderAiWelcomeState = () => {
+  const isContinueMode = hasIncompleteAssessment();
+  startFirstAssessmentButton.textContent = isContinueMode
+    ? 'Продолжить ассессмент'
+    : 'Начать первый ассессмент';
+  libraryStartButton.textContent = isContinueMode
+    ? 'Продолжить'
+    : 'Начать';
+};
+
 const openAiWelcome = () => {
+  if (hasIncompleteAssessment()) {
+    openDashboard();
+    return;
+  }
   state.newUserSequenceStep = 'ai-welcome';
+  renderAiWelcomeState();
   hideAllPanels();
   aiWelcomePanel.classList.remove('hidden');
 };
@@ -473,6 +640,8 @@ const openPrechat = () => {
 const openInterview = () => {
   state.newUserSequenceStep = 'interview';
   hideAllPanels();
+  interviewPanel.classList.remove('completed');
+  interviewCompleteActions.classList.add('hidden');
   interviewPanel.classList.remove('hidden');
 };
 
@@ -652,6 +821,7 @@ const openReport = () => {
   hideAllPanels();
   renderReport();
   reportPanel.classList.remove('hidden');
+  clearAssessmentContext();
 };
 
 const loadSkillAssessments = async () => {
@@ -672,7 +842,7 @@ const tryOpenReportAfterProcessing = () => {
   ) {
     state.processingAutoTransitionStarted = true;
     window.setTimeout(() => {
-      openReport();
+      navigateToScreen('report');
     }, 280);
   }
 };
@@ -789,6 +959,7 @@ const runProcessingStep = (stepIndex = 0) => {
 };
 
 const openProcessing = () => {
+  safeStorage.removeItem(STORAGE_KEYS.completionPending);
   state.newUserSequenceStep = 'processing';
   state.processingStepIndex = 0;
   state.processingAgents = buildProcessingAgentsState();
@@ -998,13 +1169,23 @@ const handleAssessmentResponse = (data) => {
     interviewSubmitButton.disabled = true;
     interviewFinishButton.disabled = true;
     interviewFooterText.textContent = 'Ассессмент завершен';
-    openProcessing();
+    interviewPanel.classList.add('completed');
+    interviewCompleteActions.classList.remove('hidden');
+    safeStorage.setItem(STORAGE_KEYS.completionPending, '1');
+    navigateToScreen('processing');
+    window.setTimeout(() => {
+      if (!document.hidden && processingPanel.classList.contains('hidden')) {
+        openProcessing();
+      }
+    }, 120);
     return;
   }
 
   interviewTextarea.disabled = false;
   interviewSubmitButton.disabled = false;
   interviewFinishButton.disabled = false;
+  interviewPanel.classList.remove('completed');
+  interviewCompleteActions.classList.add('hidden');
   interviewTextarea.focus();
 
   if (!updateInterviewTimer()) {
@@ -1338,6 +1519,11 @@ interviewFinishButton.addEventListener('click', async () => {
   }
 });
 
+interviewGoProcessingButton.addEventListener('click', () => {
+  safeStorage.setItem(STORAGE_KEYS.completionPending, '1');
+  navigateToScreen('processing');
+});
+
 processingBackButton.addEventListener('click', () => {
   clearProcessingTimer();
   openDashboard();
@@ -1348,7 +1534,45 @@ reportHomeButton.addEventListener('click', () => {
 });
 
 reportDownloadButton.addEventListener('click', () => {
-  window.print();
+  if (!state.pendingUser?.id || !state.assessmentSessionId) {
+    return;
+  }
+  window.location.href =
+    '/users/' + state.pendingUser.id + '/assessment/' + state.assessmentSessionId + '/report.pdf';
 });
 
-resetChat();
+const bootApp = () => {
+  resetChat();
+  const params = new URLSearchParams(window.location.search);
+  const screen = params.get('screen') || (safeStorage.getItem(STORAGE_KEYS.completionPending) ? 'processing' : null);
+
+  if (screen === 'processing') {
+    restoreAssessmentContext();
+    restoreAssessmentContextFromParams(params);
+    if (state.pendingUser?.id && state.assessmentSessionId) {
+      openProcessing();
+      window.history.replaceState({}, '', '/');
+      return;
+    }
+  }
+
+  if (screen === 'report') {
+    restoreAssessmentContext();
+    restoreAssessmentContextFromParams(params);
+    if (state.pendingUser?.id && state.assessmentSessionId) {
+      void (async () => {
+        try {
+          await loadSkillAssessments();
+          openReport();
+          window.history.replaceState({}, '', '/');
+        } catch (error) {
+          console.error('Failed to open report screen', error);
+          returnToStart();
+        }
+      })();
+      return;
+    }
+  }
+};
+
+bootApp();

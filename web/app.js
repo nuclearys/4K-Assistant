@@ -157,6 +157,7 @@ const dashboardRestartButton = document.getElementById('dashboard-restart-button
 const welcomeProfileButton = document.getElementById('welcome-profile-button');
 const startFirstAssessmentButton = document.getElementById('start-first-assessment');
 const libraryStartButton = document.getElementById('library-start-button');
+const aiHeroDescription = document.getElementById('ai-hero-description');
 const newUserExitButton = document.getElementById('new-user-exit-button');
 const prechatStartButton = document.getElementById('prechat-start-button');
 const prechatError = document.getElementById('prechat-error');
@@ -242,6 +243,22 @@ const buildInitials = (fullName) => {
     .join('');
 };
 
+const sanitizeDisplayRole = (value) => {
+  const normalized = String(value || '').trim().toLowerCase().replace(/ё/g, 'е');
+  if (!normalized) {
+    return '';
+  }
+  if (
+    normalized === 'не изменений' ||
+    normalized === 'нет изменений' ||
+    normalized === 'без изменений' ||
+    normalized.includes('ничего не измен')
+  ) {
+    return '';
+  }
+  return String(value).trim();
+};
+
 const addMessage = (role, text) => {
   const item = document.createElement('div');
   item.className = 'message ' + role;
@@ -271,6 +288,7 @@ const STORAGE_KEYS = {
   assessmentSessionId: 'agent4k.assessmentSessionId',
   assessmentSessionCode: 'agent4k.assessmentSessionCode',
   assessmentTotalCases: 'agent4k.assessmentTotalCases',
+  assessmentCompletedOnce: 'agent4k.assessmentCompletedOnce',
   completionPending: 'agent4k.completionPending',
   sessionId: 'agent4k.sessionId',
   pendingAgentMessage: 'agent4k.pendingAgentMessage',
@@ -333,6 +351,9 @@ const persistAssessmentContext = () => {
   if (state.assessmentTotalCases) {
     safeStorage.setItem(STORAGE_KEYS.assessmentTotalCases, String(state.assessmentTotalCases));
   }
+  if (state.assessmentSessionId || state.skillAssessments.length > 0) {
+    safeStorage.setItem(STORAGE_KEYS.assessmentCompletedOnce, '1');
+  }
 };
 
 const restoreAssessmentContext = () => {
@@ -346,6 +367,7 @@ const restoreAssessmentContext = () => {
     const storedPendingAgentMessage = safeStorage.getItem(STORAGE_KEYS.pendingAgentMessage);
     const storedIsNewUserFlow = safeStorage.getItem(STORAGE_KEYS.isNewUserFlow);
     const storedCurrentScreen = safeStorage.getItem(STORAGE_KEYS.currentScreen);
+    const storedAssessmentCompletedOnce = safeStorage.getItem(STORAGE_KEYS.assessmentCompletedOnce);
 
     if (storedUser) {
       state.pendingUser = JSON.parse(storedUser);
@@ -373,6 +395,9 @@ const restoreAssessmentContext = () => {
     }
     if (storedCurrentScreen) {
       state.currentScreen = storedCurrentScreen;
+    }
+    if (storedAssessmentCompletedOnce === '1') {
+      safeStorage.setItem(STORAGE_KEYS.assessmentCompletedOnce, '1');
     }
   } catch (error) {
     console.error('Failed to restore assessment context', error);
@@ -675,14 +700,15 @@ const renderDashboard = () => {
   }
 
   const user = state.pendingUser;
-  const position = user && user.job_description ? user.job_description : 'Участник оценки';
+  const position = sanitizeDisplayRole(user && user.job_description ? user.job_description : '');
   const progressText = dashboard.active_assessment.progress_percent >= 100
     ? 'Завершено ' + dashboard.active_assessment.progress_percent + '%'
     : 'Завершено ' + dashboard.active_assessment.progress_percent + '%';
 
-  dashboardGreeting.textContent = 'Добро пожаловать, ' + dashboard.greeting_name;
+  dashboardGreeting.textContent = 'Добро пожаловать, ' + (user?.full_name || dashboard.greeting_name);
   dashboardUserName.textContent = user ? user.full_name : dashboard.greeting_name;
   dashboardUserRole.textContent = position;
+  dashboardUserRole.style.display = position ? '' : 'none';
   dashboardAvatar.textContent = buildInitials(user ? user.full_name : dashboard.greeting_name);
   assessmentTitle.textContent = dashboard.active_assessment.title;
   assessmentDescription.textContent = dashboard.active_assessment.description;
@@ -755,28 +781,46 @@ const hasIncompleteAssessment = () => {
 };
 
 const hasAssessmentHistory = () => {
-  if (!state.dashboard || !state.dashboard.active_assessment) {
-    return false;
-  }
-  const progress = Number(state.dashboard.active_assessment.progress_percent || 0);
-  const completedCases = Number(state.dashboard.active_assessment.completed_cases || 0);
-  const hasReports = Array.isArray(state.dashboard.reports) && state.dashboard.reports.length > 0;
-  return progress > 0 || completedCases > 0 || hasReports;
+  const dashboardProgress = Number(state.dashboard?.active_assessment?.progress_percent || 0);
+  const dashboardCompletedCases = Number(state.dashboard?.active_assessment?.completed_cases || 0);
+  const hasReports = Array.isArray(state.dashboard?.reports) && state.dashboard.reports.length > 0;
+  const hasProfileSessions =
+    Array.isArray(state.profileSummary?.sessions) && state.profileSummary.sessions.length > 0;
+  const hasCompletedAssessmentFlag = safeStorage.getItem(STORAGE_KEYS.assessmentCompletedOnce) === '1';
+
+  return dashboardProgress > 0 || dashboardCompletedCases > 0 || hasReports || hasProfileSessions;
 };
+
+const hasCompletedAssessmentBefore = () => (
+  hasAssessmentHistory()
+  || Boolean(state.assessmentSessionId)
+  || safeStorage.getItem(STORAGE_KEYS.assessmentCompletedOnce) === '1'
+);
 
 const renderAiWelcomeState = () => {
   const isContinueMode = hasIncompleteAssessment();
-  const hasHistory = hasAssessmentHistory();
+  const hasHistory = hasCompletedAssessmentBefore();
+  const backendLabel = String(state.dashboard?.active_assessment?.button_label || '').toLowerCase();
+  const shouldRepeat = !isContinueMode && (hasHistory || backendLabel.includes('снова'));
+
   startFirstAssessmentButton.textContent = isContinueMode
     ? 'Продолжить ассессмент'
-    : hasHistory
+    : shouldRepeat
       ? 'Пройти ассессмент снова'
       : 'Начать первый ассессмент';
   libraryStartButton.textContent = isContinueMode
     ? 'Продолжить'
-    : hasHistory
+    : shouldRepeat
       ? 'Снова'
       : 'Начать';
+
+  if (aiHeroDescription) {
+    aiHeroDescription.textContent = isContinueMode
+      ? 'Продолжите текущий ассессмент, чтобы завершить оценку компетенций и перейти к итоговому профилю.'
+      : shouldRepeat
+        ? 'Пройдите ассессмент снова, чтобы получить новый набор кейсов и сравнить результаты с предыдущими попытками.'
+        : 'Пройдите первый ассессмент, чтобы получить ваш профиль компетенций и персонализированные рекомендации от искусственного интеллекта.';
+  }
 };
 
 const openAiWelcome = () => {
@@ -943,9 +987,6 @@ const loadProfileSummary = async () => {
   const response = await fetch('/users/' + state.pendingUser.id + '/profile-summary');
   const data = await readApiResponse(response, 'Не удалось загрузить профиль пользователя.');
   state.profileSummary = data;
-  if (!state.profileSelectedSessionId && data.latest_session_id) {
-    state.profileSelectedSessionId = data.latest_session_id;
-  }
 };
 
 const loadProfileSessionSkills = async (sessionId) => {
@@ -1001,6 +1042,8 @@ const openInterview = () => {
 };
 
 const ensureDashboardAfterAssessment = () => {
+  safeStorage.setItem(STORAGE_KEYS.assessmentCompletedOnce, '1');
+
   if (!state.pendingUser) {
     return;
   }

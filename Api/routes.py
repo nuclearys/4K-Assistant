@@ -8,6 +8,7 @@ from fastapi.responses import Response
 from Api.agent import interviewer_agent
 from Api.database import get_connection
 from Api.pdf_report_service import pdf_report_service
+from Api.web_session_service import web_session_service
 from Api.schemas import (
     AgentMessageRequest,
     AgentReply,
@@ -30,7 +31,7 @@ from Api.schemas import (
 
 
 router = APIRouter(prefix="/users", tags=["users"])
-SESSION_COOKIE_NAME = "agent4k_user_id"
+SESSION_COOKIE_NAME = "agent4k_session_token"
 
 USER_SELECT_SQL = """
     SELECT
@@ -125,10 +126,10 @@ def _build_dashboard(connection, user: UserResponse) -> UserDashboard:
     )
 
 
-def _set_user_session_cookie(response: FastAPIResponse, user_id: int) -> None:
+def _set_user_session_cookie(response: FastAPIResponse, token: str) -> None:
     response.set_cookie(
         key=SESSION_COOKIE_NAME,
-        value=str(user_id),
+        value=token,
         httponly=True,
         samesite="lax",
         max_age=60 * 60 * 24 * 14,
@@ -159,7 +160,7 @@ def check_or_create_user(payload: CheckOrCreateUserRequest, response: FastAPIRes
 
         if existing_row is not None:
             user = UserResponse(**dict(existing_row))
-            _set_user_session_cookie(response, user.id)
+            _set_user_session_cookie(response, web_session_service.create_session(user.id))
             return CheckOrCreateUserResponse(
                 exists=True,
                 message="Пользователь с таким номером телефона уже существует.",
@@ -181,29 +182,12 @@ def check_or_create_user(payload: CheckOrCreateUserRequest, response: FastAPIRes
 
 @router.get("/session/restore", response_model=UserSessionRestoreResponse)
 def restore_user_session(request: Request) -> UserSessionRestoreResponse:
-    raw_user_id = request.cookies.get(SESSION_COOKIE_NAME)
-    if not raw_user_id:
-        return UserSessionRestoreResponse(authenticated=False)
-
-    try:
-        user_id = int(raw_user_id)
-    except ValueError:
+    token = request.cookies.get(SESSION_COOKIE_NAME)
+    user = web_session_service.get_user_by_token(token)
+    if user is None:
         return UserSessionRestoreResponse(authenticated=False)
 
     with get_connection() as connection:
-        row = connection.execute(
-            USER_SELECT_SQL
-            + """
-            WHERE u.id = %s
-            LIMIT 1
-            """,
-            (user_id,),
-        ).fetchone()
-
-        if row is None:
-            return UserSessionRestoreResponse(authenticated=False)
-
-        user = UserResponse(**dict(row))
         return UserSessionRestoreResponse(
             authenticated=True,
             user=user,
@@ -234,7 +218,8 @@ def bootstrap_user_session(user_id: int) -> UserSessionBootstrapResponse:
 
 
 @router.post("/session/logout")
-def logout_user_session(response: FastAPIResponse) -> dict[str, bool]:
+def logout_user_session(request: Request, response: FastAPIResponse) -> dict[str, bool]:
+    web_session_service.delete_session(request.cookies.get(SESSION_COOKIE_NAME))
     _clear_user_session_cookie(response)
     return {"ok": True}
 
@@ -369,7 +354,7 @@ def process_agent_message(payload: AgentMessageRequest, response: FastAPIRespons
             message=payload.message,
         )
         if reply.user is not None:
-            _set_user_session_cookie(response, reply.user.id)
+            _set_user_session_cookie(response, web_session_service.create_session(reply.user.id))
         return reply
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc

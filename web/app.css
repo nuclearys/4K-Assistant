@@ -2,6 +2,7 @@
   --bg-dark: #171b29;
   --bg-soft: #f5f3ef;
   --bg-lilac: #edeefe;
+  --app-screen-width: 1440px;
   --panel: rgba(255, 255, 255, 0.95);
   --panel-border: rgba(125, 108, 255, 0.14);
   --text-main: #202334;
@@ -46,12 +47,13 @@ body {
 .dashboard-panel,
 .ai-welcome-panel,
 .prechat-panel,
+.profile-panel,
 .processing-panel,
 .report-panel,
 .interview-panel,
 .chat-panel,
 .onboarding-panel {
-  width: min(100%, 1440px);
+  width: min(100%, var(--app-screen-width));
 }
 
 .auth-panel {

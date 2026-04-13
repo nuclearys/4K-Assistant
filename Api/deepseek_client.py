@@ -79,6 +79,8 @@ class DeepSeekClient:
         personalization_variables: str | None = None,
         personalization_map: dict[str, str] | None = None,
     ) -> str:
+        position = self._normalize_profile_text(position, fallback=role_name or "Не указана")
+        duties = self._normalize_profile_text(duties, fallback="Не указаны")
         personalization_map = personalization_map or self.generate_personalization_map(
             full_name=full_name,
             position=position,
@@ -105,7 +107,11 @@ class DeepSeekClient:
             personalization_map=personalization_map,
         )
         if not self.enabled:
-            return fallback
+            return self._sanitize_case_prompt_text(
+                fallback,
+                role_name=role_name,
+                planned_total_duration_min=planned_total_duration_min,
+            )
 
         prompt = (
             "Сформируй системный промпт для AI-агента 'Коммуникатор'. "
@@ -130,7 +136,7 @@ class DeepSeekClient:
             "не оставляй фигурных скобок и не возвращай шаблонные переменные."
         )
         try:
-            return self._post_chat(
+            generated = self._post_chat(
                 [
                     {
                         "role": "system",
@@ -140,8 +146,17 @@ class DeepSeekClient:
                 ],
                 temperature=0.2,
             ).strip()
+            return self._sanitize_case_prompt_text(
+                generated or fallback,
+                role_name=role_name,
+                planned_total_duration_min=planned_total_duration_min,
+            )
         except Exception:
-            return fallback
+            return self._sanitize_case_prompt_text(
+                fallback,
+                role_name=role_name,
+                planned_total_duration_min=planned_total_duration_min,
+            )
 
     def build_personalized_case_materials(
         self,
@@ -501,7 +516,7 @@ class DeepSeekClient:
             f"Контекст кейса: {case_context}. "
             f"Задача пользователя: {case_task}. "
             f"Навыки для оценки: {', '.join(case_skills) if case_skills else 'не указаны'}. "
-            f"Персонализированные данные кейса: {json.dumps(personalization_map, ensure_ascii=False)}. "
+            f"Ключевые параметры кейса: {self._summarize_personalization_map(personalization_map)}. "
             "Веди диалог профессионально, работай как интервьюер. "
             "Задавай по одному уточняющему вопросу за ход, помогай раскрыть решение, но не подсказывай готовый ответ. "
             "Обязательно уточняй цель решения, шаги реализации, риски, метрики, ограничения и ожидаемый эффект. "
@@ -656,6 +671,7 @@ class DeepSeekClient:
             "источник данных / карточка обращения / переписка / статус в системе": "карточка обращения и история переписки в CRM",
             "ограничения/полномочия": profile_constraints[0] if profile_constraints else "можете уточнять детали, согласовывать корректирующие действия и эскалировать проблему профильной команде",
             "planned_total_duration_min": str(planned_total_duration_min if planned_total_duration_min is not None else ""),
+            "масштаб кейса": self._resolve_role_scope(role_name),
         }
         if role_vocabulary.get("work_entities"):
             values["рабочие сущности"] = ", ".join(role_vocabulary["work_entities"][:5])
@@ -663,7 +679,9 @@ class DeepSeekClient:
             values["типовые участники"] = ", ".join(role_vocabulary["participants"][:4])
         result: dict[str, str] = {}
         for placeholder in placeholders:
-            result[placeholder] = values.get(placeholder, self._generic_value(placeholder, domain, process, client_type))
+            result[placeholder] = self._sanitize_personalization_value(
+                values.get(placeholder, self._generic_value(placeholder, domain, process, client_type))
+            )
         return result
 
     def _infer_domain(self, *, position: str | None, duties: str | None) -> str:
@@ -707,6 +725,24 @@ class DeepSeekClient:
 
     def _generic_value(self, placeholder: str, domain: str, process: str, client_type: str) -> str:
         label = placeholder.lower()
+        if "масштаб" in label:
+            return "уровень участка"
+        if "идея" in label:
+            return f"улучшение процесса {process}"
+        if "метрик" in label or "показател" in label:
+            return f"время выполнения процесса {process}, качество результата и количество возвратов"
+        if "ресурс" in label or "люди" in label:
+            return "доступный сотрудник и ограниченное рабочее время"
+        if "риск" in label:
+            return f"срыв сроков, повторные доработки и ошибки в процессе {process}"
+        if "стейкхолдер" in label or "участник" in label:
+            return f"{client_type}, смежная команда и руководитель направления"
+        if "полномоч" in label or "ограничен" in label:
+            return "работа в рамках регламента, фиксация действий в системе и обязательная эскалация спорных решений"
+        if "тип команды" in label:
+            return "рабочая группа участка"
+        if "задач" in label:
+            return f"операционные задачи в процессе {process}"
         if "срок" in label or "sla" in label:
             return "1 рабочий день"
         if "клиент" in label:
@@ -721,7 +757,70 @@ class DeepSeekClient:
             return f"некорректный результат в процессе {process}"
         if "контекст" in label or "обязанност" in label:
             return f"сопровождение задач в области {domain}"
-        return f"рабочий контекст в области {domain}"
+        return f"процесс {process} в области {domain}"
+
+    def _normalize_profile_text(self, value: str | None, *, fallback: str) -> str:
+        cleaned = (value or "").strip()
+        lowered = cleaned.lower()
+        if not cleaned or lowered in {"изменений нет", "нет изменений", "нет измеенний", "не изменилось"}:
+            return fallback
+        return cleaned
+
+    def _sanitize_personalization_value(self, value: str) -> str:
+        cleaned = (value or "").strip().strip(".")
+        lowered = cleaned.lower()
+        if lowered in {"изменений нет", "нет изменений", "нет измеенний", "не изменилось"}:
+            return ""
+        if cleaned.startswith("{") and cleaned.endswith("}"):
+            cleaned = cleaned[1:-1].strip()
+        return cleaned
+
+    def _resolve_role_scope(self, role_name: str | None) -> str:
+        role = (role_name or "").lower()
+        if "линей" in role:
+            return "уровень участка"
+        if "manager" in role or "менедж" in role or "руковод" in role:
+            return "уровень команды или процесса"
+        if "leader" in role or "дир" in role or "стратег" in role:
+            return "уровень направления или нескольких команд"
+        return "масштаб, соответствующий роли пользователя"
+
+    def _summarize_personalization_map(self, values: dict[str, str]) -> str:
+        parts = []
+        for key, value in values.items():
+            clean = self._sanitize_personalization_value(value)
+            if clean:
+                parts.append(f"{key}: {clean}")
+        return "; ".join(parts[:8]) if parts else "персонализация выполнена по контексту пользователя"
+
+    def _sanitize_case_prompt_text(
+        self,
+        text: str,
+        *,
+        role_name: str | None,
+        planned_total_duration_min: int | None,
+    ) -> str:
+        result = text or ""
+        scope_text = self._resolve_role_scope(role_name)
+        result = re.sub(
+            r"для L\s*[—-]\s*участок,\s*для M\s*[—-]\s*команда(?:\s*или\s*процесс)?",
+            scope_text,
+            result,
+            flags=re.IGNORECASE,
+        )
+        if planned_total_duration_min is not None:
+            result = re.sub(
+                r"planned_total_duration_min\s*:?\s*\d*",
+                f"плановое время кейса: {planned_total_duration_min} мин",
+                result,
+                flags=re.IGNORECASE,
+            )
+        result = result.replace("Нет измеенний", "Не указаны")
+        result = re.sub(r"\bизменений нет\b", role_name or "Не указано", result, flags=re.IGNORECASE)
+        result = re.sub(r"рабочий контекст в области [^.,;\n\"]+", "рабочий контекст по профилю пользователя", result, flags=re.IGNORECASE)
+        result = re.sub(r"\s{2,}", " ", result)
+        result = re.sub(r"\.\.", ".", result)
+        return result.strip()
 
 
 deepseek_client = DeepSeekClient()

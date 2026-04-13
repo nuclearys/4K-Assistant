@@ -83,6 +83,25 @@ LEADING_DUTY_PATTERNS = [
     r"^\s*необходимо\s*",
 ]
 
+USER_SELECT_SQL = """
+    SELECT
+        u.id,
+        u.full_name,
+        u.email,
+        u.created_at,
+        u.role_id,
+        u.job_description,
+        p.raw_position,
+        p.raw_duties,
+        p.normalized_duties,
+        p.role_confidence,
+        p.role_rationale,
+        u.active_profile_id,
+        u.phone
+    FROM users u
+    LEFT JOIN user_role_profiles p ON p.id = u.active_profile_id
+"""
+
 
 class ConversationMode(StrEnum):
     EXISTING_USER = "existing_user"
@@ -613,11 +632,9 @@ class InterviewerAgent:
 
     def _load_user_by_id(self, connection, user_id: int) -> UserResponse:
         row = connection.execute(
-            """
-            SELECT id, full_name, email, created_at, role_id, job_description, raw_position,
-                   raw_duties, normalized_duties, role_confidence, role_rationale, active_profile_id, phone
-            FROM users
-            WHERE id = %s
+            USER_SELECT_SQL
+            + """
+            WHERE u.id = %s
             """,
             (user_id,),
         ).fetchone()
@@ -639,24 +656,17 @@ class InterviewerAgent:
             row = connection.execute(
                 """
                 INSERT INTO users (
-                    full_name, email, phone, job_description, raw_position,
-                    raw_duties, normalized_duties, role_id, role_confidence, role_rationale
+                    full_name, email, phone, job_description, role_id
                 )
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                RETURNING id, full_name, email, created_at, role_id, job_description, raw_position,
-                          raw_duties, normalized_duties, role_confidence, role_rationale, active_profile_id, phone
+                VALUES (%s, %s, %s, %s, %s)
+                RETURNING id
                 """,
                 (
                     full_name,
                     generated_email,
                     phone,
                     clean_position,
-                    position,
-                    duties,
-                    normalized_duties,
                     role_match.role_id if role_match else None,
-                    role_match.confidence if role_match else None,
-                    role_match.rationale if role_match else None,
                 ),
             ).fetchone()
             self._save_user_profile(
@@ -687,24 +697,13 @@ class InterviewerAgent:
                 """
                 UPDATE users
                 SET job_description = %s,
-                    raw_position = %s,
-                    raw_duties = %s,
-                    normalized_duties = %s,
-                    role_id = %s,
-                    role_confidence = %s,
-                    role_rationale = %s
+                    role_id = %s
                 WHERE id = %s
-                RETURNING id, full_name, email, created_at, role_id, job_description, raw_position,
-                          raw_duties, normalized_duties, role_confidence, role_rationale, active_profile_id, phone
+                RETURNING id
                 """,
                 (
                     clean_position,
-                    position,
-                    duties,
-                    normalized_duties,
                     role_match.role_id if role_match else None,
-                    role_match.confidence if role_match else None,
-                    role_match.rationale if role_match else None,
                     user_id,
                 ),
             ).fetchone()

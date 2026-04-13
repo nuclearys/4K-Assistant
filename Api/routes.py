@@ -23,6 +23,25 @@ from Api.schemas import (
 
 router = APIRouter(prefix="/users", tags=["users"])
 
+USER_SELECT_SQL = """
+    SELECT
+        u.id,
+        u.full_name,
+        u.email,
+        u.created_at,
+        u.role_id,
+        u.job_description,
+        p.raw_position,
+        p.raw_duties,
+        p.normalized_duties,
+        p.role_confidence,
+        p.role_rationale,
+        u.active_profile_id,
+        u.phone
+    FROM users u
+    LEFT JOIN user_role_profiles p ON p.id = u.active_profile_id
+"""
+
 
 def _build_dashboard(connection, user: UserResponse) -> UserDashboard:
     progress_row = connection.execute(
@@ -106,11 +125,9 @@ def check_or_create_user(payload: CheckOrCreateUserRequest) -> CheckOrCreateUser
 
     with get_connection() as connection:
         existing_row = connection.execute(
-            """
-            SELECT id, full_name, email, created_at, role_id, job_description, raw_position,
-                   raw_duties, normalized_duties, role_confidence, role_rationale, active_profile_id, phone
-            FROM users
-            WHERE regexp_replace(COALESCE(phone, ''), '\\D', '', 'g') = %s
+            USER_SELECT_SQL
+            + """
+            WHERE regexp_replace(COALESCE(u.phone, ''), '\\D', '', 'g') = %s
             LIMIT 1
             """,
             (phone,),
@@ -140,11 +157,9 @@ def check_or_create_user(payload: CheckOrCreateUserRequest) -> CheckOrCreateUser
 def get_users() -> list[UserResponse]:
     with get_connection() as connection:
         rows = connection.execute(
-            """
-            SELECT id, full_name, email, created_at, role_id, job_description, raw_position,
-                   raw_duties, normalized_duties, role_confidence, role_rationale, active_profile_id, phone
-            FROM users
-            ORDER BY id ASC
+            USER_SELECT_SQL
+            + """
+            ORDER BY u.id ASC
             """
         ).fetchall()
 
@@ -155,11 +170,9 @@ def get_users() -> list[UserResponse]:
 def get_user(user_id: int) -> UserResponse:
     with get_connection() as connection:
         row = connection.execute(
-            """
-            SELECT id, full_name, email, created_at, role_id, job_description, raw_position,
-                   raw_duties, normalized_duties, role_confidence, role_rationale, active_profile_id, phone
-            FROM users
-            WHERE id = %s
+            USER_SELECT_SQL
+            + """
+            WHERE u.id = %s
             """,
             (user_id,),
         ).fetchone()
@@ -187,11 +200,9 @@ def process_agent_message(payload: AgentMessageRequest) -> AgentReply:
 def start_assessment(user_id: int) -> AssessmentStartResponse:
     with get_connection() as connection:
         row = connection.execute(
-            """
-            SELECT id, full_name, email, created_at, role_id, job_description, raw_position,
-                   raw_duties, normalized_duties, role_confidence, role_rationale, active_profile_id, phone
-            FROM users
-            WHERE id = %s
+            USER_SELECT_SQL
+            + """
+            WHERE u.id = %s
             """,
             (user_id,),
         ).fetchone()

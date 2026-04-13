@@ -516,9 +516,10 @@ class AssessmentService:
             session_row = connection.execute(
                 """
                 SELECT us.id, us.session_code, us.user_id, u.full_name, u.job_description,
-                       u.raw_position, u.raw_duties, u.normalized_duties
+                       p.raw_position, p.raw_duties, p.normalized_duties
                 FROM user_sessions us
                 JOIN users u ON u.id = us.user_id
+                LEFT JOIN user_role_profiles p ON p.id = u.active_profile_id
                 WHERE us.session_code = %s
                   AND us.assessment_code = 'competencies_4k'
                 LIMIT 1

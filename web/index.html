@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>4K Ассистент</title>
+  <link rel="stylesheet" href="/web/app.css">
+</head>
+<body>
+  <div id="app-loader" class="app-loader hidden" aria-live="polite">
+    <div class="app-loader-card">
+      <div class="app-loader-spinner"></div>
+      <strong id="app-loader-title">Подождите, пожалуйста</strong>
+      <p id="app-loader-text">Система обрабатывает ваш запрос.</p>
+    </div>
+  </div>
+  <main class="shell">
+    <section class="panel auth-panel" id="auth-panel">
+      <div class="brand">4K Ассистент</div>
+      <h1>Вход в систему</h1>
+      <p class="subtitle">Введите номер телефона, а затем система либо откроет диалог с профилем, либо зарегистрирует нового пользователя.</p>
+      <form id="phone-form" class="stack">
+        <label class="field">
+          <span>Телефон</span>
+          <input id="phone-input" name="phone" type="tel" placeholder="+7 999 999 99 99" autocomplete="tel" required>
+        </label>
+        <button type="submit" class="primary-button">Продолжить</button>
+      </form>
+      <p id="auth-error" class="error" hidden></p>
+    </section>
+
+    <section class="panel onboarding-panel hidden" id="onboarding-panel">
+      <div class="onboarding-shell">
+        <div class="onboarding-copy">
+          <div class="step-badge" id="step-badge">Шаг 01</div>
+          <h2 id="onboarding-title">Познакомьтесь с AI-ассистентом</h2>
+          <p class="subtitle" id="onboarding-description"></p>
+          <div class="feature-list" id="feature-list"></div>
+          <div class="onboarding-actions">
+            <button id="onboarding-next" type="button" class="primary-button">Далее</button>
+            <button id="onboarding-skip" type="button" class="ghost-button">Пропустить</button>
+          </div>
+        </div>
+        <div class="onboarding-visual" id="onboarding-visual"></div>
+      </div>
+    </section>
+
+    <section class="panel dashboard-panel hidden" id="dashboard-panel">
+      <div class="dashboard-topbar">
+        <div class="brand dashboard-brand">4K Ассистент</div>
+        <div class="dashboard-topbar-actions">
+          <span class="topbar-icon">◦</span>
+          <button id="profile-settings-button" class="icon-button profile-settings-button" type="button" aria-label="Настройки профиля">⚙</button>
+          <div class="user-chip">
+            <div class="user-chip-copy">
+              <strong id="dashboard-user-name">Александр</strong>
+              <span id="dashboard-user-role">Product Lead</span>
+            </div>
+            <div id="dashboard-avatar" class="user-avatar">А</div>
+          </div>
+          <button id="dashboard-restart-button" class="ghost-button compact-ghost" type="button">Новый поиск</button>
+        </div>
+      </div>
+
+      <div class="dashboard-hero">
+        <div>
+          <h2 id="dashboard-greeting">Добро пожаловать</h2>
+          <p class="dashboard-subtitle">Ваш текущий прогресс развития компетенций за этот квартал</p>
+        </div>
+      </div>
+
+      <section class="dashboard-section">
+        <p class="section-label accent-label">Продолжить ассессмент</p>
+        <div class="assessment-card">
+          <div class="assessment-icon">4K</div>
+          <div class="assessment-copy">
+            <h3 id="assessment-title">4K Competency Assessment</h3>
+            <p id="assessment-description"></p>
+            <div class="assessment-meta">
+              <span id="assessment-status-label" class="assessment-state"></span>
+              <span id="assessment-cases-label"></span>
+            </div>
+            <div class="progress-track">
+              <div id="assessment-progress-bar" class="progress-bar"></div>
+            </div>
+          </div>
+          <div class="assessment-actions">
+            <strong id="assessment-progress-value">0%</strong>
+            <button id="assessment-action-button" type="button" class="primary-button">Продолжить</button>
+            <button type="button" class="link-button">Пройти позже</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="dashboard-section">
+        <div class="section-row">
+          <div>
+            <p class="section-label">Библиотека</p>
+            <h3 class="dashboard-section-title">Доступные ассессменты</h3>
+          </div>
+          <button type="button" class="text-link">Смотреть все</button>
+        </div>
+        <div id="available-assessments" class="assessment-grid"></div>
+      </section>
+
+      <section class="dashboard-section">
+        <div>
+          <p class="section-label">Ваши отчеты</p>
+          <h3 class="dashboard-section-title">Отчеты по ассессменту</h3>
+        </div>
+        <div id="reports-list" class="reports-list"></div>
+      </section>
+    </section>
+
+    <section class="panel ai-welcome-panel hidden" id="ai-welcome-panel">
+      <div class="dashboard-topbar">
+        <div class="brand dashboard-brand">4K Ассистент</div>
+        <div class="dashboard-topbar-actions">
+          <span class="topbar-icon">◦</span>
+          <button class="icon-button" type="button" aria-label="Уведомления">⌁</button>
+          <button class="icon-button" type="button" aria-label="Настройки">⚙</button>
+          <button id="new-user-exit-button" class="ghost-button compact-ghost" type="button">Выйти</button>
+        </div>
+      </div>
+
+      <div class="ai-welcome-shell">
+        <section class="ai-hero-card">
+          <div class="ai-hero-copy">
+            <h2>Добро пожаловать в систему AI-оценки</h2>
+            <p>Пройдите первый ассессмент, чтобы получить ваш профиль компетенций и персонализированные рекомендации от искусственного интеллекта.</p>
+            <button id="start-first-assessment" type="button" class="primary-button">Начать первый ассессмент</button>
+          </div>
+          <div class="ai-hero-illustration">◔</div>
+        </section>
+
+        <section class="ai-library-section">
+          <div>
+            <h3 class="dashboard-section-title compact-title">Доступны для прохождения</h3>
+            <p class="library-subtitle">Выберите тест для начала анализа</p>
+          </div>
+          <div class="assessment-grid static-grid">
+            <article class="assessment-mini-card">
+              <div class="mini-card-icon">4K</div>
+              <h3>Оценка 4К компетенций</h3>
+              <p>Комплексный анализ ключевых навыков будущего: Креативность, Критическое мышление, Коммуникация и Кооперация.</p>
+              <div class="mini-card-footer"><span>20 минут</span><button id="library-start-button" type="button" class="mini-start-button">Начать</button></div>
+            </article>
+            <article class="assessment-mini-card muted-card warm">
+              <div class="mini-card-icon muted-icon">◌</div>
+              <h3>Проверка профиля MBTI</h3>
+              <p>AI-анализ типа личности для понимания паттернов поведения и наиболее подходящих форматов работы.</p>
+              <div class="mini-card-footer"><span>15 минут</span><button type="button" class="mini-start-button">Начать</button></div>
+            </article>
+            <article class="assessment-mini-card muted-card disabled-card">
+              <div class="mini-card-icon muted-icon">◍</div>
+              <h3>OCEAN Test</h3>
+              <p>Инструмент оценки личностного профиля для дополнительной аналитики. Будет доступен в следующих релизах.</p>
+              <div class="mini-card-footer"><span>Скоро появится</span><button type="button" class="mini-start-button disabled" disabled>Скоро</button></div>
+            </article>
+          </div>
+        </section>
+
+        <section class="importance-card">
+          <div>
+            <p class="section-label accent-label">Почему это важно?</p>
+            <h3>Постройте свой карьерный трек на данных</h3>
+            <p>Ваш профиль в 4K Assistant это не просто результаты тестов. Это динамическая модель компетенций, которую вы можете использовать для развития, внутреннего роста и планирования обучения.</p>
+          </div>
+          <div class="importance-metric">
+            <strong>1.2M+</strong>
+            <span>пройдено ассессментов</span>
+          </div>
+        </section>
+      </div>
+    </section>
+
+    <section class="panel prechat-panel hidden" id="prechat-panel">
+      <div class="prechat-shell">
+        <div class="brand centered-brand">4K Ассистент</div>
+        <div class="prechat-copy">
+          <h2>Добро пожаловать в систему<br><span>ИИ-оценки</span></h2>
+          <p>Решите серию кейсов, чтобы узнать свой потенциал в 4К и определить MBTI профиль через нейросетевой анализ.</p>
+        </div>
+        <div class="prechat-steps">
+          <article class="prechat-step-card">
+            <div class="mini-card-icon">1</div>
+            <h3>1. Получение кейса</h3>
+            <p>Ознакомьтесь с подробными условиями бизнес-задачи, вводными данными и контекстом рынка.</p>
+          </article>
+          <article class="prechat-step-card">
+            <div class="mini-card-icon">2</div>
+            <h3>2. Свободный ответ</h3>
+            <p>Опишите свое решение в свободной форме. Мы ценим оригинальность мышления и аргументацию.</p>
+          </article>
+          <article class="prechat-step-card">
+            <div class="mini-card-icon">3</div>
+            <h3>3. Анализ</h3>
+            <p>Мульти-агентная система ИИ оценит ваши компетенции и сформирует детальный профиль навыков.</p>
+          </article>
+        </div>
+        <button id="prechat-start-button" type="button" class="primary-button prechat-start">Начать</button>
+        <p class="prechat-duration">Ориентировочное время: 45 минут</p>
+        <div class="prechat-social-proof">Более 12,000 профессионалов уже прошли этот ассессмент</div>
+      </div>
+    </section>
+
+    <section class="panel interview-panel hidden" id="interview-panel">
+      <div class="interview-topbar">
+        <div class="interview-title-row">
+          <strong id="interview-section-title">Интервью</strong>
+          <span id="interview-case-badge" class="interview-case-badge">Кейс 1 из 5</span>
+        </div>
+        <div class="interview-progress-labels">
+          <span class="active">Оценка</span>
+          <span>Анализ</span>
+          <span>Результаты</span>
+        </div>
+        <div class="interview-progress-line">
+          <div class="interview-progress-fill"></div>
+        </div>
+      </div>
+
+      <div class="interview-layout">
+        <aside class="case-sidebar">
+          <div class="case-sidebar-header">
+            <strong>Маршрут по кейсам</strong>
+            <span id="interview-route-label">Подготовка</span>
+          </div>
+          <div id="case-progress-list" class="case-progress-list"></div>
+        </aside>
+
+        <div class="interview-main">
+          <div class="interview-case-header">
+            <div class="interview-case-heading">
+              <h3 id="interview-case-title">Кейс</h3>
+              <span id="interview-timer-badge" class="interview-timer-badge">00:00</span>
+            </div>
+            <p id="interview-case-status">Ожидается запуск интервью</p>
+          </div>
+
+          <div id="interview-messages" class="interview-messages"></div>
+          <div id="interview-summary" class="interview-summary hidden"></div>
+
+          <form id="interview-form" class="interview-form">
+            <textarea id="interview-textarea" placeholder="Опишите ваше решение..."></textarea>
+            <div class="interview-form-footer">
+              <span id="interview-footer-text">Рекомендуется минимум 200 символов</span>
+              <div class="interview-action-buttons">
+                <button id="interview-finish-button" type="button" class="ghost-button interview-finish-button">Завершить кейс</button>
+                <button id="interview-submit-button" type="submit" class="primary-button">Отправить ответ</button>
+              </div>
+            </div>
+          </form>
+          <p id="interview-error" class="error" hidden></p>
+          <p class="interview-footnote">Ответы анализируются алгоритмами AI для оценки компетенций</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel chat-panel hidden" id="chat-panel">
+      <div class="chat-header">
+        <div>
+          <div class="brand">4K Ассистент</div>
+          <h2>Агент профиля сотрудника</h2>
+        </div>
+        <button id="restart-button" class="ghost-button" type="button">Новый поиск</button>
+      </div>
+
+      <div id="status-card" class="status-card hidden"></div>
+      <div id="messages" class="messages"></div>
+
+      <form id="chat-form" class="chat-form">
+        <input id="chat-input" type="text" placeholder="Введите ответ..." autocomplete="off" required>
+        <button type="submit" class="primary-button">Отправить</button>
+      </form>
+      <p id="chat-error" class="error" hidden></p>
+    </section>
+  </main>
+
+  <script src="/web/app.js" defer></script>
+</body>
+</html>

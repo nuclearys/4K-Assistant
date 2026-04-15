@@ -549,7 +549,7 @@ class AssessmentService:
                 session_case_id,
                 deepseek_client.model,
                 prompt_text,
-                f"Personalized case context: {personalized_context}\nPersonalized task: {personalized_task}\nplanned_total_duration_min: {planned_total_duration_min}",
+                f"Personalized case context: {personalized_context}\nPersonalized task: {personalized_task}",
                 prompt_text,
             ),
         )

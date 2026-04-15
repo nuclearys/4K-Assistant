@@ -130,7 +130,6 @@ class DeepSeekClient:
             f"Персонализированный контекст: {personalized_context}\n"
             f"Персонализированное задание: {personalized_task}\n"
             f"Персонализация шаблона: {json.dumps(personalization_map, ensure_ascii=False)}\n"
-            f"Плановое время кейса (мин): {planned_total_duration_min if planned_total_duration_min is not None else 'Не указано'}\n"
             f"Оцениваемые навыки: {', '.join(case_skills) if case_skills else 'Не указаны'}\n"
             "Обязательно используй уже заполненные персонализированные данные в финальном системном промпте, "
             "не оставляй фигурных скобок и не возвращай шаблонные переменные."
@@ -322,8 +321,6 @@ class DeepSeekClient:
             "\n".join(filter(None, [case_context, case_task, personalization_variables or ""]))
         )
         placeholders = list(placeholders)
-        if "planned_total_duration_min" not in placeholders:
-            placeholders.append("planned_total_duration_min")
 
         fallback = self._fallback_personalization_map(
             placeholders=placeholders,
@@ -349,7 +346,6 @@ class DeepSeekClient:
             f"Кейс: {case_title}\n"
             f"Контекст шаблона: {case_context}\n"
             f"Задание шаблона: {case_task}\n"
-            f"Плановое время кейса в минутах: {planned_total_duration_min if planned_total_duration_min is not None else 'Не указано'}\n"
             f"Переменные: {', '.join(placeholders)}"
         )
         try:
@@ -670,7 +666,6 @@ class DeepSeekClient:
             "критичное действие / этап процесса": f"ключевой этап процесса {process}",
             "источник данных / карточка обращения / переписка / статус в системе": "карточка обращения и история переписки в CRM",
             "ограничения/полномочия": profile_constraints[0] if profile_constraints else "можете уточнять детали, согласовывать корректирующие действия и эскалировать проблему профильной команде",
-            "planned_total_duration_min": str(planned_total_duration_min if planned_total_duration_min is not None else ""),
             "масштаб кейса": self._resolve_role_scope(role_name),
         }
         if role_vocabulary.get("work_entities"):
@@ -756,20 +751,20 @@ class DeepSeekClient:
         if "проблем" in label:
             return f"некорректный результат в процессе {process}"
         if "контекст" in label or "обязанност" in label:
-            return f"сопровождение задач в области {domain}"
+            return f"рабочий контекст процесса {process}"
         return f"процесс {process} в области {domain}"
 
     def _normalize_profile_text(self, value: str | None, *, fallback: str) -> str:
         cleaned = (value or "").strip()
         lowered = cleaned.lower()
-        if not cleaned or lowered in {"изменений нет", "нет изменений", "нет измеенний", "не изменилось"}:
+        if not cleaned or lowered in {"изменений нет", "нет изменений", "нет измеенний", "не изменилось", "не изменений", "без изменений"}:
             return fallback
         return cleaned
 
     def _sanitize_personalization_value(self, value: str) -> str:
         cleaned = (value or "").strip().strip(".")
         lowered = cleaned.lower()
-        if lowered in {"изменений нет", "нет изменений", "нет измеенний", "не изменилось"}:
+        if lowered in {"изменений нет", "нет изменений", "нет измеенний", "не изменилось", "не изменений", "без изменений"}:
             return ""
         if cleaned.startswith("{") and cleaned.endswith("}"):
             cleaned = cleaned[1:-1].strip()
@@ -803,23 +798,18 @@ class DeepSeekClient:
         result = text or ""
         scope_text = self._resolve_role_scope(role_name)
         result = re.sub(
-            r"для L\s*[—-]\s*участок,\s*для M\s*[—-]\s*команда(?:\s*или\s*процесс)?",
+            r"для\s+L\s*[—-]\s*участок(?:а)?\s*,?\s*для\s+M\s*[—-]\s*команда(?:\s*или\s*процесс)?",
             scope_text,
             result,
             flags=re.IGNORECASE,
         )
-        if planned_total_duration_min is not None:
-            result = re.sub(
-                r"planned_total_duration_min\s*:?\s*\d*",
-                f"плановое время кейса: {planned_total_duration_min} мин",
-                result,
-                flags=re.IGNORECASE,
-            )
+        result = re.sub(r"planned_total_duration_min\s*:?\s*\d*", "", result, flags=re.IGNORECASE)
         result = result.replace("Нет измеенний", "Не указаны")
-        result = re.sub(r"\bизменений нет\b", role_name or "Не указано", result, flags=re.IGNORECASE)
-        result = re.sub(r"рабочий контекст в области [^.,;\n\"]+", "рабочий контекст по профилю пользователя", result, flags=re.IGNORECASE)
+        result = re.sub(r"\b(изменений нет|нет изменений|нет измеенний|не изменилось|не изменений|без изменений)\b", role_name or "Не указано", result, flags=re.IGNORECASE)
+        result = re.sub(r"рабочий контекст в области [^.,;\n\"]+", "рабочий контекст процесса, соответствующего кейсу и профилю пользователя", result, flags=re.IGNORECASE)
         result = re.sub(r"\s{2,}", " ", result)
         result = re.sub(r"\.\.", ".", result)
+        result = re.sub(r"\n\s*\n+", "\n", result)
         return result.strip()
 
 

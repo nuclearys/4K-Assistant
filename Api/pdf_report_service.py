@@ -13,16 +13,12 @@ from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
+from Api.database import get_level_percent_map
+
 
 class PdfReportService:
     FONT_NAME = "ArialUnicodeAgent4K"
     FONT_PATH = Path("/System/Library/Fonts/Supplemental/Arial Unicode.ttf")
-    LEVEL_PERCENT = {
-        "L1": 45,
-        "L2": 70,
-        "L3": 92,
-        "N/A": 12,
-    }
 
     def __init__(self) -> None:
         self._font_registered = False
@@ -65,7 +61,7 @@ class PdfReportService:
         ).fetchall()
         return [dict(row) for row in rows]
 
-    def _group_by_competency(self, rows: list[dict]) -> list[dict]:
+    def _group_by_competency(self, rows: list[dict], level_percent_map: dict[str, int]) -> list[dict]:
         grouped: dict[str, list[dict]] = defaultdict(list)
         for row in rows:
             grouped[row["competency_name"] or "Без категории"].append(row)
@@ -73,7 +69,7 @@ class PdfReportService:
         result: list[dict] = []
         for competency_name, skills in grouped.items():
             avg_percent = round(
-                sum(self.LEVEL_PERCENT.get(skill["assessed_level_code"], 0) for skill in skills) / len(skills)
+                sum(level_percent_map.get(skill["assessed_level_code"], 0) for skill in skills) / len(skills)
             )
             result.append(
                 {
@@ -111,7 +107,8 @@ class PdfReportService:
         if not assessments:
             raise ValueError("No skill assessments found for this session")
 
-        grouped_rows = self._group_by_competency(assessments)
+        level_percent_map = get_level_percent_map(connection)
+        grouped_rows = self._group_by_competency(assessments, level_percent_map)
         overall_score = round(sum(item["avg_percent"] for item in grouped_rows) / len(grouped_rows))
         strongest = max(grouped_rows, key=lambda item: item["avg_percent"])
         recommendations = self._build_recommendations(grouped_rows)
@@ -267,7 +264,7 @@ class PdfReportService:
             story.append(Paragraph(item["competency_name"], heading_style))
             table_data = [["Навык", "Уровень", "Прогресс", "Комментарий"]]
             for skill in item["skills"]:
-                percent = self.LEVEL_PERCENT.get(skill["assessed_level_code"], 0)
+                percent = level_percent_map.get(skill["assessed_level_code"], 0)
                 table_data.append(
                     [
                         Paragraph(skill["skill_name"], body_style),

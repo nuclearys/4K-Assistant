@@ -133,6 +133,7 @@ class ConversationMode(StrEnum):
 class ConversationStage(StrEnum):
     ASK_POSITION = "ask_position"
     ASK_DUTIES = "ask_duties"
+    ASK_ROLE = "ask_role"
     ASK_COMPANY_INDUSTRY = "ask_company_industry"
     ASK_FULL_NAME = "ask_full_name"
     COMPLETE = "complete"
@@ -158,6 +159,7 @@ class ConversationState:
     full_name: str | None = None
     position: str | None = None
     duties: str | None = None
+    selected_role_id: int | None = None
     company_industry: str | None = None
     history: list[dict[str, str]] = field(default_factory=list)
 
@@ -253,12 +255,16 @@ class InterviewerAgent:
         duties: str | None = None,
         normalized_duties: str | None = None,
     ) -> str | None:
+        fallback = self._normalize_company_industry_fallback(company_industry)
+        if fallback:
+            return fallback
+
         normalized = deepseek_client.normalize_company_industry(
             company_industry=company_industry,
             position=position,
             duties=duties or normalized_duties,
         )
-        return normalized or self._normalize_company_industry_fallback(company_industry)
+        return normalized or fallback
 
     def _cleanup_duty_item(self, item: str) -> str | None:
         cleaned = item.strip(" \t\n\r-•—,;:.")
@@ -296,8 +302,10 @@ class InterviewerAgent:
         return items
 
     def normalize_duties(self, position: str | None, duties: str | None) -> str | None:
-        llm_items = deepseek_client.normalize_duties(position=position, duties=duties)
-        items = llm_items or self._fallback_normalize_duties_items(duties)
+        fallback_items = self._fallback_normalize_duties_items(duties)
+        items = fallback_items
+        if not items:
+            items = deepseek_client.normalize_duties(position=position, duties=duties) or []
         if not items:
             return None
 
@@ -328,6 +336,46 @@ class InterviewerAgent:
                 """
             ).fetchall()
         return [dict(row) for row in rows]
+
+    def _load_selectable_roles(self) -> list[dict]:
+        return [role for role in self._load_roles() if role.get("code") in {"linear_employee", "manager", "leader"}]
+
+    def _build_role_options(self) -> list[dict[str, str | int]]:
+        return [
+            {
+                "id": int(role["id"]),
+                "code": str(role["code"]),
+                "name": str(role["name"]),
+            }
+            for role in self._load_selectable_roles()
+        ]
+
+    def _resolve_selected_role(self, value: str | None) -> RoleMatch | None:
+        normalized = self.normalize_text(value)
+        if not normalized:
+            return None
+
+        for role in self._load_selectable_roles():
+            if normalized == str(role["id"]):
+                return RoleMatch(
+                    role_id=role["id"],
+                    code=role["code"],
+                    name=role["name"],
+                    confidence=1.0,
+                    rationale="Роль выбрана пользователем при регистрации.",
+                )
+
+            role_name = self.normalize_text(role.get("name"))
+            role_code = self.normalize_text(role.get("code"))
+            if normalized == role_name or normalized == role_code:
+                return RoleMatch(
+                    role_id=role["id"],
+                    code=role["code"],
+                    name=role["name"],
+                    confidence=1.0,
+                    rationale="Роль выбрана пользователем при регистрации.",
+                )
+        return None
 
     def _parse_bullets(self, value: str | None) -> list[str]:
         if not value:
@@ -754,6 +802,91 @@ class InterviewerAgent:
         ).fetchone()
         return self._build_user_response(row)
 
+    def _build_backfill_payload(self, user: UserResponse) -> tuple[str | None, str | None, str | None, RoleMatch | None]:
+        position = user.raw_position or user.job_description
+        duties = user.raw_duties or user.normalized_duties
+        normalized_duties = user.normalized_duties or self.normalize_duties(position, duties)
+
+        role_match: RoleMatch | None = None
+        if user.role_id:
+            role_match = self._resolve_selected_role(str(user.role_id))
+        if role_match is None:
+            role_match = self.detect_role(position, duties, normalized_duties)
+
+        company_industry = user.company_industry
+        if not (company_industry and company_industry.strip()):
+            company_industry = self._infer_domain(position, duties or normalized_duties, user.company_industry)
+
+        return position, duties, company_industry, role_match
+
+    def backfill_user_profile(self, user_id: int) -> UserResponse | None:
+        with get_connection() as connection:
+            row = connection.execute(
+                USER_SELECT_SQL
+                + """
+                WHERE u.id = %s
+                LIMIT 1
+                """,
+                (user_id,),
+            ).fetchone()
+            if row is None:
+                return None
+
+            user = self._build_user_response(row)
+            position, duties, company_industry, role_match = self._build_backfill_payload(user)
+            normalized_duties = user.normalized_duties or self.normalize_duties(position, duties)
+
+            connection.execute(
+                """
+                UPDATE users
+                SET job_description = COALESCE(%s, job_description),
+                    role_id = COALESCE(%s, role_id),
+                    company_industry = COALESCE(%s, company_industry)
+                WHERE id = %s
+                """,
+                (
+                    self._clean_position(position),
+                    role_match.role_id if role_match else None,
+                    company_industry,
+                    user_id,
+                ),
+            )
+
+            self._save_user_profile(
+                connection=connection,
+                user_id=user_id,
+                raw_position=position,
+                raw_duties=duties,
+                normalized_duties=normalized_duties,
+                company_industry=company_industry,
+                role_match=role_match,
+            )
+            connection.commit()
+            return self._load_user_by_id(connection, user_id)
+
+    def backfill_incomplete_users(self) -> int:
+        updated = 0
+        with get_connection() as connection:
+            rows = connection.execute(
+                USER_SELECT_SQL
+                + """
+                WHERE COALESCE(u.phone, '') <> ''
+                  AND (
+                    u.role_id IS NULL
+                    OR NULLIF(TRIM(COALESCE(u.company_industry, '')), '') IS NULL
+                    OR u.active_profile_id IS NULL
+                    OR NULLIF(TRIM(COALESCE(p.normalized_duties, '')), '') IS NULL
+                  )
+                ORDER BY u.id ASC
+                """
+            ).fetchall()
+
+        for row in rows:
+            user = self._build_user_response(row)
+            if self.backfill_user_profile(user.id) is not None:
+                updated += 1
+        return updated
+
     def create_user(
         self,
         *,
@@ -761,6 +894,7 @@ class InterviewerAgent:
         phone: str,
         position: str | None,
         duties: str | None,
+        selected_role_id: int | None,
         company_industry: str | None,
         progress_operation_id: str | None = None,
     ) -> tuple[UserResponse, RoleMatch | None]:
@@ -776,10 +910,10 @@ class InterviewerAgent:
         operation_progress_service.advance(
             progress_operation_id,
             2,
-            title="Определяем роль пользователя",
-            message="Сопоставляем профиль пользователя с доступными ролевыми моделями.",
+            title="Сохраняем выбранную роль",
+            message="Фиксируем роль, которую пользователь выбрал в процессе регистрации.",
         )
-        role_match = self.detect_role(clean_position, duties, normalized_duties)
+        role_match = self._resolve_selected_role(str(selected_role_id) if selected_role_id is not None else None)
         with get_connection() as connection:
             row = connection.execute(
                 """
@@ -824,6 +958,7 @@ class InterviewerAgent:
         user_id: int,
         position: str | None,
         duties: str | None,
+        selected_role_id: int | None,
         company_industry: str | None,
         progress_operation_id: str | None = None,
     ) -> tuple[UserResponse, RoleMatch | None]:
@@ -838,10 +973,10 @@ class InterviewerAgent:
         operation_progress_service.advance(
             progress_operation_id,
             2,
-            title="Определяем роль пользователя",
-            message="Переоцениваем ролевой профиль на основе обновленных данных.",
+            title="Сохраняем выбранную роль",
+            message="Фиксируем роль, выбранную пользователем при обновлении профиля.",
         )
-        role_match = self.detect_role(clean_position, duties, normalized_duties)
+        role_match = self._resolve_selected_role(str(selected_role_id) if selected_role_id is not None else None)
         with get_connection() as connection:
             row = connection.execute(
                 """
@@ -922,6 +1057,7 @@ class InterviewerAgent:
             stage=state.stage,
             completed=False,
             user=user,
+            role_options=self._build_role_options() if state.stage == ConversationStage.ASK_ROLE else None,
         )
 
     def reply(self, session_id: str, message: str, progress_operation_id: str | None = None) -> AgentReply:
@@ -943,13 +1079,17 @@ class InterviewerAgent:
 
     def _build_role_reply_suffix(self, role_match: RoleMatch | None) -> str:
         if role_match is None:
-            return "Роль определить автоматически не удалось."
-        confidence_percent = round(role_match.confidence * 100)
-        return (
-            f"Определенная роль: {role_match.name} ({role_match.code}). "
-            f"Уверенность определения: {confidence_percent}%. "
-            f"Причина: {role_match.rationale}"
-        )
+            return "Роль пользователя не выбрана."
+        return f"Выбранная роль: {role_match.name} ({role_match.code})."
+
+    def _get_missing_profile_stage_for_existing_user(self, user: UserResponse | None) -> ConversationStage | None:
+        if user is None:
+            return None
+        if not user.role_id:
+            return ConversationStage.ASK_ROLE
+        if not (user.company_industry and user.company_industry.strip()):
+            return ConversationStage.ASK_COMPANY_INDUSTRY
+        return None
 
     def _handle_existing_user(self, state: ConversationState, text: str, *, progress_operation_id: str | None = None) -> AgentReply:
         if state.stage == ConversationStage.COMPLETE:
@@ -961,20 +1101,45 @@ class InterviewerAgent:
             )
 
         if _means_no_changes(text):
+            missing_stage = self._get_missing_profile_stage_for_existing_user(state.user)
+            if missing_stage == ConversationStage.ASK_ROLE:
+                state.stage = ConversationStage.ASK_ROLE
+                reply_text = (
+                    "Понял, изменения в должности и обязанностях не требуются. "
+                    "Чтобы продолжить работу с кейсами, выберите вашу роль в системе из списка ниже."
+                )
+                state.history.append({"role": "assistant", "content": reply_text})
+                return AgentReply(
+                    session_id=state.session_id,
+                    message=reply_text,
+                    stage=state.stage,
+                    completed=False,
+                    user=state.user,
+                    role_options=self._build_role_options(),
+                )
+            if missing_stage == ConversationStage.ASK_COMPANY_INDUSTRY:
+                state.stage = ConversationStage.ASK_COMPANY_INDUSTRY
+                reply_text = (
+                    "Понял, изменения в должности и обязанностях не требуются. "
+                    "Осталось указать сферу деятельности компании, чтобы корректно подготовить дальнейший сценарий."
+                )
+                state.history.append({"role": "assistant", "content": reply_text})
+                return AgentReply(
+                    session_id=state.session_id,
+                    message=reply_text,
+                    stage=state.stage,
+                    completed=False,
+                    user=state.user,
+                )
+
             state.stage = ConversationStage.COMPLETE
             operation_progress_service.advance(
                 progress_operation_id,
                 4,
                 title="Подготавливаем следующий экран",
-                message="Профиль актуален. Проверяем оценочную сессию и готовим следующий шаг.",
+                message="Профиль актуален. Завершаем сценарий и открываем следующий экран.",
             )
-            plan = assessment_service.ensure_assessment_session(state.user, progress_operation_id=progress_operation_id) if state.user is not None else None
             reply_text = "Спасибо за информацию. Повторно заполнять профиль не требуется."
-            if plan is not None:
-                reply_text += (
-                    f" Стартовый набор кейсов уже подготовлен: {plan.total_cases} кейсов. "
-                    f"Первый кейс: {plan.current_case_title or 'будет назначен автоматически'}."
-                )
             state.history.append({"role": "assistant", "content": reply_text})
             return AgentReply(
                 session_id=state.session_id,
@@ -982,10 +1147,6 @@ class InterviewerAgent:
                 stage=state.stage,
                 completed=True,
                 user=state.user,
-                assessment_session_code=plan.session_code if plan else None,
-                assessment_case_title=plan.current_case_title if plan else None,
-                assessment_case_number=plan.current_case_number if plan else None,
-                assessment_total_cases=plan.total_cases if plan else None,
             )
 
         if state.stage == ConversationStage.ASK_POSITION:
@@ -1002,6 +1163,33 @@ class InterviewerAgent:
 
         if state.stage == ConversationStage.ASK_DUTIES:
             state.duties = text
+            state.stage = ConversationStage.ASK_ROLE
+            reply_text = (
+                "Спасибо. Теперь выберите вашу роль в системе из списка ниже. "
+                "Можно выбрать только один вариант."
+            )
+            state.history.append({"role": "assistant", "content": reply_text})
+            return AgentReply(
+                session_id=state.session_id,
+                message=reply_text,
+                stage=state.stage,
+                completed=False,
+                role_options=self._build_role_options(),
+            )
+
+        if state.stage == ConversationStage.ASK_ROLE:
+            role_match = self._resolve_selected_role(text)
+            if role_match is None:
+                reply_text = "Не удалось распознать роль. Пожалуйста, выберите один вариант из списка."
+                state.history.append({"role": "assistant", "content": reply_text})
+                return AgentReply(
+                    session_id=state.session_id,
+                    message=reply_text,
+                    stage=state.stage,
+                    completed=False,
+                    role_options=self._build_role_options(),
+                )
+            state.selected_role_id = role_match.role_id
             state.stage = ConversationStage.ASK_COMPANY_INDUSTRY
             reply_text = (
                 "Спасибо. Теперь укажите сферу деятельности компании, в которой вы работаете. "
@@ -1020,6 +1208,7 @@ class InterviewerAgent:
             user_id=state.user_id or 0,
             position=state.position,
             duties=state.duties,
+            selected_role_id=state.selected_role_id,
             company_industry=state.company_industry,
             progress_operation_id=progress_operation_id,
         )
@@ -1029,17 +1218,11 @@ class InterviewerAgent:
             progress_operation_id,
             4,
             title="Подготавливаем следующий экран",
-            message="Профиль обновлен. Проверяем оценочную сессию и финализируем сценарий.",
+            message="Профиль обновлен. Завершаем сценарий и открываем следующий экран.",
         )
-        plan = assessment_service.ensure_assessment_session(user, progress_operation_id=progress_operation_id)
         reply_text = "Готово. Я обновил данные пользователя в базе. " + self._build_role_reply_suffix(role_match)
         if user.normalized_duties:
             reply_text += " Нормализованный список обязанностей также сохранен в профиле."
-        if plan is not None:
-            reply_text += (
-                f" Для пользователя сформирован стартовый набор из {plan.total_cases} кейсов, "
-                f"покрывающих обязательные навыки роли."
-            )
         state.history.append({"role": "assistant", "content": reply_text})
         return AgentReply(
             session_id=state.session_id,
@@ -1052,10 +1235,6 @@ class InterviewerAgent:
             detected_role_name=role_match.name if role_match else None,
             detected_role_confidence=role_match.confidence if role_match else None,
             detected_role_rationale=role_match.rationale if role_match else None,
-            assessment_session_code=plan.session_code if plan else None,
-            assessment_case_title=plan.current_case_title if plan else None,
-            assessment_case_number=plan.current_case_number if plan else None,
-            assessment_total_cases=plan.total_cases if plan else None,
         )
 
     def _handle_new_user(self, state: ConversationState, text: str, *, progress_operation_id: str | None = None) -> AgentReply:
@@ -1093,6 +1272,33 @@ class InterviewerAgent:
 
         if state.stage == ConversationStage.ASK_DUTIES:
             state.duties = text
+            state.stage = ConversationStage.ASK_ROLE
+            reply_text = (
+                "Отлично. Теперь выберите вашу роль в системе из списка ниже. "
+                "Можно выбрать только один вариант."
+            )
+            state.history.append({"role": "assistant", "content": reply_text})
+            return AgentReply(
+                session_id=state.session_id,
+                message=reply_text,
+                stage=state.stage,
+                completed=False,
+                role_options=self._build_role_options(),
+            )
+
+        if state.stage == ConversationStage.ASK_ROLE:
+            role_match = self._resolve_selected_role(text)
+            if role_match is None:
+                reply_text = "Не удалось распознать роль. Пожалуйста, выберите один вариант из списка."
+                state.history.append({"role": "assistant", "content": reply_text})
+                return AgentReply(
+                    session_id=state.session_id,
+                    message=reply_text,
+                    stage=state.stage,
+                    completed=False,
+                    role_options=self._build_role_options(),
+                )
+            state.selected_role_id = role_match.role_id
             state.stage = ConversationStage.ASK_COMPANY_INDUSTRY
             reply_text = (
                 "Отлично. Теперь укажите сферу деятельности компании, в которой вы работаете. "
@@ -1112,6 +1318,7 @@ class InterviewerAgent:
             phone=state.phone,
             position=state.position,
             duties=state.duties,
+            selected_role_id=state.selected_role_id,
             company_industry=state.company_industry,
             progress_operation_id=progress_operation_id,
         )
@@ -1121,17 +1328,11 @@ class InterviewerAgent:
             progress_operation_id,
             4,
             title="Подготавливаем следующий экран",
-            message="Пользователь создан. Проверяем оценочную сессию и готовим следующий шаг.",
+            message="Пользователь создан. Завершаем регистрацию и открываем следующий экран.",
         )
-        plan = assessment_service.ensure_assessment_session(user, progress_operation_id=progress_operation_id)
         reply_text = "Готово. Новый пользователь создан и сохранен в базе данных. " + self._build_role_reply_suffix(role_match)
         if user.normalized_duties:
             reply_text += " Нормализованный список обязанностей также сохранен в профиле."
-        if plan is not None:
-            reply_text += (
-                f" Система автоматически подобрала {plan.total_cases} кейсов для покрытия всех 13 навыков роли "
-                "и сохранила стартовую оценочную сессию."
-            )
         state.history.append({"role": "assistant", "content": reply_text})
         return AgentReply(
             session_id=state.session_id,
@@ -1144,10 +1345,6 @@ class InterviewerAgent:
             detected_role_name=role_match.name if role_match else None,
             detected_role_confidence=role_match.confidence if role_match else None,
             detected_role_rationale=role_match.rationale if role_match else None,
-            assessment_session_code=plan.session_code if plan else None,
-            assessment_case_title=plan.current_case_title if plan else None,
-            assessment_case_number=plan.current_case_number if plan else None,
-            assessment_total_cases=plan.total_cases if plan else None,
         )
 
     def start_case_interview(self, *, user: UserResponse, progress_operation_id: str | None = None) -> AssessmentStartResponse:

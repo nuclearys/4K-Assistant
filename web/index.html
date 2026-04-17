@@ -329,6 +329,105 @@
       </div>
     </section>
 
+    <section class="panel admin-report-detail-panel hidden" id="admin-report-detail-panel">
+      <div class="dashboard-topbar">
+        <div class="brand dashboard-brand">Отчет по оценке</div>
+        <div class="dashboard-topbar-actions">
+          <button id="admin-report-detail-pdf-button" class="ghost-button compact-ghost" type="button">Скачать PDF</button>
+          <button id="admin-report-detail-back-button" class="ghost-button compact-ghost" type="button">Назад</button>
+        </div>
+      </div>
+
+      <div class="report-shell admin-report-detail-shell">
+        <section class="report-hero">
+          <div class="report-hero-copy">
+            <h2>Отчет по оценке</h2>
+            <p id="admin-report-detail-date">Без даты</p>
+          </div>
+          <div class="report-hero-score">
+            <strong id="admin-report-detail-score">0%</strong>
+            <span>Итоговый 4K score</span>
+          </div>
+        </section>
+
+        <section class="report-overview-grid">
+          <article class="report-profile-card">
+            <div class="admin-detail-profile-head">
+              <div class="admin-detail-photo-card">
+                <div id="admin-report-detail-avatar" class="admin-detail-photo">A</div>
+                <span class="admin-detail-photo-status"></span>
+              </div>
+              <div class="admin-detail-profile-copy">
+                <strong id="admin-report-detail-name">Пользователь</strong>
+                <span id="admin-report-detail-role">Роль не указана</span>
+                <span id="admin-report-detail-group">Группа не указана</span>
+                <div class="admin-detail-profile-badges">
+                  <span class="admin-detail-badge">4K Report</span>
+                  <span class="admin-detail-badge muted" id="admin-report-detail-status-badge">Черновик</span>
+                </div>
+              </div>
+            </div>
+            <div class="report-profile-box">
+              <strong>Статус оценки</strong>
+              <p id="admin-report-detail-status">Черновик</p>
+            </div>
+          </article>
+
+          <article class="report-competencies-card">
+            <div class="report-card-head">
+              <div>
+                <p class="section-label accent-label">Компетенции (4К)</p>
+                <h3>Оценка ключевых навыков</h3>
+              </div>
+            </div>
+            <div id="admin-report-detail-competency-bars" class="admin-detail-competency-visual"></div>
+          </article>
+
+          <article class="report-insight-card admin-report-mbti-card">
+            <div class="report-card-head">
+              <div>
+                <p class="section-label accent-label">Профиль MBTI</p>
+                <h3 id="admin-report-detail-mbti-type">Нет данных</h3>
+              </div>
+              <span class="admin-detail-card-icon">⌘</span>
+            </div>
+            <p id="admin-report-detail-mbti-summary">Данные MBTI пока недоступны для этой записи.</p>
+            <div id="admin-report-detail-mbti-axes" class="admin-detail-mbti-axes"></div>
+          </article>
+        </section>
+
+        <section class="admin-detail-insights-card">
+          <div class="report-card-head">
+            <div>
+              <p class="section-label accent-label">Инсайты и рекомендации</p>
+              <h3>Сильные стороны и зоны роста</h3>
+            </div>
+            <span class="admin-detail-card-icon accent">✦</span>
+          </div>
+          <div class="admin-detail-insights-grid">
+            <article class="admin-detail-insight-column">
+              <strong>Сильные стороны</strong>
+              <ul id="admin-report-detail-strengths" class="report-recommendations"></ul>
+            </article>
+            <article class="admin-detail-insight-column">
+              <strong>Зоны роста</strong>
+              <ul id="admin-report-detail-growth" class="report-recommendations"></ul>
+            </article>
+          </div>
+        </section>
+
+        <section class="admin-detail-quotes-card">
+          <div class="report-card-head">
+            <div>
+              <p class="section-label accent-label">Цитаты из оценки</p>
+              <h3>Фрагменты, повлиявшие на результат</h3>
+            </div>
+          </div>
+          <div id="admin-report-detail-quotes" class="admin-detail-quotes-grid"></div>
+        </section>
+      </div>
+    </section>
+
     <section class="panel prechat-panel hidden" id="prechat-panel">
       <div class="prechat-shell">
         <div class="brand centered-brand">4K Ассистент</div>
@@ -645,6 +744,7 @@
 
       <div id="status-card" class="status-card hidden"></div>
       <div id="messages" class="messages"></div>
+      <div id="chat-role-options" class="chat-role-options hidden"></div>
 
       <form id="chat-form" class="chat-form">
         <input id="chat-input" type="text" placeholder="Введите ответ..." autocomplete="off" required>
@@ -654,6 +754,6 @@
     </section>
   </main>
 
-  <script src="/web/app.js?v=20260417-0031" defer></script>
+  <script src="/web/app.js?v=20260417-1548" defer></script>
 </body>
 </html>

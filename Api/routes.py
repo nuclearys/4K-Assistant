@@ -8,13 +8,14 @@ from fastapi.responses import Response
 
 from Api.admin_reports_pdf_service import admin_reports_pdf_service
 from Api.agent import interviewer_agent
-from Api.database import get_connection
+from Api.database import get_connection, get_level_percent_map
 from Api.pdf_report_service import pdf_report_service
 from Api.progress_service import operation_progress_service
 from Api.web_session_service import web_session_service
 from Api.schemas import (
     AdminDashboard,
     AdminDetailedReportItem,
+    AdminReportDetailResponse,
     AdminDetailedReportsResponse,
     AdminInsightCard,
     AdminMetricCard,
@@ -76,19 +77,18 @@ LOOKUP_USER_STEPS = [
 ]
 
 PROFILE_SAVE_STEPS = [
-    {"label": "Сохраняем данные пользователя", "description": "Фиксируем ФИО, должность, обязанности и сферу деятельности."},
     {"label": "Очищаем и нормализуем данные", "description": "Структурируем текст обязанностей и нормализуем входные значения."},
-    {"label": "Определяем роль пользователя", "description": "Сопоставляем профиль с ролевыми описаниями системы."},
-    {"label": "Формируем расширенный профиль", "description": "Собираем контекст для последующей персонализации кейсов."},
+    {"label": "Сохраняем выбранную роль", "description": "Фиксируем роль, которую пользователь выбрал из списка."},
+    {"label": "Формируем расширенный профиль", "description": "Собираем рабочий контекст пользователя для дальнейшей персонализации."},
     {"label": "Подготавливаем следующий экран", "description": "Завершаем сценарий и обновляем состояние пользователя."},
 ]
 
 ASSESSMENT_START_STEPS = [
-    {"label": "Проверяем профиль оценки", "description": "Уточняем роль пользователя и активную сессию оценки."},
-    {"label": "Подбираем релевантные кейсы", "description": "Выбираем набор кейсов, покрывающий нужные навыки."},
-    {"label": "Персонализируем материалы", "description": "Подставляем рабочий контекст пользователя в шаблоны кейсов."},
-    {"label": "Генерируем промты интервью", "description": "Создаем системные промты для ведения диалога по кейсам."},
-    {"label": "Подготавливаем интервью", "description": "Формируем первый кейс и открываем его в интерфейсе."},
+    {"label": "Проверяем профиль оценки", "description": "Уточняем роль пользователя и состояние активной assessment-сессии."},
+    {"label": "Подбираем релевантные кейсы", "description": "При необходимости выбираем набор кейсов, покрывающий нужные навыки."},
+    {"label": "Персонализируем материалы", "description": "При необходимости подставляем рабочий контекст пользователя в шаблоны кейсов."},
+    {"label": "Генерируем промты интервью", "description": "При необходимости создаем системные промты для ведения диалога по кейсам."},
+    {"label": "Подготавливаем интервью", "description": "Открываем текущий или первый готовый кейс в интерфейсе."},
 ]
 
 USER_SELECT_SQL = """
@@ -420,16 +420,10 @@ def _build_admin_dashboard(connection, period_key: str = "30d") -> AdminDashboar
         FROM (
             SELECT
                 us.id,
-                AVG(
-                    CASE ssa.assessed_level_code
-                        WHEN 'L1' THEN 45
-                        WHEN 'L2' THEN 70
-                        WHEN 'L3' THEN 92
-                        ELSE 12
-                    END
-                ) AS score_percent
+                AVG(COALESCE(alw.percent_value, 0)) AS score_percent
             FROM user_sessions us
             LEFT JOIN session_skill_assessments ssa ON ssa.session_id = us.id
+            LEFT JOIN assessment_level_weights alw ON alw.level_code = ssa.assessed_level_code
             WHERE us.assessment_code = 'competencies_4k'
             GROUP BY us.id
         ) AS score_stats
@@ -461,20 +455,12 @@ def _build_admin_dashboard(connection, period_key: str = "30d") -> AdminDashboar
     competency_rows = connection.execute(
         """
         SELECT
-            competency_name,
-            ROUND(
-                AVG(
-                    CASE assessed_level_code
-                        WHEN 'L1' THEN 45
-                        WHEN 'L2' THEN 70
-                        WHEN 'L3' THEN 92
-                        ELSE 12
-                    END
-                )
-            )::int AS avg_percent
-        FROM session_skill_assessments
-        GROUP BY competency_name
-        ORDER BY competency_name
+            ssa.competency_name,
+            ROUND(AVG(COALESCE(alw.percent_value, 0)))::int AS avg_percent
+        FROM session_skill_assessments ssa
+        LEFT JOIN assessment_level_weights alw ON alw.level_code = ssa.assessed_level_code
+        GROUP BY ssa.competency_name
+        ORDER BY ssa.competency_name
         """
     ).fetchall()
 
@@ -554,18 +540,10 @@ def _build_admin_reports(connection) -> AdminDetailedReportsResponse:
         LEFT JOIN (
             SELECT
                 session_id,
-                ROUND(
-                    AVG(
-                        CASE assessed_level_code
-                            WHEN 'L1' THEN 45
-                            WHEN 'L2' THEN 70
-                            WHEN 'L3' THEN 92
-                            ELSE 12
-                        END
-                    )
-                )::int AS overall_score_percent
-            FROM session_skill_assessments
-            GROUP BY session_id
+                ROUND(AVG(COALESCE(alw.percent_value, 0)))::int AS overall_score_percent
+                FROM session_skill_assessments ssa
+                LEFT JOIN assessment_level_weights alw ON alw.level_code = ssa.assessed_level_code
+                GROUP BY ssa.session_id
         ) AS score_stats ON score_stats.session_id = us.id
         WHERE us.assessment_code = 'competencies_4k'
           AND regexp_replace(COALESCE(u.phone, ''), '\\D', '', 'g') <> %s
@@ -598,6 +576,127 @@ def _build_admin_reports(connection) -> AdminDetailedReportsResponse:
         total_items=len(items),
         summary_score_percent=round(sum(score_values) / len(score_values), 1) if score_values else None,
         items=items,
+    )
+
+
+def _build_admin_report_detail(connection, session_id: int) -> AdminReportDetailResponse:
+    session_row = connection.execute(
+        """
+        SELECT
+            us.id AS session_id,
+            us.user_id,
+            us.status,
+            us.started_at,
+            us.finished_at,
+            u.full_name,
+            COALESCE(NULLIF(TRIM(u.company_industry), ''), 'Не указана') AS group_name,
+            COALESCE(NULLIF(TRIM(u.job_description), ''), 'Не указана') AS role_name
+        FROM user_sessions us
+        JOIN users u ON u.id = us.user_id
+        WHERE us.id = %s
+          AND us.assessment_code = 'competencies_4k'
+          AND regexp_replace(COALESCE(u.phone, ''), '\\D', '', 'g') <> %s
+        LIMIT 1
+        """,
+        (session_id, ADMIN_PHONE),
+    ).fetchone()
+    if session_row is None:
+        raise HTTPException(status_code=404, detail="Assessment report not found")
+
+    skill_rows = connection.execute(
+        """
+        SELECT
+            competency_name,
+            skill_name,
+            assessed_level_code,
+            assessed_level_name,
+            rationale,
+            evidence_excerpt
+        FROM session_skill_assessments
+        WHERE session_id = %s
+        ORDER BY competency_name ASC, skill_name ASC
+        """,
+        (session_id,),
+    ).fetchall()
+
+    grouped: dict[str, list[dict]] = {}
+    level_map = get_level_percent_map(connection)
+    for row in skill_rows:
+        competency = row["competency_name"] or "Без категории"
+        grouped.setdefault(competency, []).append(dict(row))
+
+    competency_average: list[dict[str, str | int]] = []
+    for competency_name, skills in grouped.items():
+        avg_percent = round(sum(level_map.get(skill["assessed_level_code"], 0) for skill in skills) / len(skills))
+        competency_average.append({"name": competency_name, "value": avg_percent})
+    competency_average.sort(key=lambda item: str(item["name"]))
+
+    if not competency_average:
+        competency_average = [
+            {"name": "Коммуникация", "value": 0},
+            {"name": "Командная работа", "value": 0},
+            {"name": "Креативность", "value": 0},
+            {"name": "Критическое мышление", "value": 0},
+        ]
+
+    score_values = [int(item["value"]) for item in competency_average if isinstance(item["value"], int)]
+    score_percent = round(sum(score_values) / len(score_values)) if score_values else None
+
+    strongest = sorted(competency_average, key=lambda item: int(item["value"]), reverse=True)[:2]
+    weakest = sorted(competency_average, key=lambda item: int(item["value"]))[:2]
+
+    strengths = [
+        f"Наиболее выраженный результат зафиксирован по направлению «{item['name']}» ({item['value']}%)."
+        for item in strongest
+        if int(item["value"]) > 0
+    ]
+    if not strengths:
+        strengths = ["Сильные стороны будут доступны после накопления результатов оценки по навыкам."]
+
+    growth_areas = [
+        f"Зона роста: направление «{item['name']}» требует дополнительного развития ({item['value']}%)."
+        for item in weakest
+    ]
+    if not growth_areas:
+        growth_areas = ["Зоны роста будут определены после появления оценок по сессии."]
+
+    quotes: list[str] = []
+    for row in skill_rows:
+        excerpt = (row["evidence_excerpt"] or "").strip()
+        if excerpt:
+          quotes.append(excerpt)
+        elif row["rationale"]:
+          quotes.append(str(row["rationale"]).strip())
+        if len(quotes) >= 3:
+            break
+    if not quotes:
+        quotes = [
+            "Цитаты из оценки пока недоступны. Для этого отчета не найдено сохраненных фрагментов ответа.",
+            "После появления evidence excerpts система покажет фразы пользователя, повлиявшие на итоговую оценку.",
+            "На данном этапе можно использовать общие рекомендации и профиль компетенций.",
+        ]
+
+    return AdminReportDetailResponse(
+        session_id=int(session_row["session_id"]),
+        user_id=int(session_row["user_id"]),
+        full_name=session_row["full_name"] or "Без имени",
+        role_name=session_row["role_name"],
+        group_name=session_row["group_name"],
+        status="Завершено" if session_row["status"] == "completed" else "В процессе" if session_row["status"] == "active" else "Черновик",
+        score_percent=score_percent,
+        report_date=session_row["finished_at"] or session_row["started_at"],
+        competency_average=competency_average,
+        mbti_type=None,
+        mbti_summary="Данные MBTI пока не рассчитаны для данного пользователя. После подключения отдельного ассессмента блок заполнится автоматически.",
+        mbti_axes=[
+            {"left": "Экстраверсия", "right": "Интроверсия", "value": 0},
+            {"left": "Интуиция", "right": "Сенсорика", "value": 0},
+            {"left": "Мышление", "right": "Чувство", "value": 0},
+            {"left": "Суждение", "right": "Восприятие", "value": 0},
+        ],
+        strengths=strengths,
+        growth_areas=growth_areas,
+        quotes=quotes,
     )
 
 
@@ -672,6 +771,15 @@ def check_or_create_user(payload: CheckOrCreateUserRequest, request: Request, re
 
         if existing_row is not None:
             user = UserResponse(**dict(existing_row))
+            if (
+                not user.role_id
+                or not (user.company_industry and user.company_industry.strip())
+                or not user.active_profile_id
+                or not (user.normalized_duties and user.normalized_duties.strip())
+            ):
+                repaired_user = interviewer_agent.backfill_user_profile(user.id)
+                if repaired_user is not None:
+                    user = repaired_user
             _set_user_session_cookie(response, web_session_service.create_session(user.id))
             operation_progress_service.complete(
                 operation_id,
@@ -785,6 +893,18 @@ def get_admin_reports(request: Request) -> AdminDetailedReportsResponse:
         return _build_admin_reports(connection)
 
 
+@router.get("/admin/reports/{session_id}", response_model=AdminReportDetailResponse)
+def get_admin_report_detail(session_id: int, request: Request) -> AdminReportDetailResponse:
+    token = request.cookies.get(SESSION_COOKIE_NAME)
+    user = web_session_service.get_user_by_token(token)
+    if user is None:
+        raise HTTPException(status_code=401, detail="Admin session not found")
+    with get_connection() as connection:
+        if not _is_admin_user(connection, user):
+            raise HTTPException(status_code=403, detail="Admin access required")
+        return _build_admin_report_detail(connection, session_id)
+
+
 @router.get("/admin/reports.pdf")
 def download_admin_reports_pdf(request: Request) -> Response:
     token = request.cookies.get(SESSION_COOKIE_NAME)
@@ -888,18 +1008,10 @@ def get_user_profile_summary(user_id: int) -> UserProfileSummaryResponse:
                 SELECT
                     session_id,
                     user_id,
-                    ROUND(
-                        AVG(
-                            CASE assessed_level_code
-                                WHEN 'L1' THEN 45
-                                WHEN 'L2' THEN 70
-                                WHEN 'L3' THEN 92
-                                ELSE 12
-                            END
-                        )
-                    )::int AS overall_score_percent
-                FROM session_skill_assessments
-                GROUP BY session_id, user_id
+                    ROUND(AVG(COALESCE(alw.percent_value, 0)))::int AS overall_score_percent
+                FROM session_skill_assessments ssa
+                LEFT JOIN assessment_level_weights alw ON alw.level_code = ssa.assessed_level_code
+                GROUP BY ssa.session_id, ssa.user_id
             ) AS score_stats ON score_stats.session_id = us.id AND score_stats.user_id = us.user_id
             WHERE us.user_id = %s
               AND us.assessment_code = 'competencies_4k'

@@ -45,6 +45,21 @@ FORBIDDEN_EXTERNAL_ACTION_PATTERN = (
     r"внес(?:и|ите|ти))"
 )
 
+CASE_PROMPT_FORBIDDEN_PATTERNS = (
+    r"\bдля\s+L\b",
+    r"\bдля\s+M\b",
+    r"\bL/M\b",
+    r"\bplanned_total_duration_min\b",
+    r"\{[^{}]+\}",
+    r"\bв процессе обработка\b",
+    r"\bпо вопросу сбой\b",
+    r"\bпо вопросу отсутствие\b",
+    r"\bкарточка тикета\b",
+    r"\bкарточка запроса\b",
+    r"\bпродвинуть завершить\b",
+    r"\bтем человеком, кому нужно первым ответить\b",
+)
+
 
 @dataclass(slots=True)
 class DeepSeekTurnResult:
@@ -150,7 +165,7 @@ class DeepSeekClient:
             personalization_map=personalization_map,
         )
         if not self.enabled:
-            return self._sanitize_case_prompt_text(
+            return self.finalize_case_prompt_text(
                 fallback,
                 role_name=role_name,
                 planned_total_duration_min=planned_total_duration_min,
@@ -192,19 +207,47 @@ class DeepSeekClient:
                 ],
                 temperature=0.2,
             ).strip()
-            sanitized = self._sanitize_case_prompt_text(
+            return self.finalize_case_prompt_text(
                 generated or fallback,
                 role_name=role_name,
                 planned_total_duration_min=planned_total_duration_min,
             )
-            return self._proofread_case_prompt_text(sanitized)
         except Exception:
-            sanitized = self._sanitize_case_prompt_text(
+            return self.finalize_case_prompt_text(
                 fallback,
                 role_name=role_name,
                 planned_total_duration_min=planned_total_duration_min,
             )
-            return self._proofread_case_prompt_text(sanitized)
+
+    def finalize_case_prompt_text(
+        self,
+        text: str,
+        *,
+        role_name: str | None,
+        planned_total_duration_min: int | None = None,
+    ) -> str:
+        sanitized = self._sanitize_case_prompt_text(
+            text,
+            role_name=role_name,
+            planned_total_duration_min=planned_total_duration_min,
+        )
+        proofread = self._proofread_case_prompt_text(sanitized)
+        return self._validate_case_prompt_result(proofread, fallback=sanitized)
+
+    def finalize_case_prompt_text_local(
+        self,
+        text: str,
+        *,
+        role_name: str | None,
+        planned_total_duration_min: int | None = None,
+    ) -> str:
+        sanitized = self._sanitize_case_prompt_text(
+            text,
+            role_name=role_name,
+            planned_total_duration_min=planned_total_duration_min,
+        )
+        proofread = self._fallback_proofread_case_prompt_text(sanitized)
+        return self._validate_case_prompt_result(proofread, fallback=sanitized)
 
     def build_personalized_case_materials(
         self,
@@ -961,6 +1004,7 @@ class DeepSeekClient:
         result = re.sub(r"\.\.", ".", result)
         result = re.sub(r"\n\s*\n+", "\n", result)
         result = self._enforce_external_sharing_policy(result)
+        result = self._apply_case_prompt_grammar_rules(result)
         result = self._normalize_prompt_sentences(result)
         return result.strip()
 
@@ -1031,8 +1075,101 @@ class DeepSeekClient:
         result = re.sub(r"([.!?])\1+", r"\1", result)
         result = re.sub(r"\s+([,.;:!?])", r"\1", result)
         result = self._enforce_external_sharing_policy(result)
+        result = self._apply_case_prompt_grammar_rules(result)
         result = self._normalize_prompt_sentences(result)
         return result.strip()
+
+    def _apply_case_prompt_grammar_rules(self, text: str) -> str:
+        result = text or ""
+        phrase_replacements = {
+            "в роли Линейный сотрудник": "в роли линейного сотрудника",
+            "в роли Менеджер": "в роли менеджера",
+            "в роли Лидер": "в роли лидера",
+            "в роли линейный аналитик": "в роли линейного сотрудника",
+            "в роли линейный сотрудник": "в роли линейного сотрудника",
+            "в процессе обработка ": "в процессе обработки ",
+            "по вопросу сбой ": "по вопросу сбоя ",
+            "по вопросу отсутствие ": "по вопросу отсутствия ",
+            "не может вовремя продвинуть завершить": "не может вовремя завершить",
+            "к карточка тикета": "к карточке тикета",
+            "к карточка запроса": "к карточке запроса",
+            "У вас есть доступ к карточка тикета": "У вас есть доступ к карточке тикета",
+            "У вас есть доступ к карточка запроса": "У вас есть доступ к карточке запроса",
+            "часть работы действительно велась": "часть работы действительно была выполнена",
+            "ему обещали вернуться с ответом": "ему обещали предоставить ответ",
+            "к текущему моменту": "к настоящему моменту",
+            "тем человеком, кому нужно первым ответить": "тем сотрудником, которому необходимо первым ответить",
+        }
+        for source, target in phrase_replacements.items():
+            result = result.replace(source, target)
+
+        regex_replacements = (
+            (r"\bв роли\s+([А-ЯЁ][а-яё]+(?:\s+[А-ЯЁ][а-яё]+)?)\b", self._normalize_role_phrase),
+            (r"\bв процессе\s+обработк([аиуыое])\b", "в процессе обработки"),
+            (r"\bпо вопросу\s+сбой\b", "по вопросу сбоя"),
+            (r"\bпо вопросу\s+отсутствие\b", "по вопросу отсутствия"),
+            (r"\bне может вовремя\s+продвинуть\s+завершить\b", "не может вовремя завершить"),
+            (r"\bк карточка тикета\b", "к карточке тикета"),
+            (r"\bк карточка запроса\b", "к карточке запроса"),
+            (r"\bпо вопросу отсутствие обратной связи\b", "по вопросу отсутствия обратной связи"),
+            (r"\bсбой в отображении данных\b", "сбоя в отображении данных"),
+            (r"\bв течение\s+(\d+)\s+рабочих?\s+часов\b", r"в течение \1 рабочих часов"),
+            (r"\bименно вы оказались тем человеком, кому нужно первым ответить\b", "именно вы оказались тем сотрудником, которому необходимо первым ответить"),
+            (r"\bвопросу\s+сбоя\b", "вопросу сбоя"),
+            (r"\bне получил ни решения, ни обновления статуса\b", "не получил ни решения, ни обновления статуса"),
+            (r"\bчасть работы действительно была выполнена, но клиент этого не видит\b", "часть работы действительно была выполнена, однако клиент этого не видит"),
+            (r"\bа следующий шаг никем явно не зафиксирован\b", "а следующий шаг нигде явно не зафиксирован"),
+        )
+        for pattern, replacement in regex_replacements:
+            result = re.sub(pattern, replacement, result, flags=re.IGNORECASE)
+
+        result = re.sub(r"\bпо вопросу отсутствия обратной связи после обещанного срока\b", "по вопросу отсутствия обратной связи после обещанного срока", result, flags=re.IGNORECASE)
+        result = re.sub(r"\bкарточка тикета\b", "карточке тикета", result)
+        result = re.sub(r"\bкарточка запроса\b", "карточке запроса", result)
+        result = re.sub(r"\bне может вовремя завершить анализ\b", "не может вовремя завершить анализ", result)
+        result = re.sub(r"\bне может вовремя завершить переход\b", "не может вовремя перейти", result)
+        return result.strip()
+
+    def _normalize_role_phrase(self, match: re.Match[str]) -> str:
+        phrase = match.group(1).strip().lower()
+        mapping = {
+            "линейный сотрудник": "в роли линейного сотрудника",
+            "менеджер": "в роли менеджера",
+            "лидер": "в роли лидера",
+        }
+        return mapping.get(phrase, match.group(0))
+
+    def _validate_case_prompt_result(self, text: str, *, fallback: str) -> str:
+        candidate = (text or "").strip()
+        fallback = (fallback or "").strip()
+        if not candidate:
+            return fallback
+        if len(candidate) < max(120, int(len(fallback) * 0.45)):
+            return fallback
+        required_markers = ("Ваша задача",)
+        if any(marker in fallback and marker not in candidate for marker in required_markers):
+            return fallback
+        if fallback.count("«") and candidate.count("«") < fallback.count("«"):
+            return fallback
+        if self._has_case_prompt_quality_issues(candidate):
+            cleaned_fallback = self._fallback_proofread_case_prompt_text(fallback)
+            if self._has_case_prompt_quality_issues(cleaned_fallback):
+                return fallback
+            return cleaned_fallback
+        return candidate
+
+    def _has_case_prompt_quality_issues(self, text: str) -> bool:
+        candidate = (text or "").strip()
+        if not candidate:
+            return True
+        for pattern in CASE_PROMPT_FORBIDDEN_PATTERNS:
+            if re.search(pattern, candidate, flags=re.IGNORECASE):
+                return True
+        if "Интерьюер" in candidate:
+            return True
+        if ".." in candidate or ". ." in candidate:
+            return True
+        return False
 
     def _strip_markdown_fences(self, text: str) -> str:
         cleaned = text.strip()

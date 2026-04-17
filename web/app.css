@@ -47,6 +47,7 @@ body {
 .dashboard-panel,
 .admin-panel,
 .admin-reports-panel,
+.admin-report-detail-panel,
 .ai-welcome-panel,
 .prechat-panel,
 .profile-panel,
@@ -1041,7 +1042,86 @@ button {
   display: grid;
   gap: 18px;
   align-content: start;
-  grid-row: span 2;
+  grid-column: 1 / -1;
+}
+
+.admin-detail-profile-head {
+  display: grid;
+  grid-template-columns: 144px minmax(0, 1fr);
+  gap: 22px;
+  align-items: start;
+}
+
+.admin-detail-photo-card {
+  position: relative;
+  width: 144px;
+}
+
+.admin-detail-photo {
+  width: 144px;
+  height: 144px;
+  border-radius: 22px;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(180deg, #eef1fb, #dfe4f6);
+  color: #60688c;
+  font-size: 44px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+}
+
+.admin-detail-photo-status {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  background: #2ebf6b;
+  border: 3px solid #fff;
+  box-shadow: 0 8px 18px rgba(46, 191, 107, 0.24);
+}
+
+.admin-detail-profile-copy {
+  display: grid;
+  gap: 6px;
+}
+
+.admin-detail-profile-copy strong,
+.report-card-head h3,
+.report-details-head h3 {
+  display: block;
+  margin: 6px 0 0;
+  font-size: 24px;
+}
+
+.admin-detail-profile-copy span {
+  display: block;
+  color: var(--text-muted);
+}
+
+.admin-detail-profile-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.admin-detail-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: rgba(102, 93, 245, 0.1);
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.admin-detail-badge.muted {
+  background: rgba(109, 112, 173, 0.08);
+  color: var(--text-muted);
 }
 
 .report-profile-user {
@@ -1050,9 +1130,7 @@ button {
   gap: 14px;
 }
 
-.report-profile-user strong,
-.report-card-head h3,
-.report-details-head h3 {
+.report-profile-user strong {
   display: block;
   margin: 6px 0 0;
   font-size: 24px;
@@ -2191,6 +2269,46 @@ button {
   border-top-right-radius: 6px;
 }
 
+.chat-role-options {
+  margin-top: 14px;
+  display: grid;
+  gap: 10px;
+}
+
+.chat-role-options-label {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.chat-role-options-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.chat-role-option-button {
+  min-height: 42px;
+  padding: 0 16px;
+  border-radius: 999px;
+  border: 1px solid rgba(102, 93, 245, 0.16);
+  background: rgba(102, 93, 245, 0.08);
+  color: var(--accent);
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+  transition: transform 0.18s ease, background 0.18s ease, border-color 0.18s ease;
+}
+
+.chat-role-option-button:hover,
+.chat-role-option-button:focus-visible {
+  background: rgba(102, 93, 245, 0.14);
+  border-color: rgba(102, 93, 245, 0.28);
+  transform: translateY(-1px);
+  outline: none;
+}
+
 .chat-form {
   display: grid;
   grid-template-columns: 1fr auto;
@@ -2627,6 +2745,13 @@ button {
     linear-gradient(140deg, #f8f7fb, #eef1fe);
 }
 
+.admin-report-detail-panel {
+  padding: 0 0 30px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.99), rgba(246, 247, 255, 0.98)),
+    linear-gradient(140deg, #f8f7fb, #eef1fe);
+}
+
 .admin-reports-shell {
   gap: 20px;
 }
@@ -2742,6 +2867,16 @@ button {
   border-radius: 20px;
   background: rgba(250, 251, 255, 0.96);
   border: 1px solid rgba(204, 208, 232, 0.8);
+  cursor: pointer;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+}
+
+.admin-report-row:hover,
+.admin-report-row:focus-visible {
+  transform: translateY(-1px);
+  border-color: rgba(120, 111, 255, 0.28);
+  box-shadow: 0 16px 28px rgba(31, 38, 64, 0.08);
+  outline: none;
 }
 
 .admin-report-user {
@@ -2837,6 +2972,201 @@ button {
   color: var(--accent);
 }
 
+.admin-report-detail-shell {
+  gap: 20px;
+}
+
+.admin-report-mbti-card {
+  display: grid;
+  gap: 16px;
+}
+
+.admin-detail-competency-visual {
+  display: grid;
+}
+
+.admin-detail-radar-card {
+  min-height: 300px;
+  border-radius: 24px;
+  background: linear-gradient(180deg, rgba(117, 108, 255, 0.06), rgba(117, 108, 255, 0.14));
+  padding: 20px;
+}
+
+.admin-detail-radar-stage {
+  position: relative;
+  min-height: 260px;
+}
+
+.admin-detail-radar-figure {
+  position: absolute;
+  inset: 32px 72px 32px 72px;
+  display: grid;
+  place-items: center;
+}
+
+.admin-detail-radar-shape {
+  width: 180px;
+  height: 180px;
+  transform: rotate(45deg);
+  border-radius: 28px;
+  background:
+    radial-gradient(circle at center, rgba(102, 93, 245, 0.18) 0%, rgba(102, 93, 245, 0.08) 48%, rgba(102, 93, 245, 0.03) 100%);
+  border: 1px solid rgba(102, 93, 245, 0.12);
+}
+
+.admin-detail-radar-dot {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  background: var(--accent);
+  box-shadow: 0 0 0 6px rgba(102, 93, 245, 0.12);
+}
+
+.admin-detail-radar-dot.top {
+  top: 22px;
+}
+
+.admin-detail-radar-dot.right {
+  right: 52px;
+}
+
+.admin-detail-radar-dot.bottom {
+  bottom: 22px;
+}
+
+.admin-detail-radar-dot.left {
+  left: 52px;
+}
+
+.admin-detail-radar-label {
+  position: absolute;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.admin-detail-radar-label.top {
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.admin-detail-radar-label.right {
+  top: 50%;
+  right: 0;
+  transform: translateY(-50%);
+  text-align: right;
+}
+
+.admin-detail-radar-label.bottom {
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.admin-detail-radar-label.left {
+  top: 50%;
+  left: 0;
+  transform: translateY(-50%);
+}
+
+.admin-detail-card-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  background: rgba(109, 112, 173, 0.08);
+  color: var(--text-muted);
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.admin-detail-card-icon.accent {
+  background: rgba(102, 93, 245, 0.12);
+  color: var(--accent);
+}
+
+.admin-detail-mbti-axes {
+  display: grid;
+  gap: 14px;
+}
+
+.admin-detail-mbti-axis {
+  display: grid;
+  gap: 8px;
+}
+
+.admin-detail-mbti-axis-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.admin-detail-mbti-axis-track {
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(120, 111, 255, 0.12);
+  overflow: hidden;
+}
+
+.admin-detail-mbti-axis-track span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #786fff 0%, #9f98ff 100%);
+}
+
+.admin-detail-insights-card,
+.admin-detail-quotes-card {
+  background: #ffffff;
+  border: 1px solid rgba(120, 111, 255, 0.1);
+  border-radius: 28px;
+  padding: 28px;
+  box-shadow: 0 18px 44px rgba(31, 38, 64, 0.06);
+}
+
+.admin-detail-insights-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.admin-detail-insight-column {
+  display: grid;
+  gap: 12px;
+}
+
+.admin-detail-insight-column strong {
+  font-size: 18px;
+}
+
+.admin-detail-quotes-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.admin-detail-quote-card {
+  min-height: 160px;
+  border-radius: 20px;
+  border: 1px solid rgba(120, 111, 255, 0.08);
+  background: rgba(247, 247, 255, 0.9);
+  padding: 18px 20px;
+  display: grid;
+  align-content: start;
+}
+
+.admin-detail-quote-card p {
+  margin: 0;
+  color: var(--text-main);
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
 .hidden {
   display: none;
 }
@@ -2856,6 +3186,41 @@ button {
 
   .onboarding-copy {
     padding: 0;
+  }
+
+  .admin-detail-insights-grid,
+  .admin-detail-quotes-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-detail-profile-head {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-detail-photo-card {
+    width: 112px;
+  }
+
+  .admin-detail-photo {
+    width: 112px;
+    height: 112px;
+    font-size: 34px;
+  }
+
+  .admin-detail-radar-figure {
+    inset: 48px 48px 48px 48px;
+  }
+
+  .admin-detail-radar-label.right,
+  .admin-detail-radar-label.left {
+    position: static;
+    transform: none;
+    text-align: center;
+  }
+
+  .admin-detail-radar-label.top,
+  .admin-detail-radar-label.bottom {
+    max-width: 180px;
   }
 
   .onboarding-visual {

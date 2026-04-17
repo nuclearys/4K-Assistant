@@ -60,6 +60,7 @@ class AgentReply(BaseModel):
     assessment_case_title: str | None = None
     assessment_case_number: int | None = None
     assessment_total_cases: int | None = None
+    role_options: list[dict[str, str | int]] | None = None
 
 
 class AssessmentCard(BaseModel):
@@ -133,6 +134,24 @@ class AdminDetailedReportsResponse(BaseModel):
     total_items: int
     summary_score_percent: float | None = None
     items: list[AdminDetailedReportItem]
+
+
+class AdminReportDetailResponse(BaseModel):
+    session_id: int
+    user_id: int
+    full_name: str
+    role_name: str
+    group_name: str
+    status: str
+    score_percent: int | None = None
+    report_date: datetime | None = None
+    competency_average: list[dict[str, str | int]]
+    mbti_type: str | None = None
+    mbti_summary: str | None = None
+    mbti_axes: list[dict[str, str | int]]
+    strengths: list[str]
+    growth_areas: list[str]
+    quotes: list[str]
 
 
 class UserDashboard(BaseModel):

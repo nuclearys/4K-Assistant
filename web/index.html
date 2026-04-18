@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>4K Ассистент</title>
-  <link rel="stylesheet" href="/web/app.css?v=20260417-0031">
+  <link rel="stylesheet" href="/web/app.css?v=20260418-2252">
 </head>
 <body>
   <div id="app-loader" class="app-loader hidden" aria-live="polite">
@@ -207,6 +207,7 @@
             <p id="admin-subtitle">Комплексный анализ компетенций и ключевых метрик платформы.</p>
           </div>
           <div class="admin-hero-actions">
+            <button id="admin-open-methodology-button" type="button" class="ghost-button compact-ghost">Управление кейсами</button>
             <button id="admin-open-reports-button" type="button" class="primary-button compact-primary">Подробные отчеты</button>
           </div>
         </section>
@@ -270,6 +271,275 @@
             <div id="admin-activity-chart" class="admin-activity-chart"></div>
           </div>
         </section>
+      </div>
+    </section>
+
+    <section class="panel admin-methodology-panel hidden" id="admin-methodology-panel">
+      <div class="dashboard-topbar">
+        <div class="brand dashboard-brand">Управление кейсами</div>
+        <div class="dashboard-topbar-actions">
+          <button id="admin-methodology-back-button" class="ghost-button compact-ghost" type="button">Назад</button>
+        </div>
+      </div>
+
+      <div class="admin-shell admin-methodology-shell">
+        <section class="admin-hero-card admin-methodology-hero">
+          <div>
+            <p class="section-label accent-label">Управление кейсами</p>
+            <h2 id="admin-methodology-title">Библиотека кейсов</h2>
+            <p id="admin-methodology-subtitle">Настройка библиотеки кейсов, веток тестирования и покрытия навыков.</p>
+          </div>
+          <div class="admin-reports-actions">
+            <label class="admin-search-field">
+              <span>Поиск по кейсам</span>
+              <input id="admin-methodology-search" type="search" placeholder="Поиск по кейсам...">
+            </label>
+          </div>
+        </section>
+
+        <section id="admin-methodology-metrics" class="admin-metrics-grid"></section>
+
+        <section class="admin-methodology-workspace">
+          <div class="admin-methodology-tabs">
+            <button id="admin-methodology-tab-passports" type="button" class="admin-methodology-tab active">Паспорта типов кейсов</button>
+            <button id="admin-methodology-tab-library" type="button" class="admin-methodology-tab">Библиотека кейсов</button>
+            <button id="admin-methodology-tab-branches" type="button" class="admin-methodology-tab">Ветки и покрытие</button>
+          </div>
+
+          <div id="admin-methodology-passports-view" class="admin-methodology-view">
+            <section class="admin-analytics-card admin-methodology-passports-card">
+              <div class="report-card-head">
+                <div>
+                  <p class="section-label accent-label">Паспорта типов</p>
+                  <h3>Методические типы кейсов</h3>
+                </div>
+              </div>
+              <div id="admin-methodology-passports" class="admin-methodology-passports"></div>
+            </section>
+          </div>
+
+          <div id="admin-methodology-library-view" class="admin-methodology-view hidden">
+            <section class="admin-reports-table-card">
+              <div class="admin-reports-table-head">
+                <div class="admin-reports-columns admin-methodology-columns" aria-hidden="true">
+                  <span>Название</span>
+                  <span>ID</span>
+                  <span>Роли</span>
+                  <span>4K навыки</span>
+                  <span>Сложность</span>
+                  <span>Время</span>
+                  <span>Статус / QA</span>
+                </div>
+              </div>
+              <div id="admin-methodology-cases" class="admin-reports-list admin-methodology-cases"></div>
+              <div class="admin-reports-pagination admin-methodology-pagination">
+                <span id="admin-methodology-page-summary" class="admin-reports-page-summary">Показано 0 из 0 кейсов</span>
+                <div class="admin-reports-pagination-controls">
+                  <button id="admin-methodology-prev-button" type="button" class="ghost-button compact-ghost">Назад</button>
+                  <span id="admin-methodology-page-indicator" class="admin-reports-page-indicator">1 / 1</span>
+                  <button id="admin-methodology-next-button" type="button" class="ghost-button compact-ghost">Вперед</button>
+                </div>
+              </div>
+            </section>
+          </div>
+
+          <div id="admin-methodology-branches-view" class="admin-methodology-view hidden">
+            <section class="admin-methodology-branches-grid" id="admin-methodology-branches"></section>
+
+            <section class="admin-methodology-coverage-grid">
+              <article class="admin-analytics-card">
+                <div class="report-card-head">
+                  <div>
+                    <p class="section-label accent-label">Матрица покрытия</p>
+                    <h3>Компетенции по ролям</h3>
+                  </div>
+                </div>
+                <div class="admin-methodology-coverage-table">
+                  <div class="admin-methodology-coverage-head">
+                    <span>Компетенция</span>
+                    <span>Линейный</span>
+                    <span>Менеджер</span>
+                    <span>Лидер</span>
+                  </div>
+                  <div id="admin-methodology-coverage-body" class="admin-methodology-coverage-body"></div>
+                </div>
+              </article>
+
+              <article class="admin-analytics-card admin-methodology-summary-card">
+                <div class="report-card-head">
+                  <div>
+                    <p class="section-label accent-label">Статистика базы</p>
+                    <h3>Состояние методического слоя</h3>
+                  </div>
+                </div>
+                <div id="admin-methodology-summary" class="admin-methodology-summary"></div>
+              </article>
+
+              <article class="admin-analytics-card admin-methodology-risk-card">
+                <div class="report-card-head">
+                  <div>
+                    <p class="section-label accent-label">Дефицит покрытия</p>
+                    <h3>Роли и навыки с риском</h3>
+                  </div>
+                </div>
+                <div id="admin-methodology-skill-gaps" class="admin-methodology-risk-list"></div>
+              </article>
+
+              <article class="admin-analytics-card admin-methodology-risk-card">
+                <div class="report-card-head">
+                  <div>
+                    <p class="section-label accent-label">Риск зависимости</p>
+                    <h3>Навыки на одном типе кейса</h3>
+                  </div>
+                </div>
+                <div id="admin-methodology-single-points" class="admin-methodology-risk-list"></div>
+              </article>
+
+              <article class="admin-analytics-card admin-methodology-risk-card">
+                <div class="report-card-head">
+                  <div>
+                    <p class="section-label accent-label">Качество кейсов</p>
+                    <h3>Проблемные кейсы по результатам прохождений</h3>
+                  </div>
+                </div>
+                <div id="admin-methodology-case-quality" class="admin-methodology-risk-list"></div>
+              </article>
+            </section>
+          </div>
+        </section>
+      </div>
+
+      <div id="admin-methodology-drawer" class="admin-methodology-drawer hidden">
+        <div id="admin-methodology-drawer-backdrop" class="admin-methodology-drawer-backdrop"></div>
+        <aside class="admin-methodology-drawer-panel">
+          <div class="admin-methodology-drawer-head">
+            <div>
+              <p class="section-label accent-label">Редактирование кейса</p>
+              <h3 id="admin-methodology-detail-title">Кейс</h3>
+            </div>
+            <div class="admin-methodology-drawer-actions">
+              <span id="admin-methodology-detail-save-status" class="admin-methodology-save-status hidden">Сохраняем...</span>
+              <button id="admin-methodology-detail-edit" type="button" class="ghost-button compact-ghost">Редактировать</button>
+              <button id="admin-methodology-detail-cancel" type="button" class="ghost-button compact-ghost hidden">Отмена</button>
+              <button id="admin-methodology-detail-save" type="button" class="primary-button compact-primary hidden">Сохранить</button>
+              <button id="admin-methodology-detail-close" type="button" class="ghost-button compact-ghost">Закрыть</button>
+            </div>
+          </div>
+
+          <div class="admin-methodology-drawer-body">
+            <section class="admin-methodology-detail-card">
+              <div class="admin-methodology-section-head">
+                <div>
+                  <p class="section-label accent-label">Основная информация</p>
+                  <h4 id="admin-methodology-detail-subtitle">Паспорт типа и параметры</h4>
+                </div>
+              </div>
+              <div class="admin-methodology-detail-grid">
+                <div class="admin-methodology-detail-field">
+                  <span>Название кейса</span>
+                  <div id="admin-methodology-detail-case-name" class="admin-methodology-value">—</div>
+                </div>
+                <div class="admin-methodology-detail-field">
+                  <span>Тип оценки</span>
+                  <div id="admin-methodology-detail-artifact" class="admin-methodology-value">—</div>
+                </div>
+                <div class="admin-methodology-detail-field">
+                  <span>Статус</span>
+                  <div id="admin-methodology-detail-status" class="admin-methodology-value">—</div>
+                </div>
+                <div class="admin-methodology-detail-field">
+                  <span>Время / сложность</span>
+                  <div id="admin-methodology-detail-timing" class="admin-methodology-value">—</div>
+                </div>
+              </div>
+            </section>
+
+            <section class="admin-methodology-detail-card">
+              <div class="admin-methodology-section-head">
+                <div>
+                  <p class="section-label accent-label">Текст кейса</p>
+                  <h4>Сценарий кейса</h4>
+                </div>
+              </div>
+              <div class="admin-methodology-detail-stack">
+                <div class="admin-methodology-detail-block">
+                  <span class="admin-methodology-detail-block-label">Вводные и контекст</span>
+                  <div id="admin-methodology-detail-intro" class="admin-methodology-value">—</div>
+                </div>
+                <div class="admin-methodology-detail-block">
+                  <span class="admin-methodology-detail-block-label">Данные и факты</span>
+                  <div id="admin-methodology-detail-facts" class="admin-methodology-value hidden">—</div>
+                </div>
+                <div class="admin-methodology-detail-block">
+                  <span class="admin-methodology-detail-block-label">Задача для оцениваемого</span>
+                  <div id="admin-methodology-detail-task" class="admin-methodology-value">—</div>
+                </div>
+                <div class="admin-methodology-detail-block">
+                  <span class="admin-methodology-detail-block-label">Ограничения и условия</span>
+                  <div id="admin-methodology-detail-constraints" class="admin-methodology-value hidden">—</div>
+                </div>
+              </div>
+              <div class="admin-methodology-detail-chip-groups">
+                <div class="admin-methodology-chip-group">
+                  <span class="admin-methodology-chip-group-title">Роли</span>
+                  <div id="admin-methodology-detail-roles" class="admin-methodology-chip-list"></div>
+                </div>
+                <div class="admin-methodology-chip-group">
+                  <span class="admin-methodology-chip-group-title">Навыки</span>
+                  <div id="admin-methodology-detail-skills" class="admin-methodology-chip-list"></div>
+                </div>
+                <div class="admin-methodology-chip-group admin-methodology-chip-group-wide">
+                  <span class="admin-methodology-chip-group-title">Переменные персонализации</span>
+                  <div id="admin-methodology-detail-personalization" class="admin-methodology-chip-list"></div>
+                </div>
+              </div>
+            </section>
+
+            <section class="admin-methodology-detail-card">
+              <div class="admin-methodology-section-head">
+                <div>
+                  <p class="section-label accent-label">Методическая разметка</p>
+                  <h4>Артефакт, red flags и QA</h4>
+                </div>
+              </div>
+              <div class="admin-methodology-detail-columns">
+                <div>
+                  <strong>Обязательные блоки ответа</strong>
+                  <ul id="admin-methodology-detail-blocks" class="admin-methodology-detail-list"></ul>
+                </div>
+                <div>
+                  <strong>Red flags</strong>
+                  <ul id="admin-methodology-detail-redflags" class="admin-methodology-detail-list"></ul>
+                </div>
+              </div>
+              <div>
+                <strong>Чеклист QA</strong>
+                <ul id="admin-methodology-detail-blockers" class="admin-methodology-detail-list"></ul>
+                <div id="admin-methodology-detail-checks" class="admin-methodology-checks"></div>
+              </div>
+            </section>
+
+            <section class="admin-methodology-detail-card">
+              <div class="admin-methodology-section-head">
+                <div>
+                  <p class="section-label accent-label">Критерии оценки</p>
+                  <h4>Сигналы по навыкам и evidence</h4>
+                </div>
+              </div>
+              <div id="admin-methodology-detail-signals" class="admin-methodology-signals"></div>
+            </section>
+
+            <section class="admin-methodology-detail-card">
+              <div class="admin-methodology-section-head">
+                <div>
+                  <p class="section-label accent-label">Lifecycle</p>
+                  <h4>Статусы и журнал изменений</h4>
+                </div>
+              </div>
+              <div id="admin-methodology-detail-history" class="admin-methodology-history"></div>
+            </section>
+          </div>
+        </aside>
       </div>
     </section>
 
@@ -526,7 +796,12 @@
       <div class="profile-shell">
         <section class="profile-hero-card">
           <div class="profile-identity-card">
-            <div id="profile-avatar" class="profile-avatar">A</div>
+            <div class="profile-avatar-card">
+              <div id="profile-avatar" class="profile-avatar">A</div>
+              <img id="profile-avatar-image" class="profile-avatar-image hidden" alt="Фото пользователя">
+              <label class="profile-avatar-upload" for="profile-avatar-input" title="Загрузить фото">✎</label>
+              <input id="profile-avatar-input" type="file" accept="image/*" hidden>
+            </div>
             <strong id="profile-name">Пользователь</strong>
             <span id="profile-role">Должность не указана</span>
             <div class="profile-stats">
@@ -544,7 +819,7 @@
           <div class="profile-info-card">
             <div class="profile-card-head">
               <h3>Основная информация</h3>
-              <p>Управляйте данными профиля и просматривайте результаты всех попыток ассессмента.</p>
+              <p>Управляйте данными профиля и профессиональными настройками.</p>
             </div>
             <div class="profile-info-grid">
               <label class="profile-field">
@@ -553,7 +828,10 @@
               </label>
               <label class="profile-field">
                 <span>Email</span>
-                <input id="profile-email" type="text" readonly>
+                <div class="profile-editable-field">
+                  <input id="profile-email" type="email" placeholder="name@example.com">
+                  <span class="profile-field-edit-icon" aria-hidden="true">✎</span>
+                </div>
               </label>
               <label class="profile-field">
                 <span>Телефон</span>
@@ -563,7 +841,12 @@
                 <span>Профессия</span>
                 <input id="profile-job-description" type="text" readonly>
               </label>
+              <label class="profile-field profile-field-wide">
+                <span>Индустрия</span>
+                <input id="profile-company-industry" type="text" readonly>
+              </label>
             </div>
+            <p id="profile-save-status" class="profile-save-status" hidden></p>
           </div>
         </section>
 
@@ -673,7 +956,16 @@
           </div>
           <div class="report-hero-score">
             <strong id="report-overall-score">0%</strong>
-            <span>Интегральный показатель</span>
+            <span class="report-hero-score-label">
+              Интегральный показатель
+              <span class="report-score-hint" tabindex="0" aria-label="Формула интегрального показателя">
+                ?
+                <span class="report-score-tooltip">
+                  Интегральный показатель = среднее по компетенциям. Для каждой компетенции сначала считается среднее по навыкам:
+                  L1 = 45, L2 = 70, L3 = 92, N/A = 0.
+                </span>
+              </span>
+            </span>
           </div>
         </section>
 
@@ -754,6 +1046,6 @@
     </section>
   </main>
 
-  <script src="/web/app.js?v=20260417-1548" defer></script>
+  <script src="/web/app.js?v=20260418-2252" defer></script>
 </body>
 </html>

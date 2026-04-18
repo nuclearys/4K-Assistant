@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 from uuid import uuid4
 
 from Api.communication_agent import competency_assessment_agents
-from Api.database import get_connection
+from Api.database import get_case_methodology_versions, get_connection
 from Api.deepseek_client import DeepSeekTurnResult, deepseek_client
 from Api.progress_service import operation_progress_service
 from Api.schemas import UserResponse
@@ -110,15 +110,16 @@ class AssessmentService:
 
             passed_case_rows = connection.execute(
                 """
-                SELECT DISTINCT sc.case_template_id
+                SELECT DISTINCT sc.case_registry_id
                 FROM session_case_results scr
                 JOIN session_cases sc ON sc.id = scr.session_case_id
                 WHERE scr.user_id = %s
                   AND scr.result_status = 'passed'
+                  AND sc.case_registry_id IS NOT NULL
                 """,
                 (user.id,),
             ).fetchall()
-            passed_case_ids = [row["case_template_id"] for row in passed_case_rows]
+            passed_case_ids = [row["case_registry_id"] for row in passed_case_rows]
 
             required_rows = connection.execute(
                 """
@@ -215,15 +216,22 @@ class AssessmentService:
                 message="Готовим персонализированный контекст и задания по выбранным кейсам.",
             )
             for index, case_row in enumerate(selected_cases, start=1):
+                methodology_versions = get_case_methodology_versions(connection, int(case_row["id"]))
                 session_case = connection.execute(
                     """
                     INSERT INTO session_cases (
-                        session_id, user_id, role_id, case_template_id, status, selection_reason,
+                        session_id, user_id, role_id, case_registry_id, status, selection_reason,
                         planned_duration_minutes,
+                        case_registry_version, case_text_version, case_type_passport_version,
+                        required_blocks_version, red_flags_version, skill_evidence_version,
+                        difficulty_modifiers_version, personalization_fields_version,
                         history_match_case, history_match_case_text, history_match_type,
                         history_last_used_at, history_use_count, history_flag, history_is_new
                     )
-                    VALUES (%s, %s, %s, %s, 'selected', %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    VALUES (
+                        %s, %s, %s, %s, 'selected', %s, %s, %s, %s, %s, %s,
+                        %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+                    )
                     RETURNING id
                     """,
                     (
@@ -233,6 +241,14 @@ class AssessmentService:
                         case_row["id"],
                         f"Auto-selected for skill coverage. Case order #{index}.",
                         case_row["planned_duration_minutes"] or case_row["estimated_minutes"],
+                        methodology_versions["case_registry_version"],
+                        methodology_versions["case_text_version"],
+                        methodology_versions["case_type_passport_version"],
+                        methodology_versions["required_blocks_version"],
+                        methodology_versions["red_flags_version"],
+                        methodology_versions["skill_evidence_version"],
+                        methodology_versions["difficulty_modifiers_version"],
+                        methodology_versions["personalization_fields_version"],
                         case_row.get("history_match_case", False),
                         case_row.get("history_match_case_text", False),
                         case_row.get("history_match_type", False),
@@ -254,10 +270,10 @@ class AssessmentService:
                 connection.execute(
                     """
                     INSERT INTO user_case_assignments (
-                        user_id, role_id, case_template_id, status, selection_reason
+                        user_id, role_id, case_registry_id, status, selection_reason
                     )
                     VALUES (%s, %s, %s, 'selected', %s)
-                    ON CONFLICT (user_id, case_template_id) DO NOTHING
+                    ON CONFLICT (user_id, case_registry_id) DO NOTHING
                     """,
                     (
                         user.id,
@@ -279,10 +295,10 @@ class AssessmentService:
                     connection.execute(
                         """
                         INSERT INTO user_skill_coverage (
-                            user_id, role_id, skill_id, source_case_template_id, status
+                            user_id, role_id, skill_id, source_case_registry_id, status
                         )
                         VALUES (%s, %s, %s, %s, 'planned')
-                        ON CONFLICT (user_id, skill_id, source_case_template_id) DO NOTHING
+                        ON CONFLICT (user_id, skill_id, source_case_registry_id) DO NOTHING
                         """,
                         (user.id, user.role_id, skill_id, case_row["id"]),
                     )
@@ -340,32 +356,50 @@ class AssessmentService:
         return connection.execute(
             """
             SELECT
-                ct.id,
-                ct.case_code,
-                ct.text_code,
-                ct.type_code,
-                ct.title,
-                ct.intro_context,
-                ct.task_for_user,
-                ct.domain_context,
-                ct.personalization_variables,
-                ct.estimated_minutes,
-                ct.planned_duration_minutes,
-                array_agg(cts.skill_id ORDER BY cts.position) AS skill_ids,
-                array_agg(s.skill_name ORDER BY cts.position) AS skill_names
-            FROM case_templates ct
-            JOIN case_template_roles ctr ON ctr.case_template_id = ct.id
-            JOIN case_template_skills cts ON cts.case_template_id = ct.id
-            JOIN skills s ON s.id = cts.skill_id
-            WHERE ctr.role_id = %s
-              AND ct.status = 'актуальный'
-              AND cts.skill_id = ANY(%s)
+                cr.id,
+                cr.case_id_code AS case_code,
+                COALESCE(txt.case_text_code, 'TXT-' || cr.case_id_code) AS text_code,
+                p.type_code,
+                cr.version AS case_registry_version,
+                COALESCE(txt.version, 1) AS case_text_version,
+                COALESCE(p.version, 1) AS case_type_passport_version,
+                cr.title,
+                txt.intro_context,
+                txt.task_for_user,
+                cr.context_domain AS domain_context,
+                txt.personalization_variables,
+                cr.estimated_time_min AS estimated_minutes,
+                cr.estimated_time_min AS planned_duration_minutes,
+                array_agg(crs.skill_id ORDER BY crs.display_order) AS skill_ids,
+                array_agg(s.skill_name ORDER BY crs.display_order) AS skill_names
+            FROM cases_registry cr
+            JOIN case_type_passports p ON p.id = cr.case_type_passport_id
+            JOIN case_registry_roles crr ON crr.cases_registry_id = cr.id
+            JOIN case_registry_skills crs ON crs.cases_registry_id = cr.id
+            JOIN skills s ON s.id = crs.skill_id
+            LEFT JOIN case_texts txt ON txt.cases_registry_id = cr.id
+            WHERE crr.role_id = %s
+              AND cr.status = 'ready'
+              AND crs.skill_id = ANY(%s)
               AND (
                   COALESCE(array_length(%s::int[], 1), 0) = 0
-                  OR ct.id::int != ALL(%s::int[])
+                  OR cr.id::int != ALL(%s::int[])
               )
-            GROUP BY ct.id, ct.case_code, ct.text_code, ct.type_code, ct.title, ct.intro_context, ct.task_for_user, ct.domain_context, ct.personalization_variables, ct.estimated_minutes, ct.planned_duration_minutes
-            ORDER BY COUNT(cts.skill_id) DESC, ct.estimated_minutes ASC NULLS LAST, ct.id ASC
+            GROUP BY
+                cr.id,
+                cr.case_id_code,
+                txt.case_text_code,
+                p.type_code,
+                cr.version,
+                txt.version,
+                p.version,
+                cr.title,
+                txt.intro_context,
+                txt.task_for_user,
+                cr.context_domain,
+                txt.personalization_variables,
+                cr.estimated_time_min
+            ORDER BY COUNT(crs.skill_id) DESC, cr.estimated_time_min ASC NULLS LAST, cr.id ASC
             """,
             (role_id, required_skill_ids, excluded_case_ids, excluded_case_ids),
         ).fetchall()
@@ -384,17 +418,17 @@ class AssessmentService:
             SELECT
                 sc.id,
                 sc.status,
-                sc.case_template_id,
-                ct.title,
-                ct.case_code,
-                ct.text_code,
-                ct.type_code,
-                ct.intro_context,
-                ct.task_for_user,
-                ct.domain_context,
-                ct.personalization_variables,
-                ct.estimated_minutes,
-                ct.planned_duration_minutes,
+                sc.case_registry_id,
+                cr.title,
+                cr.case_id_code AS case_code,
+                COALESCE(txt.case_text_code, 'TXT-' || cr.case_id_code) AS text_code,
+                p.type_code,
+                txt.intro_context,
+                txt.task_for_user,
+                cr.context_domain AS domain_context,
+                txt.personalization_variables,
+                cr.estimated_time_min AS estimated_minutes,
+                COALESCE(sc.planned_duration_minutes, cr.estimated_time_min) AS planned_duration_minutes,
                 EXISTS(
                     SELECT 1
                     FROM session_prompts sp
@@ -402,7 +436,9 @@ class AssessmentService:
                       AND sp.prompt_type = 'case_dialog'
                 ) AS has_prompt
             FROM session_cases sc
-            JOIN case_templates ct ON ct.id = sc.case_template_id
+            JOIN cases_registry cr ON cr.id = sc.case_registry_id
+            LEFT JOIN case_type_passports p ON p.id = cr.case_type_passport_id
+            LEFT JOIN case_texts txt ON txt.cases_registry_id = cr.id
             WHERE sc.session_id = %s
             ORDER BY sc.id ASC
             """,
@@ -543,6 +579,7 @@ class AssessmentService:
         skill_names: list[str],
         progress_operation_id: str | None = None,
     ) -> None:
+        methodical_context = self._get_case_methodical_context(connection, case_row)
         planned_total_duration_min = case_row["planned_duration_minutes"] or case_row["estimated_minutes"]
         personalization_map, personalized_context, personalized_task = deepseek_client.build_personalized_case_materials(
             full_name=user.full_name,
@@ -575,6 +612,11 @@ class AssessmentService:
             case_context=personalized_context,
             case_task=personalized_task,
             case_skills=skill_names,
+            case_artifact_name=methodical_context["artifact_name"],
+            case_artifact_description=methodical_context["artifact_description"],
+            case_required_response_blocks=methodical_context["required_response_blocks"],
+            case_skill_evidence=methodical_context["skill_evidence"],
+            case_difficulty_modifiers=methodical_context["difficulty_modifiers"],
             planned_total_duration_min=planned_total_duration_min,
             personalization_variables=case_row["personalization_variables"],
             personalization_map=personalization_map,
@@ -603,6 +645,78 @@ class AssessmentService:
                 prompt_text,
             ),
         )
+
+    def _get_case_methodical_context(self, connection, case_row) -> dict:
+        row = connection.execute(
+            """
+            SELECT
+                p.id AS passport_id,
+                p.type_code,
+                a.artifact_name,
+                a.description AS artifact_description
+            FROM cases_registry cr
+            LEFT JOIN case_type_passports p ON p.id = cr.case_type_passport_id
+            LEFT JOIN case_response_artifacts a ON a.id = p.artifact_id
+            WHERE cr.id = %s
+            LIMIT 1
+            """,
+            (case_row["id"],),
+        ).fetchone()
+        if row is None or row["passport_id"] is None:
+            return {
+                "artifact_name": None,
+                "artifact_description": None,
+                "required_response_blocks": [],
+                "skill_evidence": [],
+                "difficulty_modifiers": [],
+            }
+
+        passport_id = row["passport_id"]
+        blocks = connection.execute(
+            """
+            SELECT block_name
+            FROM case_required_response_blocks
+            WHERE case_type_passport_id = %s
+            ORDER BY display_order ASC, id ASC
+            """,
+            (passport_id,),
+        ).fetchall()
+        evidence_rows = connection.execute(
+            """
+            SELECT
+                s.skill_code,
+                s.skill_name,
+                e.related_response_block_code,
+                e.evidence_description,
+                e.expected_signal,
+                e.is_required
+            FROM case_type_skill_evidence e
+            JOIN skills s ON s.id = e.skill_id
+            WHERE e.case_type_passport_id = %s
+            ORDER BY s.skill_code ASC, e.related_response_block_code ASC NULLS LAST, e.id ASC
+            """,
+            (passport_id,),
+        ).fetchall()
+        modifier_rows = connection.execute(
+            """
+            SELECT modifier_name, difficulty_level
+            FROM case_type_difficulty_modifiers
+            WHERE case_type_passport_id = %s
+            ORDER BY difficulty_level ASC, modifier_name ASC
+            """,
+            (passport_id,),
+        ).fetchall()
+        return {
+            "artifact_name": row["artifact_name"],
+            "artifact_description": row["artifact_description"],
+            "required_response_blocks": [block["block_name"] for block in blocks if block["block_name"]],
+            "skill_evidence": [dict(item) for item in evidence_rows],
+            "difficulty_modifiers": [
+                f"{item['modifier_name']} ({item['difficulty_level']})"
+                for item in modifier_rows
+                if item["modifier_name"]
+            ],
+        }
 
     def open_assessment_dialogue(self, session_code: str) -> AssessmentTurnReply:
         with get_connection() as connection:
@@ -802,9 +916,9 @@ class AssessmentService:
 
             case_meta = connection.execute(
                 """
-                SELECT sc.started_at, ct.estimated_minutes, ct.title
+                SELECT sc.started_at, cr.estimated_time_min AS estimated_minutes, cr.title
                 FROM session_cases sc
-                JOIN case_templates ct ON ct.id = sc.case_template_id
+                JOIN cases_registry cr ON cr.id = sc.case_registry_id
                 WHERE sc.id = %s
                 """,
                 (plan.current_session_case_id,),
@@ -1205,8 +1319,8 @@ class AssessmentService:
                     covered_at = CASE WHEN %s = 'covered' THEN NOW() ELSE covered_at END
                 WHERE user_id = %s
                   AND skill_id = %s
-                  AND source_case_template_id = (
-                      SELECT case_template_id FROM session_cases WHERE id = %s
+                  AND source_case_registry_id = (
+                      SELECT case_registry_id FROM session_cases WHERE id = %s
                   )
                 """,
                 (skill_status, skill_status, user_id, row["skill_id"], session_case_id),
@@ -1215,9 +1329,22 @@ class AssessmentService:
     def _get_case_for_session_case(self, connection, session_case_id: int):
         return connection.execute(
             """
-            SELECT ct.*
+            SELECT
+                cr.id,
+                cr.title,
+                cr.case_id_code AS case_code,
+                COALESCE(txt.case_text_code, 'TXT-' || cr.case_id_code) AS text_code,
+                p.type_code,
+                txt.intro_context,
+                txt.task_for_user,
+                cr.context_domain AS domain_context,
+                txt.personalization_variables,
+                cr.estimated_time_min AS estimated_minutes,
+                COALESCE(sc.planned_duration_minutes, cr.estimated_time_min) AS planned_duration_minutes
             FROM session_cases sc
-            JOIN case_templates ct ON ct.id = sc.case_template_id
+            JOIN cases_registry cr ON cr.id = sc.case_registry_id
+            LEFT JOIN case_type_passports p ON p.id = cr.case_type_passport_id
+            LEFT JOIN case_texts txt ON txt.cases_registry_id = cr.id
             WHERE sc.id = %s
             """,
             (session_case_id,),
@@ -1322,10 +1449,10 @@ class AssessmentService:
                 sc.status,
                 sc.started_at,
                 sc.planned_duration_minutes,
-                ct.title,
-                COALESCE(sc.planned_duration_minutes, ct.planned_duration_minutes, ct.estimated_minutes) AS effective_planned_duration_minutes
+                cr.title,
+                COALESCE(sc.planned_duration_minutes, cr.estimated_time_min) AS effective_planned_duration_minutes
             FROM session_cases sc
-            JOIN case_templates ct ON ct.id = sc.case_template_id
+            JOIN cases_registry cr ON cr.id = sc.case_registry_id
             WHERE sc.session_id = %s
             ORDER BY sc.id ASC
             """,
@@ -1377,14 +1504,16 @@ class AssessmentService:
         history_rows = connection.execute(
             """
             SELECT
-                ct.case_code,
-                ct.text_code,
-                ct.type_code,
+                cr.case_id_code AS case_code,
+                COALESCE(txt.case_text_code, 'TXT-' || cr.case_id_code) AS text_code,
+                p.type_code,
                 sc.status,
                 COALESCE(scr.passed_at, scr.recorded_at, sc.completed_at, sc.started_at, us.started_at) AS used_at
             FROM session_cases sc
             JOIN user_sessions us ON us.id = sc.session_id
-            JOIN case_templates ct ON ct.id = sc.case_template_id
+            JOIN cases_registry cr ON cr.id = sc.case_registry_id
+            LEFT JOIN case_texts txt ON txt.cases_registry_id = cr.id
+            LEFT JOIN case_type_passports p ON p.id = cr.case_type_passport_id
             LEFT JOIN session_case_results scr ON scr.session_case_id = sc.id
             WHERE us.user_id = %s
             ORDER BY COALESCE(scr.passed_at, scr.recorded_at, sc.completed_at, sc.started_at, us.started_at) DESC NULLS LAST, sc.id DESC

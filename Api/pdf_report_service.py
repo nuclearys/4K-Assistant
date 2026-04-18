@@ -14,6 +14,14 @@ from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
 from Api.database import get_level_percent_map
+from Api.report_growth_logic import (
+    ZERO_SIGNAL_RECOMMENDATIONS,
+    WEAK_SIGNAL_RECOMMENDATIONS,
+    build_ai_insight_copy,
+    build_competency_growth_recommendation,
+    build_interpretation_basis_items,
+    build_response_pattern_text,
+)
 
 
 class PdfReportService:
@@ -51,7 +59,18 @@ class PdfReportService:
                 skill_name,
                 assessed_level_code,
                 assessed_level_name,
-                rationale
+                rationale,
+                red_flags,
+                found_evidence,
+                block_coverage_percent,
+                (
+                    SELECT ROUND(AVG(scsa.artifact_compliance_percent))::int
+                    FROM session_case_skill_analysis scsa
+                    WHERE scsa.session_id = session_skill_assessments.session_id
+                      AND scsa.user_id = session_skill_assessments.user_id
+                      AND scsa.skill_id = session_skill_assessments.skill_id
+                      AND scsa.artifact_compliance_percent IS NOT NULL
+                ) AS artifact_compliance_percent
             FROM session_skill_assessments
             WHERE user_id = %s
               AND session_id = %s
@@ -60,6 +79,84 @@ class PdfReportService:
             (user_id, session_id),
         ).fetchall()
         return [dict(row) for row in rows]
+
+    def _parse_json_array_field(self, value) -> list:
+        if not value:
+            return []
+        if isinstance(value, list):
+            return value
+        import json
+
+        try:
+            parsed = json.loads(value)
+            return parsed if isinstance(parsed, list) else []
+        except Exception:
+            return []
+
+    def _build_signal_metrics(self, rows: list[dict]) -> dict[str, float]:
+        if not rows:
+            return {
+                "evidence_hit_rate": 0.0,
+                "avg_block_coverage": 0.0,
+                "avg_artifact_compliance": 0.0,
+                "avg_red_flag_count": 0.0,
+            }
+
+        evidence_hits = 0
+        block_values: list[float] = []
+        artifact_values: list[float] = []
+        red_flag_total = 0
+
+        for row in rows:
+            if self._parse_json_array_field(row.get("found_evidence")):
+                evidence_hits += 1
+            if row.get("block_coverage_percent") is not None:
+                block_values.append(float(row["block_coverage_percent"]))
+            if row.get("artifact_compliance_percent") is not None:
+                artifact_values.append(float(row["artifact_compliance_percent"]))
+            red_flag_total += len(self._parse_json_array_field(row.get("red_flags")))
+
+        return {
+            "evidence_hit_rate": evidence_hits / len(rows),
+            "avg_block_coverage": sum(block_values) / len(block_values) if block_values else 0.0,
+            "avg_artifact_compliance": sum(artifact_values) / len(artifact_values) if artifact_values else 0.0,
+            "avg_red_flag_count": red_flag_total / len(rows),
+        }
+
+    def _has_enough_interpretation_signal(self, grouped_rows: list[dict], rows: list[dict]) -> bool:
+        if not grouped_rows or not any(item["avg_percent"] > 0 for item in grouped_rows):
+            return False
+        metrics = self._build_signal_metrics(rows)
+        return (
+            metrics["evidence_hit_rate"] >= 0.2
+            and metrics["avg_block_coverage"] >= 25
+            and metrics["avg_artifact_compliance"] >= 25
+            and metrics["avg_red_flag_count"] <= 4
+        )
+
+    def _calculate_insight_score(self, item: dict) -> int:
+        metrics = item.get("metrics", {})
+        return round(
+            item["avg_percent"] * 0.5
+            + metrics.get("evidence_hit_rate", 0) * 100 * 0.2
+            + metrics.get("avg_block_coverage", 0) * 0.15
+            + metrics.get("avg_artifact_compliance", 0) * 0.15
+            - min(metrics.get("avg_red_flag_count", 0) * 10, 40)
+        )
+
+    def _select_strongest_competency(self, grouped_rows: list[dict]) -> tuple[dict | None, bool]:
+        if not grouped_rows:
+            return None, False
+        ranked = sorted(
+            grouped_rows,
+            key=lambda item: (self._calculate_insight_score(item), item["avg_percent"]),
+            reverse=True,
+        )
+        strongest = ranked[0]
+        second = ranked[1] if len(ranked) > 1 else None
+        gap = self._calculate_insight_score(strongest) - self._calculate_insight_score(second) if second else 999
+        is_confident = self._calculate_insight_score(strongest) >= 35 and gap >= 5
+        return strongest, is_confident
 
     def _group_by_competency(self, rows: list[dict], level_percent_map: dict[str, int]) -> list[dict]:
         grouped: dict[str, list[dict]] = defaultdict(list)
@@ -71,29 +168,34 @@ class PdfReportService:
             avg_percent = round(
                 sum(level_percent_map.get(skill["assessed_level_code"], 0) for skill in skills) / len(skills)
             )
+            evidence_hits = sum(1 for skill in skills if self._parse_json_array_field(skill.get("found_evidence")))
+            block_values = [float(skill["block_coverage_percent"]) for skill in skills if skill.get("block_coverage_percent") is not None]
+            artifact_values = [float(skill["artifact_compliance_percent"]) for skill in skills if skill.get("artifact_compliance_percent") is not None]
+            red_flag_total = sum(len(self._parse_json_array_field(skill.get("red_flags"))) for skill in skills)
             result.append(
                 {
                     "competency_name": competency_name,
                     "skills": skills,
                     "avg_percent": avg_percent,
+                    "metrics": {
+                        "evidence_hit_rate": evidence_hits / len(skills),
+                        "avg_block_coverage": sum(block_values) / len(block_values) if block_values else 0.0,
+                        "avg_artifact_compliance": sum(artifact_values) / len(artifact_values) if artifact_values else 0.0,
+                        "avg_red_flag_count": red_flag_total / len(skills),
+                    },
                 }
             )
         result.sort(key=lambda item: item["competency_name"])
         return result
 
     def _build_recommendations(self, grouped_rows: list[dict]) -> list[str]:
+        if not any(item["avg_percent"] > 0 for item in grouped_rows):
+            return list(ZERO_SIGNAL_RECOMMENDATIONS)
         weakest = sorted(grouped_rows, key=lambda item: item["avg_percent"])[:3]
-        recommendations: list[str] = []
-        for item in weakest:
-            competency = item["competency_name"]
-            if competency == "Коммуникация":
-                recommendations.append("Усилить коммуникацию: чаще фиксировать позицию, вопросы и договоренности в явном виде.")
-            elif competency == "Командная работа":
-                recommendations.append("Усилить командную работу: показывать распределение ролей, синхронизацию и поддержку участников.")
-            elif competency == "Креативность":
-                recommendations.append("Усилить креативность: предлагать альтернативы, пилоты и нестандартные варианты решений.")
-            else:
-                recommendations.append("Усилить критическое мышление: добавлять критерии, риски, гипотезы и проверку решений.")
+        recommendations = [
+            build_competency_growth_recommendation(item["competency_name"], item.get("metrics", {}))
+            for item in weakest
+        ]
         return recommendations or ["Завершите полный цикл оценки, чтобы получить персональные рекомендации."]
 
     def build_pdf(self, connection, user_id: int, session_id: int) -> tuple[str, bytes]:
@@ -110,8 +212,25 @@ class PdfReportService:
         level_percent_map = get_level_percent_map(connection)
         grouped_rows = self._group_by_competency(assessments, level_percent_map)
         overall_score = round(sum(item["avg_percent"] for item in grouped_rows) / len(grouped_rows))
-        strongest = max(grouped_rows, key=lambda item: item["avg_percent"])
+        strongest, has_confident_strongest = self._select_strongest_competency(grouped_rows)
+        has_manifested_results = any(item["avg_percent"] > 0 for item in grouped_rows)
+        has_interpretation_signal = self._has_enough_interpretation_signal(grouped_rows, assessments)
+        response_pattern = build_response_pattern_text(
+            self._build_signal_metrics(assessments),
+            has_interpretation_signal=has_interpretation_signal,
+        )
+        basis_items = build_interpretation_basis_items(self._build_signal_metrics(assessments))
+        insight_title, insight_text = build_ai_insight_copy(
+            strongest["competency_name"] if strongest else None,
+            strongest["avg_percent"] if strongest else None,
+            has_manifested_results=has_manifested_results,
+            has_interpretation_signal=has_interpretation_signal,
+            has_confident_strongest=has_confident_strongest,
+            response_pattern=response_pattern,
+        )
         recommendations = self._build_recommendations(grouped_rows)
+        if not has_interpretation_signal:
+            recommendations = list(WEAK_SIGNAL_RECOMMENDATIONS)
 
         styles = getSampleStyleSheet()
         title_style = ParagraphStyle(
@@ -244,14 +363,11 @@ class PdfReportService:
         story.extend([competency_table, Spacer(1, 10)])
 
         story.append(Paragraph("AI insights", heading_style))
-        story.append(
-            Paragraph(
-                f"<b>Сильная сторона — {strongest['competency_name']}.</b> "
-                f"Наиболее выраженный показатель зафиксирован по направлению «{strongest['competency_name']}». "
-                f"Средний интегральный результат по связанным навыкам составил {strongest['avg_percent']}%.",
-                body_style,
-            )
-        )
+        story.append(Paragraph(f"<b>{insight_title}.</b> {insight_text}", body_style))
+        story.append(Spacer(1, 4))
+        story.append(Paragraph("<b>Основание вывода.</b>", body_style))
+        for item in basis_items:
+            story.append(Paragraph("• " + item, small_style))
         story.append(Spacer(1, 8))
 
         story.append(Paragraph("Рекомендации по росту", heading_style))

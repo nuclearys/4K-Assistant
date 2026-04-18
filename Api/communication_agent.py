@@ -44,6 +44,10 @@ class SkillEvaluation:
     rubric_match_scores: dict[str, int]
     structural_elements: dict[str, bool]
     red_flags: list[str]
+    found_evidence: list[dict[str, str]]
+    detected_required_blocks: list[str]
+    missing_required_blocks: list[str]
+    block_coverage_percent: int | None
     rationale: str
     evidence_excerpt: str
     source_session_case_ids: list[int]
@@ -96,9 +100,29 @@ class BaseCompetencyAgent:
                 evaluations.append(evaluation)
                 continue
 
+            self._save_case_level_structured_analysis(
+                connection=connection,
+                session_id=session_id,
+                user_id=user_id,
+                skill=skill,
+                case_payload=case_payload,
+            )
             user_text = "\n".join(payload["user_text"] for payload in case_payload if payload["user_text"]).strip()
             rubric = self._load_rubric(connection, skill["competency_skill_id"])
             structural_elements = self._extract_structural_elements(user_text, case_payload)
+            detected_required_blocks, missing_required_blocks, block_coverage_percent = self._summarize_required_blocks(
+                structural_elements=structural_elements,
+                case_payload=case_payload,
+            )
+            found_evidence = self._extract_found_evidence(
+                user_text=user_text,
+                structural_elements=structural_elements,
+                case_payload=case_payload,
+            )
+            artifact_detected_parts, artifact_missing_parts, artifact_compliance_percent = self._summarize_artifact_compliance(
+                structural_elements=structural_elements,
+                payload=case_payload[0],
+            )
             rubric_match_scores = self._score_against_rubric(user_text, rubric)
             red_flags = self._detect_red_flags(user_text, case_payload, structural_elements)
             level_code = self._determine_level(
@@ -106,6 +130,10 @@ class BaseCompetencyAgent:
                 structural_elements=structural_elements,
                 rubric_match_scores=rubric_match_scores,
                 red_flags=red_flags,
+                block_coverage_percent=block_coverage_percent,
+                missing_required_blocks=missing_required_blocks,
+                artifact_compliance_percent=artifact_compliance_percent,
+                missing_artifact_parts=artifact_missing_parts,
             )
             evaluation = SkillEvaluation(
                 skill_id=skill["skill_id"],
@@ -118,12 +146,23 @@ class BaseCompetencyAgent:
                 rubric_match_scores=rubric_match_scores,
                 structural_elements=structural_elements,
                 red_flags=red_flags,
+                found_evidence=found_evidence,
+                detected_required_blocks=detected_required_blocks,
+                missing_required_blocks=missing_required_blocks,
+                block_coverage_percent=block_coverage_percent,
                 rationale=self._build_rationale(
                     skill_name=skill["skill_name"],
                     level_code=level_code,
                     structural_elements=structural_elements,
                     rubric_match_scores=rubric_match_scores,
                     red_flags=red_flags,
+                    found_evidence=found_evidence,
+                    detected_required_blocks=detected_required_blocks,
+                    missing_required_blocks=missing_required_blocks,
+                    block_coverage_percent=block_coverage_percent,
+                    artifact_detected_parts=artifact_detected_parts,
+                    artifact_missing_parts=artifact_missing_parts,
+                    artifact_compliance_percent=artifact_compliance_percent,
                 ),
                 evidence_excerpt=self._build_evidence_excerpt(user_text),
                 source_session_case_ids=[payload["session_case_id"] for payload in case_payload],
@@ -144,6 +183,10 @@ class BaseCompetencyAgent:
             rubric_match_scores={"L1": 0, "L2": 0, "L3": 0},
             structural_elements={},
             red_flags=[],
+            found_evidence=[],
+            detected_required_blocks=[],
+            missing_required_blocks=[],
+            block_coverage_percent=None,
             rationale=rationale,
             evidence_excerpt="",
             source_session_case_ids=[],
@@ -179,13 +222,18 @@ class BaseCompetencyAgent:
             """
             SELECT DISTINCT
                 sc.id AS session_case_id,
-                ct.expected_artifact,
-                ct.answer_structure_hint,
-                ct.constraints_text,
-                ct.clarifying_questions
+                sc.case_registry_id,
+                cra.artifact_code AS expected_artifact_code,
+                cra.artifact_name AS expected_artifact,
+                ctp.base_structure_description AS answer_structure_hint,
+                txt.constraints_text,
+                ''::text AS clarifying_questions
             FROM session_cases sc
             JOIN session_case_skills scs ON scs.session_case_id = sc.id
-            JOIN case_templates ct ON ct.id = sc.case_template_id
+            JOIN cases_registry cr ON cr.id = sc.case_registry_id
+            LEFT JOIN case_type_passports ctp ON ctp.id = cr.case_type_passport_id
+            LEFT JOIN case_response_artifacts cra ON cra.id = ctp.artifact_id
+            LEFT JOIN case_texts txt ON txt.cases_registry_id = cr.id
             WHERE sc.session_id = %s
               AND scs.skill_id = %s
             ORDER BY sc.id ASC
@@ -205,15 +253,76 @@ class BaseCompetencyAgent:
                 """,
                 (case_row["session_case_id"],),
             ).fetchall()
+            methodical_rows = connection.execute(
+                """
+                SELECT
+                    crb.block_code,
+                    crb.block_name,
+                    ctrf.flag_code,
+                    ctrf.flag_name,
+                    ctrf.flag_description,
+                    cse.evidence_description,
+                    cse.expected_signal
+                FROM cases_registry cr
+                LEFT JOIN case_type_passports ctp ON ctp.id = cr.case_type_passport_id
+                LEFT JOIN case_required_response_blocks crb ON crb.case_type_passport_id = ctp.id
+                LEFT JOIN case_type_red_flags ctrf ON ctrf.case_type_passport_id = ctp.id
+                LEFT JOIN case_type_skill_evidence cse
+                    ON cse.case_type_passport_id = ctp.id
+                   AND cse.skill_id = %s
+                WHERE cr.id = %s
+                """,
+                (skill_id, case_row["case_registry_id"]),
+            ).fetchall()
+            required_blocks: list[dict[str, str]] = []
+            seen_blocks: set[str] = set()
+            methodical_red_flags: list[dict[str, str]] = []
+            seen_flags: set[str] = set()
+            skill_evidence: list[dict[str, str]] = []
+            seen_evidence: set[tuple[str, str]] = set()
+            for item in methodical_rows:
+                block_code = str(item["block_code"] or "").strip()
+                block_name = str(item["block_name"] or "").strip()
+                if block_code and block_code not in seen_blocks:
+                    seen_blocks.add(block_code)
+                    required_blocks.append({"block_code": block_code, "block_name": block_name})
+                flag_code = str(item["flag_code"] or "").strip()
+                if flag_code and flag_code not in seen_flags:
+                    seen_flags.add(flag_code)
+                    methodical_red_flags.append(
+                        {
+                            "flag_code": flag_code,
+                            "flag_name": str(item["flag_name"] or "").strip(),
+                            "flag_description": str(item["flag_description"] or "").strip(),
+                        }
+                    )
+                evidence_description = str(item["evidence_description"] or "").strip()
+                expected_signal = str(item["expected_signal"] or "").strip()
+                evidence_key = (evidence_description, expected_signal)
+                if (evidence_description or expected_signal) and evidence_key not in seen_evidence:
+                    seen_evidence.add(evidence_key)
+                    skill_evidence.append(
+                        {
+                            "related_response_block_code": block_code,
+                            "evidence_description": evidence_description,
+                            "expected_signal": expected_signal,
+                        }
+                    )
+            user_text = "\n".join(row["message_text"] for row in message_rows)
             payload.append(
                 {
                     "session_case_id": case_row["session_case_id"],
-                    "user_text": "\n".join(row["message_text"] for row in message_rows),
+                    "case_registry_id": case_row["case_registry_id"],
+                    "user_text": user_text,
+                    "expected_artifact_code": case_row["expected_artifact_code"] or "",
                     "expected_artifact": case_row["expected_artifact"] or "",
                     "answer_structure_hint": case_row["answer_structure_hint"] or "",
                     "constraints_text": case_row["constraints_text"] or "",
                     "clarifying_questions": case_row["clarifying_questions"] or "",
-                    "is_refusal_case": self._is_refusal_case("\n".join(row["message_text"] for row in message_rows)),
+                    "required_response_blocks": required_blocks,
+                    "methodical_red_flags": methodical_red_flags,
+                    "skill_evidence": skill_evidence,
+                    "is_refusal_case": self._is_refusal_case(user_text),
                 }
             )
         return payload
@@ -246,17 +355,70 @@ class BaseCompetencyAgent:
             }
         return rubric
 
+    def _detect_required_block_presence(self, user_text: str, case_payload: list[dict[str, Any]]) -> dict[str, bool]:
+        normalized = self.normalize_text(user_text)
+
+        def contains_any(words: tuple[str, ...]) -> bool:
+            return any(word in normalized for word in words)
+
+        block_presence = {
+            "situation_summary": contains_any(("ситуац", "проблем", "запрос", "жалоб", "контекст")),
+            "status_update": contains_any(("статус", "сейчас", "уже", "в работе", "провер", "сделан")),
+            "next_step": contains_any(("следующ", "дальше", "затем", "шаг", "план", "сначала")),
+            "deadline": contains_any(("срок", "час", "день", "сегодня", "завтра", "обновлен")),
+            "questions": "?" in user_text or contains_any(("вопрос", "уточн", "спрос")),
+            "understanding_summary": contains_any(("понима", "резюм", "итог", "правильно понял")),
+            "goal": contains_any(("цель", "результат", "должны достичь")),
+            "fact_impact": contains_any(("факт", "влияни", "последств", "пример")),
+            "agreement": contains_any(("договор", "соглас", "зафиксир", "подтверж")),
+            "task_split": contains_any(("распредел", "роль", "ответствен", "кто делает")),
+            "control_points": contains_any(("контроль", "синхрон", "контрольн", "ритм", "провер")),
+            "fallback": contains_any(("план b", "резерв", "на случай", "если не")),
+            "known_unknown": contains_any(("известн", "неизвестн", "допущен", "не хватает данных")),
+            "alternatives": contains_any(("альтернатив", "вариант", "опци", "сценари")),
+            "decision": contains_any(("решени", "выбира", "предлагаю", "стоит")),
+            "review_point": contains_any(("пересмотр", "контрольная точка", "вернемся", "позже проверим")),
+            "ideas": contains_any(("иде", "предлож", "вариант", "подход")),
+            "grouping": contains_any(("сгрупп", "раздел", "категор", "тип подхода")),
+            "top_choices": contains_any(("лучший", "приоритетн", "наиболее сильн", "выделю")),
+            "criteria": contains_any(("критер", "метрик", "показател", "kpi", "оцен")),
+            "implementation_plan": contains_any(("внедрен", "этап", "реализ", "запуст", "пилот")),
+            "success_metric": contains_any(("метрик", "успех", "сработал", "показател")),
+            "facts": contains_any(("факт", "обнаруж", "провер", "зафиксир")),
+            "risk": contains_any(("риск", "угроз", "последств", "сбой")),
+            "escalation": contains_any(("эскал", "подним", "передам", "сообщу руковод")),
+            "development_plan": contains_any(("развит", "что менять", "план изменен", "в горизонте")),
+            "progress_metric": contains_any(("прогресс", "признак улучшен", "по чему поймем", "метрик")),
+        }
+        required_codes = {
+            block["block_code"]
+            for payload in case_payload
+            for block in payload.get("required_response_blocks", [])
+            if block.get("block_code")
+        }
+        return {f"covers_{code}": block_presence.get(code, False) for code in required_codes}
+
     def _extract_structural_elements(self, user_text: str, case_payload: list[dict[str, Any]]) -> dict[str, bool]:
         normalized = self.normalize_text(user_text)
         combined_hints = " ".join(
             payload["expected_artifact"] + " " + payload["answer_structure_hint"] + " " + payload["clarifying_questions"]
             for payload in case_payload
         ).lower()
+        methodical_signal_text = " ".join(
+            " ".join(
+                [
+                    " ".join(block.get("block_name", "") for block in payload.get("required_response_blocks", [])),
+                    " ".join(item.get("evidence_description", "") for item in payload.get("skill_evidence", [])),
+                    " ".join(item.get("expected_signal", "") for item in payload.get("skill_evidence", [])),
+                ]
+            )
+            for payload in case_payload
+        ).lower()
 
         def contains_any(words: tuple[str, ...]) -> bool:
             return any(word in normalized for word in words)
 
-        return {
+        result = {
             "has_alternatives": contains_any(("альтернатив", "вариант", "опци", "сценари")),
             "has_criteria": contains_any(("критер", "метрик", "показател", "kpi", "оцен")),
             "has_risks": contains_any(("риск", "огранич", "угроз", "проблем", "сбой", "зависим")),
@@ -276,11 +438,13 @@ class BaseCompetencyAgent:
                 )
                 if flag
             ) >= 2,
-            "expects_alternatives": "альтернатив" in combined_hints or "вариант" in combined_hints,
-            "expects_criteria": "критер" in combined_hints or "метрик" in combined_hints,
-            "expects_risks": "риск" in combined_hints or "огранич" in combined_hints,
-            "expects_next_step": "шаг" in combined_hints or "план" in combined_hints,
+            "expects_alternatives": "альтернатив" in combined_hints or "вариант" in combined_hints or "альтернатив" in methodical_signal_text,
+            "expects_criteria": "критер" in combined_hints or "метрик" in combined_hints or "критер" in methodical_signal_text,
+            "expects_risks": "риск" in combined_hints or "огранич" in combined_hints or "риск" in methodical_signal_text,
+            "expects_next_step": "шаг" in combined_hints or "план" in combined_hints or "следующ" in methodical_signal_text,
         }
+        result.update(self._detect_required_block_presence(user_text, case_payload))
+        return result
 
     def _score_against_rubric(self, user_text: str, rubric: dict[str, dict[str, str]]) -> dict[str, int]:
         answer_tokens = self.tokenize(user_text)
@@ -306,7 +470,186 @@ class BaseCompetencyAgent:
         has_constraints = any(payload["constraints_text"].strip() for payload in case_payload)
         if has_constraints and not structural_elements["has_risks"]:
             flags.append("ignoring_constraints")
+        evidence_block_codes = {
+            item["related_response_block_code"]
+            for payload in case_payload
+            for item in payload.get("skill_evidence", [])
+            if item.get("related_response_block_code")
+        }
+        required_codes = evidence_block_codes or {
+            block["block_code"]
+            for payload in case_payload
+            for block in payload.get("required_response_blocks", [])
+            if block.get("block_code")
+        }
+        for block_code in required_codes:
+            if not structural_elements.get(f"covers_{block_code}", False):
+                flags.append(f"missing_block_{block_code}")
+        methodical_flag_codes = {
+            flag["flag_code"]
+            for payload in case_payload
+            for flag in payload.get("methodical_red_flags", [])
+            if flag.get("flag_code")
+        }
+        if "no_next_step" in methodical_flag_codes and not structural_elements.get("has_next_step"):
+            flags.append("no_next_step")
+        if "no_questions" in methodical_flag_codes and not structural_elements.get("has_questions"):
+            flags.append("no_questions")
+        if "no_risks" in methodical_flag_codes and not structural_elements.get("has_risks"):
+            flags.append("no_risks")
+        if "no_alternatives" in methodical_flag_codes and not structural_elements.get("has_alternatives"):
+            flags.append("no_alternatives")
+        if "no_criteria" in methodical_flag_codes and not structural_elements.get("has_criteria"):
+            flags.append("no_criteria")
+        if "no_status" in methodical_flag_codes and not structural_elements.get("covers_status_update", False):
+            flags.append("no_status")
+        if "no_summary" in methodical_flag_codes and not structural_elements.get("covers_understanding_summary", False):
+            flags.append("no_summary")
+        if "no_agreement" in methodical_flag_codes and not structural_elements.get("covers_agreement", False):
+            flags.append("no_agreement")
+        if "no_roles" in methodical_flag_codes and not structural_elements.get("covers_task_split", False):
+            flags.append("no_roles")
+        if "no_control" in methodical_flag_codes and not structural_elements.get("covers_control_points", False):
+            flags.append("no_control")
+        if "no_metric" in methodical_flag_codes and not (
+            structural_elements.get("covers_success_metric", False)
+            or structural_elements.get("covers_progress_metric", False)
+        ):
+            flags.append("no_metric")
         return flags
+
+    def _summarize_required_blocks(
+        self,
+        *,
+        structural_elements: dict[str, bool],
+        case_payload: list[dict[str, Any]],
+    ) -> tuple[list[str], list[str], int | None]:
+        block_labels: dict[str, str] = {}
+        for payload in case_payload:
+            for block in payload.get("required_response_blocks", []):
+                block_code = str(block.get("block_code") or "").strip()
+                if not block_code:
+                    continue
+                block_labels.setdefault(block_code, str(block.get("block_name") or block_code).strip() or block_code)
+
+        if not block_labels:
+            return [], [], None
+
+        detected = [
+            label
+            for code, label in block_labels.items()
+            if structural_elements.get(f"covers_{code}", False)
+        ]
+        missing = [
+            label
+            for code, label in block_labels.items()
+            if not structural_elements.get(f"covers_{code}", False)
+        ]
+        coverage_percent = round((len(detected) / len(block_labels)) * 100)
+        return detected, missing, coverage_percent
+
+    def _extract_found_evidence(
+        self,
+        *,
+        user_text: str,
+        structural_elements: dict[str, bool],
+        case_payload: list[dict[str, Any]],
+    ) -> list[dict[str, str]]:
+        answer_tokens = self.tokenize(user_text)
+        block_labels = {
+            str(block.get("block_code") or "").strip(): str(block.get("block_name") or "").strip()
+            for payload in case_payload
+            for block in payload.get("required_response_blocks", [])
+            if block.get("block_code")
+        }
+        found: list[dict[str, str]] = []
+        seen: set[tuple[str, str, str]] = set()
+        for payload in case_payload:
+            for item in payload.get("skill_evidence", []):
+                block_code = str(item.get("related_response_block_code") or "").strip()
+                evidence_description = str(item.get("evidence_description") or "").strip()
+                expected_signal = str(item.get("expected_signal") or "").strip()
+                signal_tokens = self.tokenize(" ".join(part for part in (evidence_description, expected_signal) if part))
+                matched_by_block = bool(block_code and structural_elements.get(f"covers_{block_code}", False))
+                matched_by_signal = bool(signal_tokens and (answer_tokens & signal_tokens))
+                if not (matched_by_block or matched_by_signal):
+                    continue
+                match_reason = "required_block" if matched_by_block else "signal_overlap"
+                evidence_key = (block_code, evidence_description, expected_signal)
+                if evidence_key in seen:
+                    continue
+                seen.add(evidence_key)
+                found.append(
+                    {
+                        "related_response_block_code": block_code,
+                        "related_response_block_name": block_labels.get(block_code, ""),
+                        "evidence_description": evidence_description,
+                        "expected_signal": expected_signal,
+                        "match_reason": match_reason,
+                    }
+                )
+        return found
+
+    def _artifact_rule_map(self) -> dict[str, tuple[tuple[str, str], ...]]:
+        return {
+            "stakeholder_message": (
+                ("Адресность и контекст", "covers_situation_summary"),
+                ("Статус", "covers_status_update"),
+                ("Следующий шаг", "covers_next_step"),
+                ("Срок обновления", "covers_deadline"),
+            ),
+            "questions_summary": (
+                ("Уточняющие вопросы", "covers_questions"),
+                ("Резюме понимания", "covers_understanding_summary"),
+                ("Следующий шаг", "covers_next_step"),
+            ),
+            "action_plan": (
+                ("Цель", "covers_goal"),
+                ("План действий", "covers_task_split"),
+                ("Контрольные точки", "covers_control_points"),
+                ("Риски или резервный план", "has_risks"),
+            ),
+            "prioritization": (
+                ("Альтернативы", "has_alternatives"),
+                ("Критерии", "has_criteria"),
+                ("Выбор решения", "covers_decision"),
+                ("Точка пересмотра", "covers_review_point"),
+            ),
+            "dialogue_script": (
+                ("Цель разговора", "covers_goal"),
+                ("Факт и влияние", "covers_fact_impact"),
+                ("Вопросы собеседнику", "covers_questions"),
+                ("Договоренность", "covers_agreement"),
+            ),
+            "root_cause_analysis": (
+                ("Факты и наблюдения", "covers_facts"),
+                ("Риски и последствия", "covers_risk"),
+                ("Причинно-следственная логика", "has_predictive"),
+                ("Корректирующий шаг", "covers_next_step"),
+            ),
+            "pilot_plan": (
+                ("Критерии оценки", "covers_criteria"),
+                ("Решение по идее", "covers_decision"),
+                ("План пилота", "covers_implementation_plan"),
+                ("Метрика успеха", "covers_success_metric"),
+            ),
+        }
+
+    def _summarize_artifact_compliance(
+        self,
+        *,
+        structural_elements: dict[str, bool],
+        payload: dict[str, Any],
+    ) -> tuple[list[str], list[str], int | None]:
+        artifact_code = str(payload.get("expected_artifact_code") or "").strip()
+        rule_map = self._artifact_rule_map()
+        rules = rule_map.get(artifact_code)
+        if not rules:
+            return [], [], None
+        detected = [label for label, key in rules if structural_elements.get(key, False)]
+        missing = [label for label, key in rules if not structural_elements.get(key, False)]
+        compliance_percent = round((len(detected) / len(rules)) * 100) if rules else None
+        return detected, missing, compliance_percent
 
     def _determine_level(
         self,
@@ -315,6 +658,10 @@ class BaseCompetencyAgent:
         structural_elements: dict[str, bool],
         rubric_match_scores: dict[str, int],
         red_flags: list[str],
+        block_coverage_percent: int | None,
+        missing_required_blocks: list[str],
+        artifact_compliance_percent: int | None,
+        missing_artifact_parts: list[str],
     ) -> str:
         normalized = self.normalize_text(user_text)
         if not normalized:
@@ -352,14 +699,69 @@ class BaseCompetencyAgent:
             level = "N/A"
 
         if not red_flags or level == "N/A":
-            return level
+            level = self._adjust_level_by_structure(
+                level=level,
+                block_coverage_percent=block_coverage_percent,
+                missing_required_blocks=missing_required_blocks,
+            )
+            return self._adjust_level_by_artifact(
+                level=level,
+                artifact_compliance_percent=artifact_compliance_percent,
+                missing_artifact_parts=missing_artifact_parts,
+            )
         if len(red_flags) >= 2:
             return "N/A"
         if level == "L3":
-            return "L2"
+            level = "L2"
         if level == "L2":
-            return "L1"
-        return "N/A"
+            level = "L1"
+        elif level == "L1":
+            level = "N/A"
+        level = self._adjust_level_by_structure(
+            level=level,
+            block_coverage_percent=block_coverage_percent,
+            missing_required_blocks=missing_required_blocks,
+        )
+        return self._adjust_level_by_artifact(
+            level=level,
+            artifact_compliance_percent=artifact_compliance_percent,
+            missing_artifact_parts=missing_artifact_parts,
+        )
+
+    def _adjust_level_by_structure(
+        self,
+        *,
+        level: str,
+        block_coverage_percent: int | None,
+        missing_required_blocks: list[str],
+    ) -> str:
+        if level == "N/A" or block_coverage_percent is None:
+            return level
+
+        if block_coverage_percent == 0:
+            return "N/A"
+        if block_coverage_percent < 40:
+            return {"L3": "L1", "L2": "L1", "L1": "N/A"}.get(level, "N/A")
+        if block_coverage_percent < 70 or len(missing_required_blocks) >= 2:
+            return {"L3": "L2", "L2": "L1", "L1": "L1"}.get(level, level)
+        return level
+
+    def _adjust_level_by_artifact(
+        self,
+        *,
+        level: str,
+        artifact_compliance_percent: int | None,
+        missing_artifact_parts: list[str],
+    ) -> str:
+        if level == "N/A" or artifact_compliance_percent is None:
+            return level
+        if artifact_compliance_percent == 0:
+            return "N/A"
+        if artifact_compliance_percent < 40:
+            return {"L3": "L1", "L2": "L1", "L1": "N/A"}.get(level, "N/A")
+        if artifact_compliance_percent < 70 or len(missing_artifact_parts) >= 2:
+            return {"L3": "L2", "L2": "L1", "L1": "L1"}.get(level, level)
+        return level
 
     def _build_rationale(
         self,
@@ -369,6 +771,13 @@ class BaseCompetencyAgent:
         structural_elements: dict[str, bool],
         rubric_match_scores: dict[str, int],
         red_flags: list[str],
+        found_evidence: list[dict[str, str]],
+        detected_required_blocks: list[str],
+        missing_required_blocks: list[str],
+        block_coverage_percent: int | None,
+        artifact_detected_parts: list[str] | None = None,
+        artifact_missing_parts: list[str] | None = None,
+        artifact_compliance_percent: int | None = None,
     ) -> str:
         evidence = []
         if structural_elements["has_alternatives"]:
@@ -390,6 +799,26 @@ class BaseCompetencyAgent:
         parts = [f"Навык «{skill_name}» отнесен к уровню {level_code}."]
         if evidence:
             parts.append(f"Выявленные признаки: {', '.join(evidence)}.")
+        if block_coverage_percent is not None:
+            parts.append(f"Покрытие обязательных блоков ответа: {block_coverage_percent}%.")
+        if artifact_compliance_percent is not None:
+            parts.append(f"Соответствие ожидаемому артефакту ответа: {artifact_compliance_percent}%.")
+        if detected_required_blocks:
+            parts.append(f"Покрытые обязательные блоки ответа: {', '.join(detected_required_blocks)}.")
+        if missing_required_blocks:
+            parts.append(f"Не обнаружены блоки: {', '.join(missing_required_blocks)}.")
+        if artifact_detected_parts:
+            parts.append(f"Обнаружены части артефакта: {', '.join(artifact_detected_parts)}.")
+        if artifact_missing_parts:
+            parts.append(f"Не хватает частей артефакта: {', '.join(artifact_missing_parts)}.")
+        if found_evidence:
+            evidence_labels = []
+            for item in found_evidence[:3]:
+                label = item.get("evidence_description") or item.get("expected_signal") or item.get("related_response_block_name")
+                if label:
+                    evidence_labels.append(label)
+            if evidence_labels:
+                parts.append(f"Найденные evidence-сигналы: {', '.join(evidence_labels)}.")
         if any(rubric_match_scores.values()):
             parts.append("Совпадения с рубрикой: " + ", ".join(f"{level}={score}" for level, score in rubric_match_scores.items()) + ".")
         if red_flags:
@@ -402,15 +831,142 @@ class BaseCompetencyAgent:
             return cleaned
         return cleaned[:497] + "..."
 
+    def _extract_detected_signals(
+        self,
+        *,
+        structural_elements: dict[str, bool],
+        found_evidence: list[dict[str, str]],
+        detected_required_blocks: list[str],
+        red_flags: list[str],
+    ) -> list[str]:
+        detected: list[str] = []
+        for key, value in structural_elements.items():
+            if value:
+                detected.append(key)
+        for item in found_evidence:
+            label = str(item.get("related_response_block_code") or item.get("evidence_description") or "").strip()
+            if label:
+                detected.append(label)
+        for block in detected_required_blocks:
+            if block:
+                detected.append(f"block:{block}")
+        for flag in red_flags:
+            if flag:
+                detected.append(f"red_flag:{flag}")
+        unique_detected: list[str] = []
+        seen: set[str] = set()
+        for item in detected:
+            if item in seen:
+                continue
+            seen.add(item)
+            unique_detected.append(item)
+        return unique_detected
+
+    def _save_case_level_structured_analysis(
+        self,
+        *,
+        connection,
+        session_id: int,
+        user_id: int,
+        skill: dict[str, Any],
+        case_payload: list[dict[str, Any]],
+    ) -> None:
+        for payload in case_payload:
+            user_text = payload.get("user_text") or ""
+            structural_elements = self._extract_structural_elements(user_text, [payload])
+            detected_required_blocks, missing_required_blocks, block_coverage_percent = self._summarize_required_blocks(
+                structural_elements=structural_elements,
+                case_payload=[payload],
+            )
+            found_evidence = self._extract_found_evidence(
+                user_text=user_text,
+                structural_elements=structural_elements,
+                case_payload=[payload],
+            )
+            artifact_detected_parts, artifact_missing_parts, artifact_compliance_percent = self._summarize_artifact_compliance(
+                structural_elements=structural_elements,
+                payload=payload,
+            )
+            red_flags = self._detect_red_flags(user_text, [payload], structural_elements)
+            detected_signals = self._extract_detected_signals(
+                structural_elements=structural_elements,
+                found_evidence=found_evidence,
+                detected_required_blocks=detected_required_blocks,
+                red_flags=red_flags,
+            )
+            source_message_count = len([line for line in user_text.splitlines() if line.strip()]) if user_text else 0
+            connection.execute(
+                """
+                INSERT INTO session_case_skill_analysis (
+                    session_id, user_id, session_case_id, case_registry_id, skill_id, competency_name,
+                    expected_artifact_code, expected_artifact_name, detected_artifact_parts,
+                    missing_artifact_parts, artifact_compliance_percent,
+                    structural_elements, detected_required_blocks, missing_required_blocks,
+                    block_coverage_percent, red_flags, found_evidence, detected_signals,
+                    evidence_excerpt, source_message_count, analyzed_at, updated_at
+                )
+                VALUES (
+                    %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                    %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                    NOW(), NOW()
+                )
+                ON CONFLICT (session_case_id, skill_id)
+                DO UPDATE SET
+                    session_id = EXCLUDED.session_id,
+                    user_id = EXCLUDED.user_id,
+                    case_registry_id = EXCLUDED.case_registry_id,
+                    competency_name = EXCLUDED.competency_name,
+                    expected_artifact_code = EXCLUDED.expected_artifact_code,
+                    expected_artifact_name = EXCLUDED.expected_artifact_name,
+                    detected_artifact_parts = EXCLUDED.detected_artifact_parts,
+                    missing_artifact_parts = EXCLUDED.missing_artifact_parts,
+                    artifact_compliance_percent = EXCLUDED.artifact_compliance_percent,
+                    structural_elements = EXCLUDED.structural_elements,
+                    detected_required_blocks = EXCLUDED.detected_required_blocks,
+                    missing_required_blocks = EXCLUDED.missing_required_blocks,
+                    block_coverage_percent = EXCLUDED.block_coverage_percent,
+                    red_flags = EXCLUDED.red_flags,
+                    found_evidence = EXCLUDED.found_evidence,
+                    detected_signals = EXCLUDED.detected_signals,
+                    evidence_excerpt = EXCLUDED.evidence_excerpt,
+                    source_message_count = EXCLUDED.source_message_count,
+                    analyzed_at = EXCLUDED.analyzed_at,
+                    updated_at = EXCLUDED.updated_at
+                """,
+                (
+                    session_id,
+                    user_id,
+                    payload["session_case_id"],
+                    payload.get("case_registry_id"),
+                    skill["skill_id"],
+                    skill["competency_name"],
+                    payload.get("expected_artifact_code") or None,
+                    payload.get("expected_artifact") or None,
+                    json.dumps(artifact_detected_parts, ensure_ascii=False),
+                    json.dumps(artifact_missing_parts, ensure_ascii=False),
+                    artifact_compliance_percent,
+                    json.dumps(structural_elements, ensure_ascii=False),
+                    json.dumps(detected_required_blocks, ensure_ascii=False),
+                    json.dumps(missing_required_blocks, ensure_ascii=False),
+                    block_coverage_percent,
+                    json.dumps(red_flags, ensure_ascii=False),
+                    json.dumps(found_evidence, ensure_ascii=False),
+                    json.dumps(detected_signals, ensure_ascii=False),
+                    self._build_evidence_excerpt(user_text),
+                    source_message_count,
+                ),
+            )
+
     def _save_evaluation(self, connection, session_id: int, user_id: int, evaluation: SkillEvaluation) -> None:
         connection.execute(
             """
             INSERT INTO session_skill_assessments (
                 session_id, user_id, skill_id, competency_skill_id, competency_name, skill_code, skill_name,
                 assessed_level_code, assessed_level_name, rubric_match_scores, structural_elements,
-                red_flags, rationale, evidence_excerpt, source_session_case_ids
+                red_flags, found_evidence, detected_required_blocks, missing_required_blocks,
+                block_coverage_percent, rationale, evidence_excerpt, source_session_case_ids
             )
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (session_id, skill_id)
             DO UPDATE SET
                 competency_skill_id = EXCLUDED.competency_skill_id,
@@ -422,6 +978,10 @@ class BaseCompetencyAgent:
                 rubric_match_scores = EXCLUDED.rubric_match_scores,
                 structural_elements = EXCLUDED.structural_elements,
                 red_flags = EXCLUDED.red_flags,
+                found_evidence = EXCLUDED.found_evidence,
+                detected_required_blocks = EXCLUDED.detected_required_blocks,
+                missing_required_blocks = EXCLUDED.missing_required_blocks,
+                block_coverage_percent = EXCLUDED.block_coverage_percent,
                 rationale = EXCLUDED.rationale,
                 evidence_excerpt = EXCLUDED.evidence_excerpt,
                 source_session_case_ids = EXCLUDED.source_session_case_ids,
@@ -440,6 +1000,10 @@ class BaseCompetencyAgent:
                 json.dumps(evaluation.rubric_match_scores, ensure_ascii=False),
                 json.dumps(evaluation.structural_elements, ensure_ascii=False),
                 json.dumps(evaluation.red_flags, ensure_ascii=False),
+                json.dumps(evaluation.found_evidence, ensure_ascii=False),
+                json.dumps(evaluation.detected_required_blocks, ensure_ascii=False),
+                json.dumps(evaluation.missing_required_blocks, ensure_ascii=False),
+                evaluation.block_coverage_percent,
                 evaluation.rationale,
                 evaluation.evidence_excerpt,
                 json.dumps(evaluation.source_session_case_ids, ensure_ascii=False),
@@ -483,6 +1047,10 @@ class CommunicationAgent(BaseCompetencyAgent):
         structural_elements: dict[str, bool],
         rubric_match_scores: dict[str, int],
         red_flags: list[str],
+        block_coverage_percent: int | None,
+        missing_required_blocks: list[str],
+        artifact_compliance_percent: int | None,
+        missing_artifact_parts: list[str],
     ) -> str:
         if not self.normalize_text(user_text):
             return "N/A"
@@ -510,10 +1078,29 @@ class CommunicationAgent(BaseCompetencyAgent):
             level = "N/A"
 
         if not red_flags or level == "N/A":
-            return level
+            level = self._adjust_level_by_structure(
+                level=level,
+                block_coverage_percent=block_coverage_percent,
+                missing_required_blocks=missing_required_blocks,
+            )
+            return self._adjust_level_by_artifact(
+                level=level,
+                artifact_compliance_percent=artifact_compliance_percent,
+                missing_artifact_parts=missing_artifact_parts,
+            )
         if len(red_flags) >= 2:
             return "N/A"
-        return {"L3": "L2", "L2": "L1", "L1": "N/A"}.get(level, "N/A")
+        level = {"L3": "L2", "L2": "L1", "L1": "N/A"}.get(level, "N/A")
+        level = self._adjust_level_by_structure(
+            level=level,
+            block_coverage_percent=block_coverage_percent,
+            missing_required_blocks=missing_required_blocks,
+        )
+        return self._adjust_level_by_artifact(
+            level=level,
+            artifact_compliance_percent=artifact_compliance_percent,
+            missing_artifact_parts=missing_artifact_parts,
+        )
 
 
 class TeamworkAgent(BaseCompetencyAgent):
@@ -554,6 +1141,10 @@ class TeamworkAgent(BaseCompetencyAgent):
         structural_elements: dict[str, bool],
         rubric_match_scores: dict[str, int],
         red_flags: list[str],
+        block_coverage_percent: int | None,
+        missing_required_blocks: list[str],
+        artifact_compliance_percent: int | None,
+        missing_artifact_parts: list[str],
     ) -> str:
         if not self.normalize_text(user_text):
             return "N/A"
@@ -581,10 +1172,29 @@ class TeamworkAgent(BaseCompetencyAgent):
             level = "N/A"
 
         if not red_flags or level == "N/A":
-            return level
+            level = self._adjust_level_by_structure(
+                level=level,
+                block_coverage_percent=block_coverage_percent,
+                missing_required_blocks=missing_required_blocks,
+            )
+            return self._adjust_level_by_artifact(
+                level=level,
+                artifact_compliance_percent=artifact_compliance_percent,
+                missing_artifact_parts=missing_artifact_parts,
+            )
         if len(red_flags) >= 2:
             return "N/A"
-        return {"L3": "L2", "L2": "L1", "L1": "N/A"}.get(level, "N/A")
+        level = {"L3": "L2", "L2": "L1", "L1": "N/A"}.get(level, "N/A")
+        level = self._adjust_level_by_structure(
+            level=level,
+            block_coverage_percent=block_coverage_percent,
+            missing_required_blocks=missing_required_blocks,
+        )
+        return self._adjust_level_by_artifact(
+            level=level,
+            artifact_compliance_percent=artifact_compliance_percent,
+            missing_artifact_parts=missing_artifact_parts,
+        )
 
 
 class CreativityAgent(BaseCompetencyAgent):
@@ -625,6 +1235,10 @@ class CreativityAgent(BaseCompetencyAgent):
         structural_elements: dict[str, bool],
         rubric_match_scores: dict[str, int],
         red_flags: list[str],
+        block_coverage_percent: int | None,
+        missing_required_blocks: list[str],
+        artifact_compliance_percent: int | None,
+        missing_artifact_parts: list[str],
     ) -> str:
         if not self.normalize_text(user_text):
             return "N/A"
@@ -651,10 +1265,29 @@ class CreativityAgent(BaseCompetencyAgent):
             level = "N/A"
 
         if not red_flags or level == "N/A":
-            return level
+            level = self._adjust_level_by_structure(
+                level=level,
+                block_coverage_percent=block_coverage_percent,
+                missing_required_blocks=missing_required_blocks,
+            )
+            return self._adjust_level_by_artifact(
+                level=level,
+                artifact_compliance_percent=artifact_compliance_percent,
+                missing_artifact_parts=missing_artifact_parts,
+            )
         if len(red_flags) >= 2:
             return "N/A"
-        return {"L3": "L2", "L2": "L1", "L1": "N/A"}.get(level, "N/A")
+        level = {"L3": "L2", "L2": "L1", "L1": "N/A"}.get(level, "N/A")
+        level = self._adjust_level_by_structure(
+            level=level,
+            block_coverage_percent=block_coverage_percent,
+            missing_required_blocks=missing_required_blocks,
+        )
+        return self._adjust_level_by_artifact(
+            level=level,
+            artifact_compliance_percent=artifact_compliance_percent,
+            missing_artifact_parts=missing_artifact_parts,
+        )
 
 
 class CriticalThinkingAgent(BaseCompetencyAgent):
@@ -695,6 +1328,10 @@ class CriticalThinkingAgent(BaseCompetencyAgent):
         structural_elements: dict[str, bool],
         rubric_match_scores: dict[str, int],
         red_flags: list[str],
+        block_coverage_percent: int | None,
+        missing_required_blocks: list[str],
+        artifact_compliance_percent: int | None,
+        missing_artifact_parts: list[str],
     ) -> str:
         if not self.normalize_text(user_text):
             return "N/A"
@@ -723,10 +1360,29 @@ class CriticalThinkingAgent(BaseCompetencyAgent):
             level = "N/A"
 
         if not red_flags or level == "N/A":
-            return level
+            level = self._adjust_level_by_structure(
+                level=level,
+                block_coverage_percent=block_coverage_percent,
+                missing_required_blocks=missing_required_blocks,
+            )
+            return self._adjust_level_by_artifact(
+                level=level,
+                artifact_compliance_percent=artifact_compliance_percent,
+                missing_artifact_parts=missing_artifact_parts,
+            )
         if len(red_flags) >= 2:
             return "N/A"
-        return {"L3": "L2", "L2": "L1", "L1": "N/A"}.get(level, "N/A")
+        level = {"L3": "L2", "L2": "L1", "L1": "N/A"}.get(level, "N/A")
+        level = self._adjust_level_by_structure(
+            level=level,
+            block_coverage_percent=block_coverage_percent,
+            missing_required_blocks=missing_required_blocks,
+        )
+        return self._adjust_level_by_artifact(
+            level=level,
+            artifact_compliance_percent=artifact_compliance_percent,
+            missing_artifact_parts=missing_artifact_parts,
+        )
 
 
 communication_agent = CommunicationAgent()

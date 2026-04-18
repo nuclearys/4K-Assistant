@@ -20,6 +20,7 @@ class UserResponse(BaseModel):
     active_profile_id: int | None = None
     phone: str | None = None
     company_industry: str | None = None
+    avatar_data_url: str | None = None
 
 
 class CheckOrCreateUserRequest(BaseModel):
@@ -87,6 +88,8 @@ class AssessmentReport(BaseModel):
     summary: str
     badge: str
     format_label: str
+    sequence_number: int | None = None
+    report_at: datetime | None = None
 
 
 class AdminMetricCard(BaseModel):
@@ -100,11 +103,190 @@ class AdminInsightCard(BaseModel):
     description: str
 
 
+class AdminMethodologyBranchItem(BaseModel):
+    role_name: str
+    case_count: int
+    ready_case_count: int
+    skill_coverage_percent: int
+    competency_coverage_percent: int
+
+
+class AdminMethodologyCoverageRow(BaseModel):
+    competency_name: str
+    linear_value: int
+    manager_value: int
+    leader_value: int
+
+
+class AdminMethodologySkillGapItem(BaseModel):
+    role_name: str
+    skill_name: str
+    competency_name: str
+    ready_case_count: int
+    severity: str
+
+
+class AdminMethodologySinglePointSkillItem(BaseModel):
+    skill_name: str
+    competency_name: str
+    role_names: list[str]
+    type_codes: list[str]
+    ready_case_count: int
+
+
+class AdminMethodologyCaseQualityItem(BaseModel):
+    case_id_code: str
+    title: str
+    type_code: str
+    assessments_count: int
+    avg_red_flag_count: float
+    avg_missing_blocks_count: float
+    avg_block_coverage_percent: float | None = None
+    low_level_rate_percent: int
+    issue_label: str
+
+
+class AdminMethodologyPassportItem(BaseModel):
+    type_code: str
+    type_name: str
+    artifact_name: str
+    status: str
+    ready_cases_count: int
+    required_blocks_count: int
+    red_flags_count: int
+    roles: list[str]
+
+
+class AdminMethodologyCaseItem(BaseModel):
+    case_id_code: str
+    title: str
+    type_code: str
+    status: str
+    difficulty_level: str
+    estimated_time_min: int | None = None
+    roles: list[str]
+    skills: list[str]
+    qa_ready: bool
+    passed_checks: int
+    total_checks: int
+    qa_blockers: list[str]
+
+
+class AdminMethodologyChecklistItem(BaseModel):
+    code: str
+    name: str
+    passed: bool
+    comment: str | None = None
+
+
+class AdminMethodologySkillSignalItem(BaseModel):
+    skill_name: str
+    competency_name: str
+    related_response_block_code: str | None = None
+    evidence_description: str
+    expected_signal: str | None = None
+
+
+class AdminMethodologyRoleOption(BaseModel):
+    id: int
+    code: str
+    name: str
+
+
+class AdminMethodologySkillOption(BaseModel):
+    id: int
+    skill_code: str
+    skill_name: str
+    competency_name: str | None = None
+
+
+class AdminMethodologyChangeLogItem(BaseModel):
+    changed_at: datetime
+    changed_by: str
+    entity_scope: str
+    action: str
+    summary: str
+
+
+class AdminMethodologyCaseDetailResponse(BaseModel):
+    case_id_code: str
+    title: str
+    case_registry_version: int
+    case_text_version: int
+    case_type_passport_version: int
+    required_blocks_version: int
+    red_flags_version: int
+    skill_evidence_version: int
+    difficulty_modifiers_version: int
+    personalization_fields_version: int
+    type_code: str
+    type_name: str
+    artifact_name: str
+    artifact_description: str | None = None
+    passport_status: str
+    case_status: str
+    case_text_status: str
+    status: str
+    difficulty_level: str
+    estimated_time_min: int | None = None
+    roles: list[str]
+    skills: list[str]
+    intro_context: str | None = None
+    facts_data: str | None = None
+    trigger_event: str | None = None
+    trigger_details: str | None = None
+    task_for_user: str | None = None
+    constraints_text: str | None = None
+    stakes_text: str | None = None
+    personalization_fields: list[str]
+    required_blocks: list[str]
+    red_flags: list[str]
+    qa_blockers: list[str]
+    quality_checks: list[AdminMethodologyChecklistItem]
+    skill_signals: list[AdminMethodologySkillSignalItem]
+    selected_role_ids: list[int]
+    selected_skill_ids: list[int]
+    role_options: list[AdminMethodologyRoleOption]
+    skill_options: list[AdminMethodologySkillOption]
+    change_log: list[AdminMethodologyChangeLogItem]
+
+
+class AdminMethodologyCaseUpdateRequest(BaseModel):
+    title: str
+    difficulty_level: str
+    passport_status: str = "draft"
+    case_status: str = "draft"
+    case_text_status: str = "draft"
+    estimated_time_min: int | None = None
+    intro_context: str | None = None
+    facts_data: str | None = None
+    trigger_event: str | None = None
+    trigger_details: str | None = None
+    task_for_user: str | None = None
+    constraints_text: str | None = None
+    stakes_text: str | None = None
+    role_ids: list[int]
+    skill_ids: list[int]
+
+
+class AdminMethodologyResponse(BaseModel):
+    title: str
+    subtitle: str
+    metrics: list[AdminMetricCard]
+    branches: list[AdminMethodologyBranchItem]
+    coverage: list[AdminMethodologyCoverageRow]
+    skill_gaps: list[AdminMethodologySkillGapItem]
+    single_point_skills: list[AdminMethodologySinglePointSkillItem]
+    case_quality_hotspots: list[AdminMethodologyCaseQualityItem]
+    passports: list[AdminMethodologyPassportItem]
+    cases: list[AdminMethodologyCaseItem]
+
+
 class AdminDashboard(BaseModel):
     title: str
     subtitle: str
     metrics: list[AdminMetricCard]
-    competency_average: list[dict[str, str | int]]
+    competency_average: list[dict[str, str | int | float]]
     mbti_distribution: list[dict[str, str | int]]
     insights: list[AdminInsightCard]
     activity_points: list[int]
@@ -145,7 +327,7 @@ class AdminReportDetailResponse(BaseModel):
     status: str
     score_percent: int | None = None
     report_date: datetime | None = None
-    competency_average: list[dict[str, str | int]]
+    competency_average: list[dict[str, str | int | float]]
     mbti_type: str | None = None
     mbti_summary: str | None = None
     mbti_axes: list[dict[str, str | int]]
@@ -165,6 +347,41 @@ class CheckOrCreateUserResponse(BaseModel):
     exists: bool
     message: str
     user: UserResponse | None = None
+    requires_user_data: bool = False
+    agent: AgentReply | None = None
+    dashboard: UserDashboard | None = None
+    is_admin: bool = False
+    admin_dashboard: AdminDashboard | None = None
+
+
+class SessionCaseStructuredAnalysisResponse(BaseModel):
+    id: int
+    session_id: int
+    user_id: int
+    session_case_id: int
+    case_registry_id: int | None = None
+    case_id_code: str | None = None
+    case_title: str | None = None
+    skill_id: int
+    skill_code: str | None = None
+    skill_name: str
+    competency_name: str
+    expected_artifact_code: str | None = None
+    expected_artifact_name: str | None = None
+    detected_artifact_parts: str | None = None
+    missing_artifact_parts: str | None = None
+    artifact_compliance_percent: int | None = None
+    structural_elements: str | None = None
+    detected_required_blocks: str | None = None
+    missing_required_blocks: str | None = None
+    block_coverage_percent: int | None = None
+    red_flags: str | None = None
+    found_evidence: str | None = None
+    detected_signals: str | None = None
+    evidence_excerpt: str | None = None
+    source_message_count: int
+    analyzed_at: datetime
+    updated_at: datetime
     requires_user_data: bool = False
     agent: AgentReply
     dashboard: UserDashboard | None = None
@@ -247,11 +464,27 @@ class SkillAssessmentResponse(BaseModel):
     rubric_match_scores: str | None = None
     structural_elements: str | None = None
     red_flags: str | None = None
+    found_evidence: str | None = None
+    detected_required_blocks: str | None = None
+    missing_required_blocks: str | None = None
+    block_coverage_percent: int | None = None
+    expected_artifact_names: str | None = None
+    artifact_compliance_percent: int | None = None
     rationale: str | None = None
     evidence_excerpt: str | None = None
     source_session_case_ids: str | None = None
     created_at: datetime
     updated_at: datetime
+
+
+class AssessmentReportInterpretationResponse(BaseModel):
+    insight_title: str
+    insight_text: str
+    basis_items: list[str]
+    growth_areas: list[str]
+    has_interpretation_signal: bool
+    has_confident_strongest: bool
+    response_pattern: str
 
 
 class UserAssessmentHistoryItem(BaseModel):
@@ -273,6 +506,36 @@ class UserProfileSummaryResponse(BaseModel):
     average_score_percent: int | None = None
     latest_session_id: int | None = None
     history: list[UserAssessmentHistoryItem]
+
+
+class UserProfileUpdateRequest(BaseModel):
+    email: str | None = None
+    avatar_data_url: str | None = None
+
+    @field_validator("email", mode="before")
+    @classmethod
+    def normalize_email(cls, value: object) -> str | None:
+        if value is None:
+            return None
+        normalized = str(value).strip()
+        return normalized or None
+
+    @field_validator("email")
+    @classmethod
+    def validate_email(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        if "@" not in value or "." not in value.split("@")[-1]:
+            raise ValueError("Введите корректный email")
+        return value
+
+    @field_validator("avatar_data_url", mode="before")
+    @classmethod
+    def normalize_avatar(cls, value: object) -> str | None:
+        if value is None:
+            return None
+        text = str(value).strip()
+        return text or None
 
 
 class UserSessionRestoreResponse(BaseModel):

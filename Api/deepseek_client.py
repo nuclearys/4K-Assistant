@@ -128,6 +128,11 @@ class DeepSeekClient:
         case_context: str,
         case_task: str,
         case_skills: list[str],
+        case_artifact_name: str | None = None,
+        case_artifact_description: str | None = None,
+        case_required_response_blocks: list[str] | None = None,
+        case_skill_evidence: list[dict[str, str]] | None = None,
+        case_difficulty_modifiers: list[str] | None = None,
         planned_total_duration_min: int | None = None,
         personalization_variables: str | None = None,
         personalization_map: dict[str, str] | None = None,
@@ -162,6 +167,9 @@ class DeepSeekClient:
             case_context=personalized_context,
             case_task=personalized_task,
             case_skills=case_skills,
+            case_artifact_name=case_artifact_name,
+            case_required_response_blocks=case_required_response_blocks,
+            case_skill_evidence=case_skill_evidence,
             personalization_map=personalization_map,
         )
         if not self.enabled:
@@ -193,6 +201,13 @@ class DeepSeekClient:
             f"Персонализированное задание: {personalized_task}\n"
             f"Персонализация шаблона: {json.dumps(personalization_map, ensure_ascii=False)}\n"
             f"Оцениваемые навыки: {', '.join(case_skills) if case_skills else 'Не указаны'}\n"
+            f"Ожидаемый артефакт ответа: {case_artifact_name or 'Не указан'}\n"
+            f"Описание артефакта: {case_artifact_description or 'Не указано'}\n"
+            f"Обязательные блоки ответа: {json.dumps(case_required_response_blocks or [], ensure_ascii=False)}\n"
+            f"Матрица проявления навыков: {json.dumps(case_skill_evidence or [], ensure_ascii=False)}\n"
+            f"Допустимые модификаторы сложности: {json.dumps(case_difficulty_modifiers or [], ensure_ascii=False)}\n"
+            "Системный промпт должен подсказывать интервьюеру, какой тип ответа ожидается от пользователя, "
+            "какие блоки ответа важно раскрыть и какие сигналы по навыкам особенно важно наблюдать в диалоге. "
             "Обязательно используй уже заполненные персонализированные данные в финальном системном промпте, "
             "не оставляй фигурных скобок и не возвращай шаблонные переменные."
         )
@@ -649,8 +664,17 @@ class DeepSeekClient:
         case_context: str,
         case_task: str,
         case_skills: list[str],
+        case_artifact_name: str | None,
+        case_required_response_blocks: list[str] | None,
+        case_skill_evidence: list[dict[str, str]] | None,
         personalization_map: dict[str, str],
     ) -> str:
+        blocks_text = ", ".join(case_required_response_blocks or []) or "не указаны"
+        evidence_text = "; ".join(
+            f"{item.get('skill_code') or item.get('skill_name')}: {item.get('expected_signal') or item.get('evidence_description')}"
+            for item in (case_skill_evidence or [])
+            if isinstance(item, dict)
+        ) or "не указаны"
         return (
             "Ты агент Интервьюер в системе Agent_4K. "
             f"Проводишь интервью по кейсу «{case_title}» для пользователя {full_name or 'без имени'}. "
@@ -660,6 +684,9 @@ class DeepSeekClient:
             f"Контекст кейса: {case_context}. "
             f"Задача пользователя: {case_task}. "
             f"Навыки для оценки: {', '.join(case_skills) if case_skills else 'не указаны'}. "
+            f"Ожидаемый артефакт ответа: {case_artifact_name or 'не указан'}. "
+            f"Обязательные блоки ответа: {blocks_text}. "
+            f"Ключевые сигналы навыков: {evidence_text}. "
             f"Ключевые параметры кейса: {self._summarize_personalization_map(personalization_map)}. "
             "Веди диалог профессионально, работай как интервьюер. "
             "Задавай по одному уточняющему вопросу за ход, помогай раскрыть решение, но не подсказывай готовый ответ. "

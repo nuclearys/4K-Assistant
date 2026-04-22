@@ -292,10 +292,18 @@ class DeepSeekClient:
             planned_total_duration_min=planned_total_duration_min,
             personalization_variables=personalization_variables,
         )
+        raw_context = self.apply_personalization(case_context, personalization_map)
+        raw_task = self.apply_personalization(case_task, personalization_map)
+        formatted_context, formatted_task = self._format_user_case_materials(
+            case_title=case_title,
+            case_context=raw_context,
+            case_task=raw_task,
+            role_name=role_name,
+        )
         return (
             personalization_map,
-            self.apply_personalization(case_context, personalization_map),
-            self.apply_personalization(case_task, personalization_map),
+            formatted_context,
+            formatted_task,
         )
 
     def normalize_duties(
@@ -494,9 +502,11 @@ class DeepSeekClient:
             "Правила:\n"
             "1. Используй только перечисленные переменные.\n"
             "2. Опирайся на шаблон кейса и профиль пользователя.\n"
-            "3. Значения должны быть реалистичными, короткими и пригодными для прямой подстановки в текст.\n"
+            "3. Значения должны быть реалистичными, короткими, конкретными и пригодными для прямой подстановки в текст.\n"
             "4. Не добавляй фигурные скобки в ключи.\n"
-            "5. Если значение нельзя уверенно вывести, используй наиболее уместный вариант из контекста кейса и профиля.\n\n"
+            "5. Если значение нельзя уверенно вывести, используй наиболее уместный вариант из контекста кейса и профиля.\n"
+            "6. Не используй абстрактные формулировки вроде 'операционная команда', 'ключевой рабочий процесс' или 'рабочая система'. "
+            "Подставляй правдоподобные сущности: очередь тикетов, обработка инцидентов, Service Desk, группа сопровождения, окно согласования, журнал ошибок.\n\n"
             f"Пользователь: {full_name or 'не указано'}\n"
             f"Должность: {position or 'не указана'}\n"
             f"Обязанности: {duties or 'не указаны'}\n"
@@ -546,12 +556,18 @@ class DeepSeekClient:
         return result
 
     def build_opening_message(self, *, case_title: str, case_context: str, case_task: str) -> str:
-        return (
-            f"Здравствуйте. Начинаем кейс «{case_title}». "
-            f"{case_context} "
-            f"Ваша задача: {case_task} "
-            "Опишите, какое решение вы бы предложили и почему."
-        ).strip()
+        parts = [f"Здравствуйте. Начинаем кейс «{case_title}»."]
+        clean_context = (case_context or "").strip()
+        clean_task = (case_task or "").strip()
+        if clean_context:
+            parts.append(clean_context)
+        if clean_task:
+            task_text = clean_task
+            if not task_text.lower().startswith("задача"):
+                task_text = "Задача:\n" + task_text
+            parts.append(task_text)
+        parts.append("Опишите, какое решение вы бы предложили и почему.")
+        return "\n\n".join(part for part in parts if part).strip()
 
     def evaluate_case_turn(
         self,
@@ -852,20 +868,31 @@ class DeepSeekClient:
         role_vocabulary = profile_context.get("role_vocabulary") or {}
         process = profile_processes[0] if profile_processes else self._infer_process(position=position, duties=duties)
         client_type = profile_stakeholders[0] if profile_stakeholders else self._infer_client_type(position=position, duties=duties)
+        scenario = self._build_case_scenario_seed(
+            domain=domain,
+            process=process,
+            position=position,
+            duties=duties,
+            role_name=role_name,
+        )
         values = {
             "роль_кратко": role_name or position or "специалист по направлению",
             "контекст обязанностей": duties or ", ".join(profile_tasks[:3]) or "координацию рабочих задач и сопровождение внутренних процессов",
             "сфера деятельности компании": normalized_company_industry or domain,
             "процесс/сервис": process,
-            "система": f"корпоративная система {domain}",
+            "система": scenario["system_name"],
             "тип клиента": client_type,
-            "канал": "служебный чат",
-            "описание проблемы": profile_risks[0] if profile_risks else f"сбой в процессе {process}",
+            "канал": scenario["channel"],
+            "описание проблемы": profile_risks[0] if profile_risks else scenario["issue_summary"],
             "SLA/срок": "до конца рабочего дня",
-            "критичное действие / этап процесса": f"ключевой этап процесса {process}",
-            "источник данных / карточка обращения / переписка / статус в системе": "карточка обращения и история переписки в CRM",
+            "критичное действие / этап процесса": scenario["critical_step"],
+            "источник данных / карточка обращения / переписка / статус в системе": scenario["source_of_truth"],
             "ограничения/полномочия": profile_constraints[0] if profile_constraints else "можете уточнять детали, согласовывать корректирующие действия и эскалировать проблему профильной команде",
             "масштаб кейса": self._resolve_role_scope(role_name),
+            "контур": scenario["team_contour"],
+            "тикеты": scenario["work_items"],
+            "ошибки": scenario["error_examples"],
+            "рабочий процесс": scenario["workflow_name"],
         }
         if role_vocabulary.get("work_entities"):
             values["рабочие сущности"] = ", ".join(role_vocabulary["work_entities"][:5])
@@ -877,6 +904,90 @@ class DeepSeekClient:
                 values.get(placeholder, self._generic_value(placeholder, domain, process, client_type))
             )
         return result
+
+    def _build_case_scenario_seed(
+        self,
+        *,
+        domain: str,
+        process: str,
+        position: str | None,
+        duties: str | None,
+        role_name: str | None,
+    ) -> dict[str, str]:
+        source = f"{domain} {process} {position or ''} {duties or ''} {role_name or ''}".lower()
+
+        if any(word in source for word in ("поддержк", "обращен", "клиент", "service desk", "сервис")):
+            return {
+                "team_contour": "группа сопровождения клиентских обращений",
+                "system_name": "Service Desk",
+                "channel": "очередь обращений и служебный чат смены",
+                "issue_summary": "клиент не получил обещанное обновление по обращению и повторно пишет в поддержку",
+                "critical_step": "фиксация следующего шага по обращению и срока обновления клиента",
+                "source_of_truth": "карточка обращения, история комментариев и статус в Service Desk",
+                "work_items": "тикеты по задержке обратной связи, инциденты с повторным обращением, запросы на эскалацию",
+                "error_examples": "пропущенный SLA, незафиксированный следующий шаг, дублирование ответа клиенту",
+                "workflow_name": "обработка клиентских обращений и инцидентов",
+            }
+        if any(word in source for word in ("логист", "склад", "достав", "маршрут")):
+            return {
+                "team_contour": "смена логистической координации",
+                "system_name": "TMS и складской журнал операций",
+                "channel": "рабочий чат смены и журнал отгрузок",
+                "issue_summary": "заказ завис на этапе отгрузки, а статус в системе не совпадает с фактическим выполнением",
+                "critical_step": "подтверждение статуса отгрузки и переназначение ответственного по смене",
+                "source_of_truth": "карточка отгрузки, журнал маршрутов и комментарии смены",
+                "work_items": "отгрузки с отклонением по сроку, возвраты, внутренние запросы на переупаковку",
+                "error_examples": "необновленный статус доставки, пропущенная отметка о приемке, дублирование задач между сменами",
+                "workflow_name": "исполнение логистических операций",
+            }
+        if any(word in source for word in ("финанс", "счет", "оплат", "бюджет", "согласован")):
+            return {
+                "team_contour": "группа финансового согласования",
+                "system_name": "1С и реестр платежных согласований",
+                "channel": "очередь согласований и комментарии в карточке заявки",
+                "issue_summary": "согласование платежа остановилось из-за расхождения данных и отсутствия подтвержденного следующего шага",
+                "critical_step": "уточнение ответственного за согласование и фиксация срока следующего действия",
+                "source_of_truth": "карточка заявки, история согласования и комментарии в 1С",
+                "work_items": "заявки на оплату, срочные согласования, возвраты документов на доработку",
+                "error_examples": "расхождение в сумме заявки, отсутствие подтверждающего документа, пропущенный срок согласования",
+                "workflow_name": "финансовое согласование заявок",
+            }
+        if any(word in source for word in ("аналит", "требован", "бизнес", "постановк", "разработ")):
+            return {
+                "team_contour": "команда аналитики и постановки задач",
+                "system_name": "Jira и база требований",
+                "channel": "очередь задач и комментарии в Jira",
+                "issue_summary": "задача ушла в работу с неполными требованиями, из-за чего команда по-разному понимает приоритет и объем",
+                "critical_step": "уточнение критериев готовности и фиксация ответственного за следующий шаг",
+                "source_of_truth": "карточка задачи, история комментариев и база требований",
+                "work_items": "истории пользователя, запросы на доработку, дефекты после релиза",
+                "error_examples": "неполные критерии приемки, конфликт приоритетов, незафиксированное решение по доработке",
+                "workflow_name": "сбор и согласование требований",
+            }
+        if any(word in source for word in ("hr", "персонал", "подбор", "адаптац", "сотрудник")):
+            return {
+                "team_contour": "команда подбора и адаптации",
+                "system_name": "HRM и реестр кандидатов",
+                "channel": "рабочий чат рекрутинга и карточка кандидата",
+                "issue_summary": "по кандидату или сотруднику не зафиксирован следующий шаг, из-за чего процесс адаптации или подбора остановился",
+                "critical_step": "назначение владельца следующего шага и фиксация срока обратной связи",
+                "source_of_truth": "карточка кандидата, история статусов и комментарии в HRM",
+                "work_items": "интервью, офферы, задачи по адаптации, запросы на обратную связь",
+                "error_examples": "пропущенная обратная связь кандидату, незафиксированное решение по этапу, дублирование задач по адаптации",
+                "workflow_name": "подбор и адаптация сотрудников",
+            }
+
+        return {
+            "team_contour": "группа операционного сопровождения",
+            "system_name": "внутренняя рабочая система",
+            "channel": "очередь задач и служебный чат команды",
+            "issue_summary": "часть задач выполняется без единого понимания следующего шага и ответственности",
+            "critical_step": "фиксирование следующего шага, ответственного и срока обновления",
+            "source_of_truth": "карточка задачи, история комментариев и рабочий статус в системе",
+            "work_items": "операционные тикеты, внутренние запросы, инциденты со срочным ответом",
+            "error_examples": "неполные входные данные, дублирование задач, пропущенный следующий шаг",
+            "workflow_name": process,
+        }
 
     def _infer_domain(self, *, position: str | None, duties: str | None, company_industry: str | None = None) -> str:
         company_value = self._fallback_normalize_company_industry(company_industry)
@@ -921,11 +1032,20 @@ class DeepSeekClient:
         return "заказчик"
 
     def _generic_value(self, placeholder: str, domain: str, process: str, client_type: str) -> str:
+        scenario = self._build_case_scenario_seed(
+            domain=domain,
+            process=process,
+            position=None,
+            duties=None,
+            role_name=None,
+        )
         label = placeholder.lower()
         if "сфера деятельности" in label or ("компан" in label and "сфера" in label):
             return domain
         if "масштаб" in label:
             return "уровень участка"
+        if "контур" in label or "команд" in label:
+            return scenario["team_contour"]
         if "идея" in label:
             return f"улучшение процесса {process}"
         if "метрик" in label or "показател" in label:
@@ -934,29 +1054,33 @@ class DeepSeekClient:
             return "доступный сотрудник и ограниченное рабочее время"
         if "риск" in label:
             return f"срыв сроков, повторные доработки и ошибки в процессе {process}"
+        if "тикет" in label or "обращен" in label:
+            return scenario["work_items"]
+        if "ошиб" in label or "сбо" in label:
+            return scenario["error_examples"]
         if "стейкхолдер" in label or "участник" in label:
             return f"{client_type}, смежная команда и руководитель направления"
         if "полномоч" in label or "ограничен" in label:
             return "работа в рамках регламента, фиксация действий в системе и обязательная эскалация спорных решений"
         if "тип команды" in label:
-            return "рабочая группа участка"
+            return scenario["team_contour"]
         if "задач" in label:
-            return f"операционные задачи в процессе {process}"
+            return scenario["work_items"]
         if "срок" in label or "sla" in label:
             return "1 рабочий день"
         if "клиент" in label:
             return client_type
         if "канал" in label:
-            return "корпоративный портал поддержки"
+            return scenario["channel"]
         if "процесс" in label or "сервис" in label:
-            return process
+            return scenario["workflow_name"]
         if "система" in label:
-            return f"рабочая система {domain}"
+            return scenario["system_name"]
         if "проблем" in label:
-            return f"некорректный результат в процессе {process}"
+            return scenario["issue_summary"]
         if "контекст" in label or "обязанност" in label:
-            return f"рабочий контекст процесса {process}"
-        return f"процесс {process} в области {domain}"
+            return f"работу по направлению {scenario['workflow_name']}"
+        return f"{scenario['workflow_name']} в контуре {scenario['team_contour']}"
 
     def _fallback_normalize_company_industry(self, company_industry: str | None) -> str | None:
         cleaned = (company_industry or "").strip().lower().replace("ё", "е")
@@ -997,6 +1121,359 @@ class DeepSeekClient:
         if cleaned.startswith("{") and cleaned.endswith("}"):
             cleaned = cleaned[1:-1].strip()
         return cleaned
+
+    def _humanize_role_name(self, role_name: str | None, position: str | None = None) -> str:
+        role = (role_name or position or "").strip()
+        lowered = role.lower()
+        if not lowered:
+            return "специалист"
+        if lowered in {"l", "linear", "line"} or "линей" in lowered:
+            return "линейный сотрудник"
+        if lowered in {"m", "manager"} or "менедж" in lowered or "руковод" in lowered:
+            return "менеджер"
+        if lowered == "leader" or "лидер" in lowered or "дир" in lowered or "стратег" in lowered:
+            return "лидер"
+        return lowered
+
+    def _format_user_case_materials(
+        self,
+        *,
+        case_title: str,
+        case_context: str,
+        case_task: str,
+        role_name: str | None,
+    ) -> tuple[str, str]:
+        normalized_context = self._sanitize_user_case_text(case_context, role_name=role_name)
+        normalized_task = self._sanitize_user_case_task(case_task)
+
+        context_text, constraints_text = self._extract_user_case_constraints(normalized_context)
+        context_text = self._polish_user_case_context(context_text, role_name=role_name, case_title=case_title)
+        constraints_text = self._polish_user_case_constraints(constraints_text, role_name=role_name)
+        task_text = self._polish_user_case_task(
+            normalized_task,
+            case_title=case_title,
+            context_text=context_text,
+        )
+
+        if not context_text and case_title:
+            context_text = case_title.strip()
+
+        final_context = self._build_structured_user_case_context(
+            context_text=context_text,
+            constraints_text=constraints_text,
+        )
+
+        if self.enabled and (final_context or task_text):
+            rewritten_context, rewritten_task = self._rewrite_user_case_materials_with_llm(
+                case_title=case_title,
+                case_context=final_context,
+                case_task=task_text,
+                role_name=role_name,
+            )
+            final_context = rewritten_context or final_context
+            task_text = rewritten_task or task_text
+
+        return final_context.strip(), task_text.strip()
+
+    def _sanitize_user_case_text(self, text: str | None, *, role_name: str | None) -> str:
+        result = str(text or "").strip()
+        if not result:
+            return ""
+
+        human_role = self._humanize_role_name(role_name)
+        role_phrase = f"в роли {human_role}"
+
+        replacements = {
+            "в роли Линейный сотрудник": role_phrase if human_role == "линейный сотрудник" else f"в роли {human_role}",
+            "в роли линейный сотрудник": role_phrase if human_role == "линейный сотрудник" else f"в роли {human_role}",
+            "в роли Менеджер": f"в роли {human_role}" if human_role == "менеджер" else role_phrase,
+            "в роли Лидер": f"в роли {human_role}" if human_role == "лидер" else role_phrase,
+            "в роли M": f"в роли {human_role}",
+            "в роли L": f"в роли {human_role}",
+            "в роли Leader": f"в роли {human_role}",
+            "для M": "для управленческой роли",
+            "для L": "для роли исполнителя",
+            "для Leader": "для лидерской роли",
+            "L/M": "роли пользователя",
+            "часть работы действительно велась": "часть работы действительно была выполнена",
+            "ему обещали вернуться с ответом": "ему обещали предоставить ответ",
+            "к текущему моменту": "к настоящему моменту",
+            "тем человеком, кому нужно первым ответить": "тем сотрудником, которому нужно первым ответить",
+        }
+        for source, target in replacements.items():
+            result = result.replace(source, target)
+
+        result = re.sub(r"\bесли\s+кейс\s+персонализирован\s+под\s+L\b.*?(?:[.!?]|$)", "", result, flags=re.IGNORECASE)
+        result = re.sub(r"\bесли\s+под\s+M\b.*?(?:[.!?]|$)", "", result, flags=re.IGNORECASE)
+        result = re.sub(r"\bесли\s+кейс\s+персонализирован\s+под\s+M\b.*?(?:[.!?]|$)", "", result, flags=re.IGNORECASE)
+        result = re.sub(r"\bдля\s+L\s*[—-]\s*[^.]+", "", result, flags=re.IGNORECASE)
+        result = re.sub(r"\bдля\s+M\s*[—-]\s*[^.]+", "", result, flags=re.IGNORECASE)
+        result = re.sub(r"\bдля\s+Leader\s*[—-]\s*[^.]+", "", result, flags=re.IGNORECASE)
+
+        result = re.sub(r"\bв роли\s+(?:L|M|Leader)\b", role_phrase, result, flags=re.IGNORECASE)
+        result = re.sub(r"\b(изменений нет|нет изменений|нет измеенний|не изменилось|не изменений|без изменений)\b", human_role, result, flags=re.IGNORECASE)
+        result = re.sub(r"\bL\b", "линейного сотрудника", result)
+        result = re.sub(r"\bM\b", "менеджера", result)
+        result = re.sub(r"\bLeader\b", "лидера", result, flags=re.IGNORECASE)
+        result = re.sub(r"\s{2,}", " ", result)
+        result = re.sub(r"\n\s*\n+", "\n\n", result)
+        result = re.sub(r"\.\.", ".", result)
+        result = re.sub(r"\s+([,.;:!?])", r"\1", result)
+        result = self._apply_case_prompt_grammar_rules(result)
+        return result.strip()
+
+    def _sanitize_user_case_task(self, text: str | None) -> str:
+        result = str(text or "").strip()
+        if not result:
+            return ""
+        result = result.replace("Ответьте клиенту в этой ситуации.", "Подготовьте ответ клиенту в этой ситуации.")
+        result = re.sub(r"\bответьте\b", "Подготовьте ответ", result, flags=re.IGNORECASE)
+        result = re.sub(r"\bподготовьте короткое сообщение или тикет\b", "Подготовьте короткий и понятный ответ", result, flags=re.IGNORECASE)
+        result = re.sub(r"\s{2,}", " ", result)
+        result = re.sub(r"\s+([,.;:!?])", r"\1", result)
+        if result and result[-1] not in ".!?":
+            result += "."
+        return result.strip()
+
+    def _extract_user_case_constraints(self, text: str) -> tuple[str, str]:
+        context = (text or "").strip()
+        constraints_parts: list[str] = []
+        if not context:
+            return "", ""
+
+        if "Ограничения:" in context:
+            head, tail = context.split("Ограничения:", 1)
+            context = head.strip()
+            tail = tail.strip()
+            if tail:
+                constraints_parts.append(tail)
+
+        sentences = re.split(r"(?<=[.!?])\s+", context)
+        kept_sentences: list[str] = []
+        for sentence in sentences:
+            clean = sentence.strip()
+            lowered = clean.lower()
+            if not clean:
+                continue
+            if any(
+                marker in lowered
+                for marker in (
+                    "не можете",
+                    "не может",
+                    "нельзя",
+                    "в рамках регламента",
+                    "в рамках своих полномочий",
+                    "в рамках полномочий",
+                    "не должны",
+                    "не должен",
+                    "не вправе",
+                )
+            ):
+                constraints_parts.append(clean)
+                continue
+            kept_sentences.append(clean)
+
+        constraints_text = " ".join(part.strip() for part in constraints_parts if part.strip())
+        cleaned_context = " ".join(kept_sentences).strip()
+        return cleaned_context, constraints_text
+
+    def _polish_user_case_context(self, text: str, *, role_name: str | None, case_title: str) -> str:
+        result = (text or "").strip()
+        if not result:
+            return ""
+
+        human_role = self._humanize_role_name(role_name)
+        replacements = {
+            "Вы работаете в роли": "Вы работаете как",
+            "и участвуете в процессе": "и участвуете в работе по",
+            "пишет, что": "сообщает, что",
+            "теряет доверие к вашей стороне": "теряет доверие к вашей команде",
+            "У вас есть доступ": "У вас есть доступ",
+            "Сейчас именно вы оказались тем сотрудником": "Сейчас именно вам нужно",
+            "кому нужно первым ответить на жалобу": "первым ответить на жалобу",
+            "инициатор запроса": "клиент",
+            "карточке тикета": "внутренней карточке обращения",
+            "карточке запроса": "внутренней карточке обращения",
+        }
+        for source, target in replacements.items():
+            result = result.replace(source, target)
+
+        result = re.sub(r"\bв контуре\s+операционн(?:ая|ой)\s+команд[аы]\b", "в группе операционного сопровождения", result, flags=re.IGNORECASE)
+        result = re.sub(r"\bв контуре\s+([^,.]+?)\s+команд[аы]\b", r"в команде \1", result, flags=re.IGNORECASE)
+        result = re.sub(r"\bнужно выполнить обработка\b", "нужно выполнить обработку", result, flags=re.IGNORECASE)
+        result = re.sub(r"\bриски нарушение\b", "риски нарушения", result, flags=re.IGNORECASE)
+        result = re.sub(r"\bнеполные входные данные и ограничения работа\b", "неполные входные данные и ограничения по работе", result, flags=re.IGNORECASE)
+        result = re.sub(r"\bкак\s+линейного\s+сотрудника\b", "как линейный сотрудник", result, flags=re.IGNORECASE)
+        result = re.sub(r"\bкак\s+менеджера\b", "как менеджер", result, flags=re.IGNORECASE)
+        result = re.sub(r"\bкак\s+лидера\b", "как лидер", result, flags=re.IGNORECASE)
+        result = result.replace("ограничения по работе по скриптам", "обязательная работа по скриптам")
+
+        if not result.lower().startswith("вы "):
+            result = f"Вы работаете как {human_role}. {result}"
+        elif human_role and "в роли" not in result.lower() and "как " not in result.lower():
+            result = f"Вы работаете как {human_role}. {result}"
+
+        result = re.sub(r"\bименно вам нужно первым ответить на жалобу\b", "вам нужно первым ответить клиенту", result, flags=re.IGNORECASE)
+        result = re.sub(r"\bчасть работы действительно была выполнена, однако клиент этого не видит\b", "часть работы уже выполнена, но клиент этого не видит", result, flags=re.IGNORECASE)
+        result = re.sub(r"\bследующий шаг нигде явно не зафиксирован\b", "следующий шаг нигде явно не зафиксирован", result, flags=re.IGNORECASE)
+        result = re.sub(r"\s{2,}", " ", result).strip()
+        if result and result[-1] not in ".!?":
+            result += "."
+        return result
+
+    def _polish_user_case_constraints(self, text: str, *, role_name: str | None) -> str:
+        result = (text or "").strip()
+        if not result:
+            return ""
+
+        human_role = self._humanize_role_name(role_name)
+        replacements = {
+            "ответ не должен выходить за регламент и полномочия": "не выходите за рамки регламента и своих полномочий",
+            "ответ должен показать не только реакцию, но и организацию следующего шага": "в ответе важно не только отреагировать на ситуацию, но и обозначить следующий шаг",
+            "не должен выходить за регламент и полномочия": "не выходите за рамки регламента и своих полномочий",
+        }
+        for source, target in replacements.items():
+            result = result.replace(source, target)
+
+        result = re.sub(r"\bдля\s+управленческой\s+роли\b", "для вашей роли", result, flags=re.IGNORECASE)
+        result = re.sub(r"\bдля\s+роли\s+исполнителя\b", "для вашей роли", result, flags=re.IGNORECASE)
+        result = re.sub(r"\bв роли\s+(?:линейный сотрудник|менеджер|лидер)\b", f"как {human_role}", result, flags=re.IGNORECASE)
+        result = re.sub(r"\s{2,}", " ", result).strip()
+        if result and result[-1] not in ".!?":
+            result += "."
+        return result
+
+    def _polish_user_case_task(self, text: str, *, case_title: str, context_text: str) -> str:
+        result = (text or "").strip()
+        if not result:
+            return ""
+        replacements = {
+            "Подготовьте ответ клиенту в этой ситуации.": "Подготовьте понятный и профессиональный ответ клиенту в этой ситуации.",
+            "Подготовьте ответ клиенту.": "Подготовьте понятный и профессиональный ответ клиенту.",
+            "Подготовьте ответ": "Подготовьте",
+        }
+        for source, target in replacements.items():
+            if result == source:
+                result = target
+        if result.lower().startswith("подготовьте "):
+            result = result[0].upper() + result[1:]
+        lower_context = f"{case_title} {context_text} {result}".lower()
+        if "клиент" in lower_context and "ответ" in lower_context:
+            result = (
+                f"{result}\n"
+                "- кратко зафиксируйте ситуацию;\n"
+                "- покажите, что уже проверено;\n"
+                "- обозначьте следующий шаг;\n"
+                "- укажите срок следующего обновления."
+            )
+        elif any(word in lower_context for word in ("план", "распредел", "команд", "групп")):
+            result = (
+                f"{result}\n"
+                "- распределите задачи и ответственность;\n"
+                "- задайте ритм контроля;\n"
+                "- определите правила взаимодействия;\n"
+                "- предусмотрите действия на случай срыва ключевого этапа."
+            )
+        elif any(word in lower_context for word in ("бесед", "сотрудник", "развивающ")):
+            result = (
+                f"{result}\n"
+                "- назовите наблюдаемые факты;\n"
+                "- объясните, к чему приводит ситуация;\n"
+                "- выслушайте позицию собеседника;\n"
+                "- согласуйте следующий шаг или план развития."
+            )
+        result = re.sub(r"\s{2,}", " ", result).strip()
+        if result and result[-1] not in ".!?":
+            result += "."
+        return result
+
+    def _build_structured_user_case_context(self, *, context_text: str, constraints_text: str) -> str:
+        context_text = (context_text or "").strip()
+        constraints_text = (constraints_text or "").strip()
+        if not context_text and not constraints_text:
+            return ""
+
+        role_context, situation_context = self._split_context_and_situation(context_text)
+        sections: list[str] = []
+        if role_context:
+            sections.append("Контекст:\n" + role_context)
+        if situation_context:
+            sections.append("Ситуация:\n" + situation_context)
+        elif context_text and not role_context:
+            sections.append("Ситуация:\n" + context_text)
+        if constraints_text:
+            sections.append("Ограничения:\n" + constraints_text)
+        return "\n\n".join(section.strip() for section in sections if section.strip()).strip()
+
+    def _split_context_and_situation(self, text: str) -> tuple[str, str]:
+        clean = (text or "").strip()
+        if not clean:
+            return "", ""
+        sentences = [part.strip() for part in re.split(r"(?<=[.!?])\s+", clean) if part.strip()]
+        if not sentences:
+            return clean, ""
+
+        context_parts: list[str] = []
+        situation_parts: list[str] = []
+        for sentence in sentences:
+            lowered = sentence.lower()
+            if (
+                not context_parts
+                and (
+                    lowered.startswith("вы ")
+                    or "работаете" in lowered
+                    or "отвечаете за" in lowered
+                    or "участвуете" in lowered
+                )
+            ):
+                context_parts.append(sentence)
+                continue
+            situation_parts.append(sentence)
+
+        if not context_parts and sentences:
+            context_parts.append(sentences[0])
+            situation_parts = sentences[1:]
+        return " ".join(context_parts).strip(), " ".join(situation_parts).strip()
+
+    def _rewrite_user_case_materials_with_llm(
+        self,
+        *,
+        case_title: str,
+        case_context: str,
+        case_task: str,
+        role_name: str | None,
+    ) -> tuple[str, str]:
+        if not self.enabled:
+            return case_context, case_task
+
+        prompt = (
+            "Перепиши пользовательский текст кейса для HR-assessment системы. "
+            "Нужно сделать формулировки ясными, конкретными и грамматически корректными. "
+            "Сохрани исходный смысл и факты, ничего не придумывай от себя. "
+            "Не используй служебные обозначения L, M, Leader, technical labels или методические комментарии. "
+            "Верни только JSON с полями context и task.\n\n"
+            f"Название кейса: {case_title}\n"
+            f"Роль пользователя: {self._humanize_role_name(role_name)}\n"
+            f"Контекст кейса: {case_context or 'Не указан'}\n"
+            f"Задача кейса: {case_task or 'Не указана'}"
+        )
+        try:
+            raw = self._post_chat(
+                [
+                    {
+                        "role": "system",
+                        "content": "Ты редактор пользовательских кейсов. Делаешь текст деловым, естественным и понятным для пользователя.",
+                    },
+                    {"role": "user", "content": prompt},
+                ],
+                temperature=0.15,
+            )
+            parsed = self._parse_json(raw)
+            context = str(parsed.get("context") or case_context).strip()
+            task = str(parsed.get("task") or case_task).strip()
+            return context, task
+        except Exception:
+            return case_context, case_task
 
     def _resolve_role_scope(self, role_name: str | None) -> str:
         role = (role_name or "").lower()

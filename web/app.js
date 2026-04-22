@@ -1,4 +1,4 @@
-const APP_RELEASE = '1.1';
+const APP_RELEASE = '1.2';
 
 const state = {
   sessionId: null,

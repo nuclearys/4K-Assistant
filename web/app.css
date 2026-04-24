@@ -303,7 +303,13 @@ textarea {
     margin: 0 auto;
 }
 
+.onboarding-topbar {
+    grid-column: 1 / -1;
+}
+
 .onboarding-copy {
+    grid-column: 1;
+    grid-row: 2;
     width: 100%;
     min-height: calc(100vh - 240px);
     display: flex;
@@ -566,6 +572,8 @@ textarea {
 }
 
 .onboarding-visual {
+    grid-column: 2;
+    grid-row: 2;
     position: relative;
     width: 100%;
     min-height: 597px;
@@ -3977,6 +3985,17 @@ textarea {
         grid-template-columns: 1fr;
         min-height: auto;
         padding: 0;
+    }
+
+    .onboarding-topbar,
+    .onboarding-copy,
+    .onboarding-visual {
+        grid-column: 1;
+    }
+
+    .onboarding-copy,
+    .onboarding-visual {
+        grid-row: auto;
     }
 
     .onboarding-panel:has(.radar-visual) .onboarding-shell {

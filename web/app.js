@@ -257,10 +257,9 @@ const assessmentDescription = document.getElementById('assessment-description');
 const assessmentStatusLabel = document.getElementById('assessment-status-label');
 const assessmentCasesLabel = document.getElementById('assessment-cases-label');
 const assessmentProgressBar = document.getElementById('assessment-progress-bar');
-const assessmentProgressValue = document.getElementById('assessment-progress-value');
 const assessmentActionButton = document.getElementById('assessment-action-button');
 const assessmentPreparing = document.getElementById('assessment-preparing');
-const assessmentPreparingRing = document.getElementById('assessment-preparing-ring');
+const assessmentPreparingRing = assessmentPreparing;
 const assessmentPreparingPercent = document.getElementById('assessment-preparing-percent');
 const availableAssessments = document.getElementById('available-assessments');
 const reportsList = document.getElementById('reports-list');
@@ -779,7 +778,6 @@ const renderAssessmentPreparationState = () => {
     assessmentStatusLabel.textContent = title;
     assessmentCasesLabel.textContent = 'Подготовка персонализированных кейсов';
     assessmentProgressBar.style.width = progressPercent + '%';
-    assessmentProgressValue.textContent = progressPercent + '%';
   }
   if (assessmentActionButton) {
     assessmentActionButton.classList.toggle('hidden', preparing);
@@ -3937,7 +3935,6 @@ const renderDashboard = () => {
   assessmentCasesLabel.textContent =
     dashboard.active_assessment.completed_cases + ' из ' + dashboard.active_assessment.total_cases + ' кейсов';
   assessmentProgressBar.style.width = dashboard.active_assessment.progress_percent + '%';
-  assessmentProgressValue.textContent = dashboard.active_assessment.progress_percent + '%';
   assessmentActionButton.textContent = canReusePreparedAssessment()
     ? 'Перейти к кейсам'
     : dashboard.active_assessment.button_label;

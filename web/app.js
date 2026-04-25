@@ -4197,9 +4197,9 @@ const renderAdminSkillRadar = (skills = []) => {
             font: {
               family: 'Inter',
               size: 10,
-              weight: '500',
+              weight: '700',
             },
-            padding: 4,
+            padding: 6,
           },
         },
       },
@@ -4708,6 +4708,9 @@ const openAdminReportDetail = async (sessionId) => {
   if (adminReportDetailCompetencyChart) {
     adminReportDetailCompetencyChart.classList.add('hidden');
   }
+  if (adminReportDetailCompetencyRadarLabels) {
+    adminReportDetailCompetencyRadarLabels.classList.add('hidden');
+  }
   if (adminReportDetailCompetencyFallback) {
     adminReportDetailCompetencyFallback.textContent = 'Загружаем сводные показатели...';
     adminReportDetailCompetencyFallback.classList.remove('hidden');
@@ -4752,6 +4755,9 @@ const openAdminReportDetail = async (sessionId) => {
     destroyAdminCompetencyRadarChart();
     if (adminReportDetailCompetencyChart) {
       adminReportDetailCompetencyChart.classList.add('hidden');
+    }
+    if (adminReportDetailCompetencyRadarLabels) {
+      adminReportDetailCompetencyRadarLabels.classList.add('hidden');
     }
     if (adminReportDetailCompetencyFallback) {
       adminReportDetailCompetencyFallback.textContent = error.message;

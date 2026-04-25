@@ -2590,14 +2590,6 @@ textarea {
     color: var(--text-soft);
 }
 
-.accent-label::before {
-    content: "";
-    width: 8px;
-    height: 8px;
-    border-radius: 12px;
-    background: var(--accent);
-}
-
 .dashboard-subtitle {
     margin: 8px 0 0;
     color: var(--text-muted);
@@ -3248,6 +3240,12 @@ textarea {
     gap: 20px;
 }
 
+.admin-panel > .admin-shell {
+    width: min(100%, 1280px);
+    margin: 0 auto;
+    padding: 20px 64px;
+}
+
 .admin-hero-card,
 .admin-analytics-card,
 .admin-insights-card,
@@ -3256,6 +3254,17 @@ textarea {
     border: 1px solid var(--panel-border);
     border-radius: 28px;
     padding: 28px;
+}
+
+.admin-insights-card {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.admin-hero-card {
+    display: flex;
+    justify-content: space-between;
 }
 
 .admin-hero-card h2 {
@@ -3272,8 +3281,9 @@ textarea {
 
 .admin-hero-actions {
     display: flex;
+    gap: 1rem;
     justify-content: flex-end;
-    align-items: start;
+    align-items: center;
 }
 
 .admin-metrics-grid {
@@ -3354,11 +3364,23 @@ textarea {
 }
 
 .admin-competency-chart {
+    position: relative;
+    height: 284px;
+    min-height: 284px;
+    padding-top: 8px;
+}
+
+.admin-competency-chart canvas {
+    width: 100% !important;
+    height: 100% !important;
+}
+
+.admin-competency-chart-fallback {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 18px;
     align-items: end;
-    min-height: 280px;
+    height: 100%;
 }
 
 .admin-competency-column {
@@ -3394,9 +3416,22 @@ textarea {
 }
 
 .admin-mbti-chart {
+    position: relative;
+    height: 284px;
+    min-height: 284px;
+    padding-top: 8px;
+}
+
+.admin-mbti-chart canvas {
+    width: 100% !important;
+    height: 100% !important;
+}
+
+.admin-mbti-chart-fallback {
     display: grid;
     gap: 14px;
-    padding-top: 12px;
+    height: 100%;
+    align-content: center;
 }
 
 .admin-mbti-row {
@@ -3453,41 +3488,28 @@ textarea {
 }
 
 .admin-activity-plot {
-    display: grid;
-    grid-template-columns: 56px minmax(0, 1fr);
-    gap: 18px;
-    align-items: stretch;
     min-height: 320px;
     padding-top: 12px;
 }
 
-.admin-activity-axis {
-    display: grid;
-    align-content: space-between;
-}
-
-.admin-activity-tick {
-    display: grid;
-    grid-template-columns: auto 1fr;
-    gap: 10px;
-    align-items: center;
-    color: var(--text-muted);
-    font-size: 12px;
-}
-
-.admin-activity-tick div {
-    height: 1px;
-    background: rgba(70, 72, 212, 0.12);
-}
-
 .admin-activity-chart {
+    position: relative;
+    height: 320px;
+    min-height: 320px;
+}
+
+.admin-activity-chart canvas {
+    width: 100% !important;
+    height: 100% !important;
+}
+
+.admin-activity-chart-fallback {
     display: grid;
     grid-auto-flow: column;
     grid-auto-columns: minmax(18px, 1fr);
     gap: 8px;
     align-items: end;
-    min-height: 320px;
-    padding-top: 4px;
+    height: 100%;
     overflow: hidden;
 }
 
@@ -3505,7 +3527,7 @@ textarea {
 .admin-activity-bar-fill {
     width: 100%;
     max-width: 32px;
-    border-radius: 18px 18px 6px 6px;
+    border-radius: 18px 18px 0 0;
     background: var(--accent-bright);
 }
 
@@ -3801,24 +3823,16 @@ textarea {
 }
 
 .admin-detail-competency-radar-card {
-    min-height: 340px;
+    min-height: 0;
 }
 
 .admin-detail-skills-radar-card {
-    min-height: 560px;
+    min-height: 0;
 }
 
 .admin-detail-competency-radar-frame,
 .admin-detail-skills-radar-frame {
     position: relative;
-}
-
-.admin-detail-competency-radar-frame {
-    min-height: 300px;
-}
-
-.admin-detail-skills-radar-frame {
-    min-height: 520px;
 }
 
 .admin-detail-competency-radar-frame canvas,
@@ -4084,20 +4098,16 @@ textarea {
 
     .admin-detail-competency-radar-card,
     .admin-detail-skills-radar-card {
-        min-height: 360px;
+        min-height: 0;
     }
 
     .admin-detail-skills-radar-card {
-        min-height: 540px;
+        min-height: 0;
     }
 
     .admin-detail-competency-radar-frame,
     .admin-detail-skills-radar-frame {
-        min-height: 320px;
-    }
-
-    .admin-detail-skills-radar-frame {
-        min-height: 500px;
+        min-height: 0;
     }
 
     .onboarding-visual {
@@ -4128,14 +4138,6 @@ textarea {
 
     .admin-search-field {
         min-width: 0;
-    }
-
-    .admin-activity-plot {
-        grid-template-columns: 1fr;
-    }
-
-    .admin-activity-axis {
-        display: none;
     }
 
     .admin-activity-head {
@@ -6191,6 +6193,7 @@ textarea {
 }
 
 @media (max-width: 1000px) {
+    .admin-panel > .admin-shell,
     .report-panel .dashboard-topbar,
     .report-shell {
         width: 100%;

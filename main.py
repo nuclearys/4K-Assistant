@@ -26,6 +26,7 @@ web_session_service.ensure_schema()
 configure_database_logging()
 logger.info("Agent_4K API startup complete")
 
+app.mount("/favicons", StaticFiles(directory=WEB_DIR / "favicons"), name="favicons")
 app.mount("/web", StaticFiles(directory=WEB_DIR), name="web")
 
 

@@ -1403,6 +1403,13 @@ textarea {
     gap: 4px;
 }
 
+.profile-history-panel-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
 .profile-history-panel-head span {
     color: var(--text-muted);
 }
@@ -1845,6 +1852,10 @@ textarea {
     .profile-history-panel-head {
         align-items: start;
         flex-direction: column;
+    }
+
+    .profile-history-panel-actions {
+        width: 100%;
     }
 
     .profile-history-pdf-button {
@@ -2716,22 +2727,6 @@ textarea {
     background: var(--accent-soft);
     color: var(--accent);
     overflow: hidden;
-}
-
-.assessment-icon::after {
-    content: "4K";
-    position: absolute;
-    right: 0;
-    bottom: 0;
-    display: grid;
-    place-items: center;
-    width: 32px;
-    height: 32px;
-    border-top-left-radius: 8px;
-    background: var(--accent-bright);
-    color: #fff;
-    font-size: 10px;
-    line-height: 15px;
 }
 
 .assessment-copy h3,
@@ -5700,6 +5695,30 @@ textarea {
     backdrop-filter: none;
 }
 
+.report-title-group {
+    display: inline-flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.report-back-button {
+    width: 36px;
+    min-width: 36px;
+    height: 36px;
+    min-height: 36px;
+    padding: 0;
+    border: 0;
+    border-radius: 8px;
+    background: transparent
+        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16' fill='none'%3E%3Cpath d='M3.825 9L9.425 14.6L8 16L0 8L8 0L9.425 1.4L3.825 7H16V9H3.825Z' fill='%23191C1E'/%3E%3C/svg%3E")
+        center / 16px 16px no-repeat;
+}
+
+.report-back-button:hover,
+.report-back-button:focus-visible {
+    background-color: var(--control-bg);
+}
+
 .report-panel .dashboard-brand {
     position: relative;
     display: inline-flex;
@@ -5709,15 +5728,6 @@ textarea {
     font-size: 20px;
     line-height: 25px;
     letter-spacing: -0.5px;
-}
-
-.report-panel .dashboard-brand::before {
-    content: "";
-    width: 16px;
-    height: 16px;
-    flex: 0 0 16px;
-    background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16' fill='none'%3E%3Cpath d='M3.825 9L9.425 14.6L8 16L0 8L8 0L9.425 1.4L3.825 7H16V9H3.825Z' fill='%23191C1E'/%3E%3C/svg%3E")
-        center / contain no-repeat;
 }
 
 .report-panel .dashboard-brand::after {

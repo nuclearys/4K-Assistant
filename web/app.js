@@ -53,6 +53,7 @@ const state = {
   assessmentSessionId: null,
   skillAssessments: [],
   reportCompetencyTab: 'Коммуникация',
+  reportReturnTarget: 'home',
   processingAnimationDone: false,
   processingDataLoaded: false,
   processingAutoTransitionStarted: false,
@@ -493,6 +494,7 @@ const processingTotalProgressBar = document.getElementById('processing-total-pro
 const processingStatusText = document.getElementById('processing-status-text');
 const processingAgentsList = document.getElementById('processing-agents-list');
 const processingPhaseLabel = document.getElementById('processing-phase-label');
+const reportBackButton = document.getElementById('report-back-button');
 const reportHomeButton = document.getElementById('report-home-button');
 const reportDownloadButton = document.getElementById('report-download-button');
 const profileBackButton = document.getElementById('profile-back-button');
@@ -4942,6 +4944,28 @@ const openWelcomeScreen = () => {
   openAiWelcome();
 };
 
+const openHomePage = async () => {
+  if (state.isAdmin) {
+    openAdminDashboard();
+    return;
+  }
+
+  if (!state.dashboard && state.pendingUser?.id) {
+    try {
+      await restoreLocalUserSession();
+    } catch (error) {
+      console.error('Failed to restore dashboard before opening home page', error);
+    }
+  }
+
+  if (state.dashboard) {
+    openDashboard();
+    return;
+  }
+
+  returnToStart();
+};
+
 const openPrechat = () => {
   state.newUserSequenceStep = 'prechat';
   setCurrentScreen('prechat');
@@ -5093,6 +5117,43 @@ const resetProfileDraft = () => {
   setProfileStatus('', '');
 };
 
+const openProfileHistoryReport = async (sessionId, triggerButton = null) => {
+  if (!state.pendingUser?.id || !sessionId) {
+    return;
+  }
+
+  const previousSessionId = state.assessmentSessionId;
+  const previousSkillAssessments = state.skillAssessments;
+  const previousReportInterpretation = state.reportInterpretation;
+  const previousButtonText = triggerButton ? triggerButton.textContent : '';
+
+  if (triggerButton) {
+    triggerButton.disabled = true;
+    triggerButton.textContent = 'Открываем...';
+  }
+
+  try {
+    state.assessmentSessionId = sessionId;
+    state.reportCompetencyTab = 'Коммуникация';
+    persistAssessmentContext();
+    await loadSkillAssessments();
+    openReport({ returnTarget: 'reports' });
+  } catch (error) {
+    state.assessmentSessionId = previousSessionId;
+    state.skillAssessments = previousSkillAssessments;
+    state.reportInterpretation = previousReportInterpretation;
+    persistAssessmentContext();
+    if (triggerButton) {
+      triggerButton.textContent = 'Не удалось открыть';
+      window.setTimeout(() => {
+        triggerButton.disabled = false;
+        triggerButton.textContent = previousButtonText || 'Открыть отчет';
+      }, 1800);
+    }
+    console.error('Failed to open history report', error);
+  }
+};
+
 const renderReportsPage = () => {
   const summary = state.profileSummary;
   profileHistoryList.innerHTML = '';
@@ -5135,7 +5196,10 @@ const renderReportsPage = () => {
               '<span>Результат попытки</span>' +
               '<strong>' + (item.overall_score_percent != null ? item.overall_score_percent + '%' : 'Нет данных') + '</strong>' +
             '</div>' +
-            '<button type="button" class="profile-history-pdf-button" data-session-id="' + item.session_id + '">Скачать PDF</button>' +
+            '<div class="profile-history-panel-actions">' +
+              '<button type="button" class="profile-history-pdf-button profile-history-report-button" data-session-id="' + item.session_id + '">Открыть отчет</button>' +
+              '<button type="button" class="profile-history-pdf-button profile-history-download-button" data-session-id="' + item.session_id + '">Скачать PDF</button>' +
+            '</div>' +
           '</div>' +
           '<div class="profile-history-panel-body">' +
             (expanded ? buildProfileSkillsMarkup(skills) : '') +
@@ -5151,7 +5215,14 @@ const renderReportsPage = () => {
         state.profileSelectedSessionId = item.session_id;
         void loadProfileSessionSkills(item.session_id);
       });
-      const pdfButton = card.querySelector('.profile-history-pdf-button');
+      const reportButton = card.querySelector('.profile-history-report-button');
+      if (reportButton) {
+        reportButton.addEventListener('click', (event) => {
+          event.stopPropagation();
+          void openProfileHistoryReport(item.session_id, reportButton);
+        });
+      }
+      const pdfButton = card.querySelector('.profile-history-download-button');
       if (pdfButton) {
         pdfButton.addEventListener('click', (event) => {
           event.stopPropagation();
@@ -5672,13 +5743,24 @@ const renderReport = () => {
   });
 };
 
-const openReport = () => {
+const openReport = (options = {}) => {
+  const { returnTarget = 'home' } = options;
+  state.reportReturnTarget = returnTarget === 'reports' ? 'reports' : 'home';
   setCurrentScreen('report');
   syncUrlState('report');
   hideAllPanels();
   renderReport();
   reportPanel.classList.remove('hidden');
   clearAssessmentStorage();
+};
+
+const handleReportBack = () => {
+  if (state.reportReturnTarget === 'reports') {
+    void openReports();
+    return;
+  }
+
+  void openHomePage();
 };
 
 const loadSkillAssessments = async () => {
@@ -6686,8 +6768,14 @@ processingBackButton.addEventListener('click', () => {
 });
 
 reportHomeButton.addEventListener('click', () => {
-  openWelcomeScreen();
+  void openHomePage();
 });
+
+if (reportBackButton) {
+  reportBackButton.addEventListener('click', () => {
+    handleReportBack();
+  });
+}
 
 profileBackButton.addEventListener('click', () => {
   openWelcomeScreen();

@@ -1026,7 +1026,7 @@
         <section class="reports-intro-card">
           <div class="profile-card-head">
             <h3>Как смотреть результаты</h3>
-            <p>Разбивка по навыкам открывается внутри каждой попытки. Нажмите <strong>«Раскрыть»</strong> у нужного прохождения, чтобы посмотреть детали.</p>
+            <p>Разбивка по навыкам открывается внутри каждой попытки. Нажмите <strong>«Раскрыть»</strong> для деталей или <strong>«Открыть отчет»</strong>, чтобы снова посмотреть итоговый экран.</p>
           </div>
         </section>
         <section class="profile-history-card reports-history-card">
@@ -1088,7 +1088,10 @@
 
     <section class="panel report-panel hidden" id="report-panel">
       <div class="dashboard-topbar">
-        <div class="brand dashboard-brand">Профиль компетенций</div>
+        <div class="report-title-group">
+          <button id="report-back-button" class="report-back-button" type="button" aria-label="Назад"></button>
+          <div class="brand dashboard-brand">Профиль компетенций</div>
+        </div>
         <div class="dashboard-topbar-actions">
           <button id="report-home-button" class="ghost-button compact-ghost" type="button">Главная</button>
           <button id="report-download-button" class="primary-button compact-primary" type="button">Скачать PDF</button>

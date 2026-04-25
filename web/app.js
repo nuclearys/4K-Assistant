@@ -176,6 +176,48 @@ const competencyOrder = [
   'Критическое мышление',
 ];
 
+const levelThresholds = [
+  { code: 'L1', value: levelPercentMap.L1 },
+  { code: 'L2', value: levelPercentMap.L2 },
+  { code: 'L3', value: levelPercentMap.L3 },
+];
+
+const competencyPalette = {
+  'Коммуникация': {
+    stroke: '#2563eb',
+    fill: 'rgba(37, 99, 235, 0.1)',
+    chartFill: '#2563eb',
+  },
+  'Командная работа': {
+    stroke: '#16a34a',
+    fill: 'rgba(22, 163, 74, 0.1)',
+    chartFill: '#16a34a',
+  },
+  'Креативность': {
+    stroke: '#ea580c',
+    fill: 'rgba(234, 88, 12, 0.11)',
+    chartFill: '#ea580c',
+  },
+  'Критическое мышление': {
+    stroke: '#4648d4',
+    fill: 'rgba(70, 72, 212, 0.11)',
+    chartFill: '#4648d4',
+  },
+};
+
+const fallbackCompetencyPalette = {
+  stroke: '#64748b',
+  fill: 'rgba(100, 116, 139, 0.08)',
+  chartFill: '#64748b',
+};
+
+const getCompetencyPalette = (competencyName) =>
+  competencyPalette[competencyName] || fallbackCompetencyPalette;
+
+const getCompetencySortIndex = (competencyName) => {
+  const index = competencyOrder.indexOf(competencyName);
+  return index === -1 ? competencyOrder.length : index;
+};
 const onboardingSteps = [
   {
     step: 'Шаг 01',
@@ -212,6 +254,9 @@ const onboardingSteps = [
 
 let adminCompetencyRadarChart = null;
 let adminSkillRadarChart = null;
+let adminCompetencyBarChart = null;
+let adminMbtiPieChart = null;
+let adminActivityBarChart = null;
 
 const authPanel = document.getElementById('auth-panel');
 const onboardingPanel = document.getElementById('onboarding-panel');
@@ -274,12 +319,17 @@ const adminOpenMethodologyButton = document.getElementById('admin-open-methodolo
 const adminOpenReportsButton = document.getElementById('admin-open-reports-button');
 const adminMetricsGrid = document.getElementById('admin-metrics-grid');
 const adminCompetencyChart = document.getElementById('admin-competency-chart');
+const adminCompetencyBarChartCanvas = document.getElementById('admin-competency-bar-chart');
+const adminCompetencyChartFallback = document.getElementById('admin-competency-chart-fallback');
 const adminMbtiChart = document.getElementById('admin-mbti-chart');
+const adminMbtiPieChartCanvas = document.getElementById('admin-mbti-pie-chart');
+const adminMbtiChartFallback = document.getElementById('admin-mbti-chart-fallback');
 const adminInsightsGrid = document.getElementById('admin-insights-grid');
 const adminActivityTitle = document.getElementById('admin-activity-title');
 const adminPeriodSelect = document.getElementById('admin-period-select');
-const adminActivityAxis = document.getElementById('admin-activity-axis');
 const adminActivityChart = document.getElementById('admin-activity-chart');
+const adminActivityBarChartCanvas = document.getElementById('admin-activity-bar-chart');
+const adminActivityChartFallback = document.getElementById('admin-activity-chart-fallback');
 const adminMethodologyBackButton = document.getElementById('admin-methodology-back-button');
 const adminMethodologyTitle = document.getElementById('admin-methodology-title');
 const adminMethodologySubtitle = document.getElementById('admin-methodology-subtitle');
@@ -1440,6 +1490,9 @@ const resetChat = () => {
   state.processingStepIndex = 0;
   state.processingAgents = buildProcessingAgentsState();
   state.assessmentSessionId = null;
+  destroyAdminCompetencyBarChart();
+  destroyAdminMbtiPieChart();
+  destroyAdminActivityBarChart();
   destroyAdminCompetencyRadarChart();
   destroyAdminSkillRadarChart();
   state.skillAssessments = [];
@@ -1567,6 +1620,582 @@ const openChat = () => {
   chatInput.focus();
 };
 
+const adminMbtiChartPalette = [
+  '#4648d4',
+  '#16a34a',
+  '#2563eb',
+  '#ea580c',
+  '#0f766e',
+  '#be123c',
+  '#7c3aed',
+  '#ca8a04',
+];
+
+const adminCompetencyBarValueLabelsPlugin = {
+  id: 'adminCompetencyBarValueLabels',
+  afterDatasetsDraw(chart) {
+    const meta = chart.getDatasetMeta(0);
+    if (!meta || meta.hidden) {
+      return;
+    }
+    const dataset = chart.data.datasets[0];
+    const context = chart.ctx;
+    context.save();
+    context.fillStyle = '#4648d4';
+    context.font = '700 13px Inter, sans-serif';
+    context.textAlign = 'center';
+    context.textBaseline = 'bottom';
+    meta.data.forEach((bar, index) => {
+      const value = Number(dataset.data[index]) || 0;
+      context.fillText(value + '%', bar.x, bar.y - 8);
+    });
+    context.restore();
+  },
+};
+
+const adminActivityBarValueLabelsPlugin = {
+  id: 'adminActivityBarValueLabels',
+  afterDatasetsDraw(chart) {
+    const meta = chart.getDatasetMeta(0);
+    if (!meta || meta.hidden) {
+      return;
+    }
+    const dataset = chart.data.datasets[0];
+    const context = chart.ctx;
+    const barSlotsAreReadable = chart.chartArea.width / Math.max(dataset.data.length, 1) >= 24;
+    context.save();
+    context.fillStyle = '#475569';
+    context.font = '700 11px Inter, sans-serif';
+    context.textAlign = 'center';
+    context.textBaseline = 'bottom';
+    meta.data.forEach((bar, index) => {
+      const value = Number(dataset.data[index]) || 0;
+      if (!value || !barSlotsAreReadable) {
+        return;
+      }
+      context.fillText(String(value), bar.x, bar.y - 7);
+    });
+    context.restore();
+  },
+};
+
+const formatAdminChartLabel = (text) => {
+  const rawText = String(text || 'Без названия').trim();
+  const words = rawText.split(/\s+/).filter(Boolean);
+  if (words.length < 2) {
+    return rawText;
+  }
+
+  const lines = [];
+  let currentLine = '';
+  words.forEach((word) => {
+    if (!currentLine) {
+      currentLine = word;
+      return;
+    }
+    if ((currentLine + ' ' + word).length <= 14) {
+      currentLine += ' ' + word;
+      return;
+    }
+    lines.push(currentLine);
+    currentLine = word;
+  });
+
+  if (currentLine) {
+    lines.push(currentLine);
+  }
+  return lines.length > 1 ? lines : rawText;
+};
+
+const destroyAdminCompetencyBarChart = () => {
+  if (adminCompetencyBarChart) {
+    adminCompetencyBarChart.destroy();
+    adminCompetencyBarChart = null;
+  }
+};
+
+const destroyAdminMbtiPieChart = () => {
+  if (adminMbtiPieChart) {
+    adminMbtiPieChart.destroy();
+    adminMbtiPieChart = null;
+  }
+};
+
+const destroyAdminActivityBarChart = () => {
+  if (adminActivityBarChart) {
+    adminActivityBarChart.destroy();
+    adminActivityBarChart = null;
+  }
+};
+
+const normalizeAdminCompetencyItems = (items = []) => (
+  (Array.isArray(items) ? items : [])
+    .map((item) => ({
+      name: String(item.name || 'Без категории'),
+      value: Math.max(0, Math.min(100, Number(item.value) || 0)),
+    }))
+    .sort((a, b) => getCompetencySortIndex(a.name) - getCompetencySortIndex(b.name))
+);
+
+const buildAdminCompetencyBarFallbackMarkup = (items) =>
+  items.map((item) => (
+    '<div class="admin-competency-column">' +
+      '<div class="admin-competency-value">' + item.value + '%</div>' +
+      '<div class="admin-competency-bar"><span style="height:' + item.value + '%; background:' + getCompetencyPalette(item.name).chartFill + '"></span></div>' +
+      '<strong>' + escapeHtml(item.name) + '</strong>' +
+    '</div>'
+  )).join('');
+
+const renderAdminCompetencyBarChart = (competencies = []) => {
+  if (!adminCompetencyChart) {
+    return;
+  }
+
+  destroyAdminCompetencyBarChart();
+
+  const items = normalizeAdminCompetencyItems(competencies);
+
+  if (adminCompetencyBarChartCanvas) {
+    adminCompetencyBarChartCanvas.classList.add('hidden');
+  }
+  if (adminCompetencyChartFallback) {
+    adminCompetencyChartFallback.classList.add('hidden');
+    adminCompetencyChartFallback.innerHTML = '';
+  }
+
+  if (!items.length) {
+    if (adminCompetencyChartFallback) {
+      adminCompetencyChartFallback.textContent = 'Данные по компетенциям пока недоступны.';
+      adminCompetencyChartFallback.classList.remove('hidden');
+    }
+    return;
+  }
+
+  if (typeof window.Chart !== 'function' || !adminCompetencyBarChartCanvas) {
+    if (adminCompetencyChartFallback) {
+      adminCompetencyChartFallback.innerHTML = buildAdminCompetencyBarFallbackMarkup(items);
+      adminCompetencyChartFallback.classList.remove('hidden');
+    }
+    return;
+  }
+
+  const context = adminCompetencyBarChartCanvas.getContext('2d');
+  if (!context) {
+    if (adminCompetencyChartFallback) {
+      adminCompetencyChartFallback.innerHTML = buildAdminCompetencyBarFallbackMarkup(items);
+      adminCompetencyChartFallback.classList.remove('hidden');
+    }
+    return;
+  }
+
+  adminCompetencyBarChartCanvas.classList.remove('hidden');
+  adminCompetencyBarChart = new window.Chart(context, {
+    type: 'bar',
+    data: {
+      labels: items.map((item) => formatAdminChartLabel(item.name)),
+      datasets: [
+        {
+          data: items.map((item) => item.value),
+          backgroundColor: items.map((item) => getCompetencyPalette(item.name).chartFill),
+          borderColor: items.map((item) => getCompetencyPalette(item.name).stroke),
+          borderWidth: 1,
+          borderRadius: {
+            topLeft: 14,
+            topRight: 14,
+            bottomLeft: 0,
+            bottomRight: 0,
+          },
+          borderSkipped: false,
+          barPercentage: 0.62,
+          categoryPercentage: 0.72,
+        },
+      ],
+    },
+    plugins: [adminCompetencyBarValueLabelsPlugin],
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: false,
+      layout: {
+        padding: {
+          top: 24,
+          right: 8,
+          bottom: 0,
+          left: 0,
+        },
+      },
+      plugins: {
+        legend: {
+          display: false,
+        },
+        tooltip: {
+          backgroundColor: '#191c1e',
+          displayColors: false,
+          titleFont: {
+            family: 'Inter',
+            size: 13,
+            weight: '600',
+          },
+          bodyFont: {
+            family: 'Inter',
+            size: 12,
+            weight: '500',
+          },
+          callbacks: {
+            title(contextItems) {
+              const item = items[contextItems[0]?.dataIndex ?? 0];
+              return item?.name || 'Компетенция';
+            },
+            label(context) {
+              return context.formattedValue + '%';
+            },
+          },
+        },
+      },
+      scales: {
+        x: {
+          grid: {
+            display: false,
+          },
+          border: {
+            display: false,
+          },
+          ticks: {
+            color: '#191c1e',
+            maxRotation: 0,
+            minRotation: 0,
+            font: {
+              family: 'Inter',
+              size: 12,
+              weight: '700',
+            },
+          },
+        },
+        y: {
+          beginAtZero: true,
+          min: 0,
+          max: 100,
+          ticks: {
+            stepSize: 25,
+            color: '#64748b',
+            callback(value) {
+              return value + '%';
+            },
+            font: {
+              family: 'Inter',
+              size: 11,
+              weight: '600',
+            },
+          },
+          grid: {
+            color: 'rgba(100, 116, 139, 0.14)',
+          },
+          border: {
+            display: false,
+          },
+        },
+      },
+    },
+  });
+};
+
+const buildAdminMbtiFallbackMarkup = (items) =>
+  items.map((item, index) => (
+    '<div class="admin-mbti-row">' +
+      '<span>' + escapeHtml(item.name) + '</span>' +
+      '<div class="admin-mbti-track"><span style="width:' + Math.min(item.value, 100) + '%; background:' + adminMbtiChartPalette[index % adminMbtiChartPalette.length] + '"></span></div>' +
+      '<strong>' + item.value + '%</strong>' +
+    '</div>'
+  )).join('');
+
+const renderAdminMbtiPieChart = (distribution = []) => {
+  if (!adminMbtiChart) {
+    return;
+  }
+
+  destroyAdminMbtiPieChart();
+
+  const items = (Array.isArray(distribution) ? distribution : [])
+    .map((item) => ({
+      name: String(item.name || 'Нет данных'),
+      value: Math.max(0, Number(item.value) || 0),
+    }))
+    .filter((item) => item.value > 0);
+
+  if (adminMbtiPieChartCanvas) {
+    adminMbtiPieChartCanvas.classList.add('hidden');
+  }
+  if (adminMbtiChartFallback) {
+    adminMbtiChartFallback.classList.add('hidden');
+    adminMbtiChartFallback.innerHTML = '';
+  }
+
+  if (!items.length) {
+    if (adminMbtiChartFallback) {
+      adminMbtiChartFallback.textContent = 'Данные MBTI пока недоступны.';
+      adminMbtiChartFallback.classList.remove('hidden');
+    }
+    return;
+  }
+
+  if (typeof window.Chart !== 'function' || !adminMbtiPieChartCanvas) {
+    if (adminMbtiChartFallback) {
+      adminMbtiChartFallback.innerHTML = buildAdminMbtiFallbackMarkup(items);
+      adminMbtiChartFallback.classList.remove('hidden');
+    }
+    return;
+  }
+
+  const context = adminMbtiPieChartCanvas.getContext('2d');
+  if (!context) {
+    if (adminMbtiChartFallback) {
+      adminMbtiChartFallback.innerHTML = buildAdminMbtiFallbackMarkup(items);
+      adminMbtiChartFallback.classList.remove('hidden');
+    }
+    return;
+  }
+
+  adminMbtiPieChartCanvas.classList.remove('hidden');
+  const legendPosition = window.matchMedia('(max-width: 640px)').matches ? 'bottom' : 'right';
+  adminMbtiPieChart = new window.Chart(context, {
+    type: 'pie',
+    data: {
+      labels: items.map((item) => item.name),
+      datasets: [
+        {
+          data: items.map((item) => item.value),
+          backgroundColor: items.map((_, index) => adminMbtiChartPalette[index % adminMbtiChartPalette.length]),
+          borderColor: '#ffffff',
+          borderWidth: 4,
+          hoverOffset: 8,
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: false,
+      layout: {
+        padding: 4,
+      },
+      plugins: {
+        legend: {
+          position: legendPosition,
+          labels: {
+            boxHeight: 9,
+            boxWidth: 9,
+            color: '#475569',
+            padding: 14,
+            pointStyle: 'circle',
+            usePointStyle: true,
+            font: {
+              family: 'Inter',
+              size: 12,
+              weight: '700',
+            },
+          },
+        },
+        tooltip: {
+          backgroundColor: '#191c1e',
+          displayColors: false,
+          titleFont: {
+            family: 'Inter',
+            size: 13,
+            weight: '600',
+          },
+          bodyFont: {
+            family: 'Inter',
+            size: 12,
+            weight: '500',
+          },
+          callbacks: {
+            label(context) {
+              const value = Number(context.raw) || 0;
+              return (context.label || 'Тип') + ': ' + value + '%';
+            },
+          },
+        },
+      },
+    },
+  });
+};
+
+const getAdminActivityShade = (value, maxValue) => {
+  if (!value) {
+    return '#dbe3f3';
+  }
+  const ratio = Math.max(0, Math.min(1, value / Math.max(maxValue, 1)));
+  const lightness = Math.round(76 - (ratio * 28));
+  return 'hsl(241 68% ' + lightness + '%)';
+};
+
+const normalizeAdminActivityItems = (points = [], labels = []) => {
+  const safePoints = Array.isArray(points) && points.length ? points : [0, 0, 0, 0, 0, 0, 0];
+  const safeLabels = Array.isArray(labels) && labels.length
+    ? labels
+    : safePoints.map((_, index) => 'P' + (index + 1));
+
+  return safePoints.map((point, index) => ({
+    label: String(safeLabels[index] || ('P' + (index + 1))),
+    value: Math.max(0, Number(point) || 0),
+  }));
+};
+
+const buildAdminActivityFallbackMarkup = (items, maxPoint) =>
+  items.map((item) => {
+    const height = Math.max(18, Math.round((item.value / Math.max(maxPoint, 1)) * 220));
+    return (
+      '<div class="admin-activity-bar">' +
+        '<span class="admin-activity-value">' + item.value + '</span>' +
+        '<div class="admin-activity-bar-fill" style="height:' + height + 'px; background:' + getAdminActivityShade(item.value, maxPoint) + '"></div>' +
+        '<small>' + escapeHtml(item.label) + '</small>' +
+      '</div>'
+    );
+  }).join('');
+
+const renderAdminActivityBarChart = (adminDashboard = {}) => {
+  if (!adminActivityChart) {
+    return;
+  }
+
+  destroyAdminActivityBarChart();
+
+  const items = normalizeAdminActivityItems(adminDashboard.activity_points, adminDashboard.activity_labels);
+  const maxPoint = Math.max(Number(adminDashboard.activity_axis_max || 0), ...items.map((item) => item.value), 1);
+
+  if (adminActivityBarChartCanvas) {
+    adminActivityBarChartCanvas.classList.add('hidden');
+  }
+  if (adminActivityChartFallback) {
+    adminActivityChartFallback.classList.add('hidden');
+    adminActivityChartFallback.innerHTML = '';
+  }
+
+  if (typeof window.Chart !== 'function' || !adminActivityBarChartCanvas) {
+    if (adminActivityChartFallback) {
+      adminActivityChartFallback.innerHTML = buildAdminActivityFallbackMarkup(items, maxPoint);
+      adminActivityChartFallback.classList.remove('hidden');
+    }
+    return;
+  }
+
+  const context = adminActivityBarChartCanvas.getContext('2d');
+  if (!context) {
+    if (adminActivityChartFallback) {
+      adminActivityChartFallback.innerHTML = buildAdminActivityFallbackMarkup(items, maxPoint);
+      adminActivityChartFallback.classList.remove('hidden');
+    }
+    return;
+  }
+
+  adminActivityBarChartCanvas.classList.remove('hidden');
+  adminActivityBarChart = new window.Chart(context, {
+    type: 'bar',
+    data: {
+      labels: items.map((item) => item.label),
+      datasets: [
+        {
+          label: 'Завершенные ассессменты',
+          data: items.map((item) => item.value),
+          backgroundColor: items.map((item) => getAdminActivityShade(item.value, maxPoint)),
+          borderColor: items.map((item) => item.value ? '#4648d4' : '#cbd5e1'),
+          borderWidth: 1,
+          borderRadius: {
+            topLeft: 12,
+            topRight: 12,
+            bottomLeft: 0,
+            bottomRight: 0,
+          },
+          borderSkipped: false,
+          barPercentage: 0.7,
+          categoryPercentage: 0.78,
+        },
+      ],
+    },
+    plugins: [adminActivityBarValueLabelsPlugin],
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: false,
+      layout: {
+        padding: {
+          top: 22,
+          right: 8,
+          bottom: 0,
+          left: 0,
+        },
+      },
+      plugins: {
+        legend: {
+          display: false,
+        },
+        tooltip: {
+          backgroundColor: '#191c1e',
+          displayColors: false,
+          titleFont: {
+            family: 'Inter',
+            size: 13,
+            weight: '600',
+          },
+          bodyFont: {
+            family: 'Inter',
+            size: 12,
+            weight: '500',
+          },
+          callbacks: {
+            label(context) {
+              const value = Number(context.raw) || 0;
+              return value + ' завершено';
+            },
+          },
+        },
+      },
+      scales: {
+        x: {
+          grid: {
+            display: false,
+          },
+          border: {
+            display: false,
+          },
+          ticks: {
+            color: '#64748b',
+            maxRotation: 0,
+            minRotation: 0,
+            autoSkip: true,
+            maxTicksLimit: 14,
+            font: {
+              family: 'Inter',
+              size: 11,
+              weight: '700',
+            },
+          },
+        },
+        y: {
+          beginAtZero: true,
+          min: 0,
+          max: maxPoint,
+          ticks: {
+            precision: 0,
+            color: '#64748b',
+            font: {
+              family: 'Inter',
+              size: 11,
+              weight: '600',
+            },
+          },
+          grid: {
+            color: 'rgba(100, 116, 139, 0.14)',
+          },
+          border: {
+            display: false,
+          },
+        },
+      },
+    },
+  });
+};
+
 const renderAdminDashboard = () => {
   const adminDashboard = state.adminDashboard;
   const user = state.pendingUser;
@@ -1598,27 +2227,9 @@ const renderAdminDashboard = () => {
     adminMetricsGrid.appendChild(card);
   });
 
-  adminCompetencyChart.innerHTML = '';
-  (adminDashboard.competency_average || []).forEach((item) => {
-    const column = document.createElement('div');
-    column.className = 'admin-competency-column';
-    column.innerHTML =
-      '<div class="admin-competency-value">' + item.value + '%</div>' +
-      '<div class="admin-competency-bar"><span style="height:' + item.value + '%"></span></div>' +
-      '<strong>' + item.name + '</strong>';
-    adminCompetencyChart.appendChild(column);
-  });
+  renderAdminCompetencyBarChart(adminDashboard.competency_average || []);
 
-  adminMbtiChart.innerHTML = '';
-  (adminDashboard.mbti_distribution || []).forEach((item) => {
-    const row = document.createElement('div');
-    row.className = 'admin-mbti-row';
-    row.innerHTML =
-      '<span>' + item.name + '</span>' +
-      '<div class="admin-mbti-track"><span style="width:' + item.value + '%"></span></div>' +
-      '<strong>' + item.value + '%</strong>';
-    adminMbtiChart.appendChild(row);
-  });
+  renderAdminMbtiPieChart(adminDashboard.mbti_distribution || []);
 
   adminInsightsGrid.innerHTML = '';
   (adminDashboard.insights || []).forEach((item) => {
@@ -1628,33 +2239,7 @@ const renderAdminDashboard = () => {
     adminInsightsGrid.appendChild(card);
   });
 
-  adminActivityAxis.innerHTML = '';
-  adminActivityChart.innerHTML = '';
-  const activityPoints = Array.isArray(adminDashboard.activity_points) && adminDashboard.activity_points.length
-    ? adminDashboard.activity_points
-    : [0, 0, 0, 0, 0, 0, 0];
-  const activityLabels = Array.isArray(adminDashboard.activity_labels) && adminDashboard.activity_labels.length
-    ? adminDashboard.activity_labels
-    : activityPoints.map((_, index) => 'P' + (index + 1));
-  const maxPoint = Math.max(Number(adminDashboard.activity_axis_max || 0), ...activityPoints, 1);
-  const axisTicks = [maxPoint, Math.round(maxPoint * 0.66), Math.round(maxPoint * 0.33), 0]
-    .filter((value, index, array) => array.indexOf(value) === index);
-  axisTicks.forEach((value) => {
-    const tick = document.createElement('div');
-    tick.className = 'admin-activity-tick';
-    tick.innerHTML = '<span>' + value + '</span><div></div>';
-    adminActivityAxis.appendChild(tick);
-  });
-  activityPoints.forEach((value, index) => {
-    const bar = document.createElement('div');
-    bar.className = 'admin-activity-bar';
-    const height = Math.max(18, Math.round((value / maxPoint) * 220));
-    bar.innerHTML =
-      '<span class="admin-activity-value">' + value + '</span>' +
-      '<div class="admin-activity-bar-fill" style="height:' + height + 'px"></div>' +
-      '<small>' + (activityLabels[index] || ('P' + (index + 1))) + '</small>';
-    adminActivityChart.appendChild(bar);
-  });
+  renderAdminActivityBarChart(adminDashboard);
 };
 
 const loadAdminDashboard = async (periodKey = state.adminPeriodKey || '30d') => {
@@ -3357,6 +3942,14 @@ const renderAdminSkillRadar = (skills = []) => {
       responsive: true,
       maintainAspectRatio: false,
       animation: false,
+      layout: {
+        padding: {
+          top: 14,
+          right: 44,
+          bottom: 16,
+          left: 44,
+        },
+      },
       plugins: {
         legend: {
           display: false,

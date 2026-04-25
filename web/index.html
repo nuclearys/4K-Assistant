@@ -265,7 +265,10 @@
                 <h3>Средний % по компетенциям</h3>
               </div>
             </div>
-            <div id="admin-competency-chart" class="admin-competency-chart"></div>
+            <div id="admin-competency-chart" class="admin-competency-chart">
+              <canvas id="admin-competency-bar-chart" aria-label="Средний процент по компетенциям"></canvas>
+              <div id="admin-competency-chart-fallback" class="admin-competency-chart-fallback hidden"></div>
+            </div>
           </article>
 
           <article class="admin-analytics-card">
@@ -275,7 +278,10 @@
                 <h3>Сводка по типам</h3>
               </div>
             </div>
-            <div id="admin-mbti-chart" class="admin-mbti-chart"></div>
+            <div id="admin-mbti-chart" class="admin-mbti-chart">
+              <canvas id="admin-mbti-pie-chart" aria-label="MBTI распределение по типам"></canvas>
+              <div id="admin-mbti-chart-fallback" class="admin-mbti-chart-fallback hidden"></div>
+            </div>
           </article>
         </section>
 
@@ -310,8 +316,10 @@
             </div>
           </div>
           <div class="admin-activity-plot">
-            <div id="admin-activity-axis" class="admin-activity-axis"></div>
-            <div id="admin-activity-chart" class="admin-activity-chart"></div>
+            <div id="admin-activity-chart" class="admin-activity-chart">
+              <canvas id="admin-activity-bar-chart" aria-label="Количество завершенных ассессментов за период"></canvas>
+              <div id="admin-activity-chart-fallback" class="admin-activity-chart-fallback hidden"></div>
+            </div>
           </div>
         </section>
       </div>

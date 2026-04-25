@@ -3852,14 +3852,6 @@ textarea {
     position: relative;
 }
 
-.admin-detail-competency-radar-frame {
-    min-height: 300px;
-}
-
-.admin-detail-skills-radar-frame {
-    min-height: 520px;
-}
-
 .admin-detail-competency-radar-frame canvas,
 .admin-detail-skills-radar-frame canvas {
     position: relative;
@@ -4138,16 +4130,12 @@ textarea {
     }
 
     .admin-detail-skills-radar-card {
-        min-height: 540px;
+        min-height: 0;
     }
 
     .admin-detail-competency-radar-frame,
     .admin-detail-skills-radar-frame {
-        min-height: 320px;
-    }
-
-    .admin-detail-skills-radar-frame {
-        min-height: 500px;
+        min-height: 0;
     }
 
     .onboarding-visual {

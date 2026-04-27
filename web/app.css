@@ -3847,9 +3847,55 @@ textarea {
 
 .admin-detail-competency-radar-frame canvas,
 .admin-detail-skills-radar-frame canvas {
+    position: relative;
+    z-index: 1;
     display: block;
     width: 100% !important;
     height: 100% !important;
+}
+
+.admin-detail-radar-competency-labels {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    pointer-events: none;
+}
+
+.admin-detail-radar-competency-labels span {
+    position: absolute;
+    max-width: 148px;
+    font-size: 14px;
+    font-weight: 800;
+    line-height: 16px;
+    text-align: center;
+}
+
+.admin-detail-radar-competency-labels [data-competency="communication"] {
+    top: 12px;
+    left: 50%;
+    color: #2563eb;
+    transform: translateX(-50%);
+}
+
+.admin-detail-radar-competency-labels [data-competency="teamwork"] {
+    top: 50%;
+    right: -56px;
+    color: #16a34a;
+    transform: translateY(-50%) rotate(90deg);
+}
+
+.admin-detail-radar-competency-labels [data-competency="creativity"] {
+    bottom: 12px;
+    left: 50%;
+    color: #ea580c;
+    transform: translateX(-50%);
+}
+
+.admin-detail-radar-competency-labels [data-competency="critical-thinking"] {
+    top: 50%;
+    left: -56px;
+    color: #4648d4;
+    transform: translateY(-50%) rotate(-90deg);
 }
 
 .admin-detail-skills-radar-fallback {

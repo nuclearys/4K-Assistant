@@ -81,7 +81,7 @@ class AssessmentService:
         case_skills: list[str],
     ) -> str:
         candidates = [
-            deepseek_client._fallback_follow_up_question(  # type: ignore[attr-defined]
+            deepseek_client._build_follow_up_question(
                 user_message=user_message,
                 dialogue=[{"role": row["role"], "content": row["message_text"]} for row in dialogue_rows],
                 case_skills=case_skills,

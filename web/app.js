@@ -4042,6 +4042,13 @@ const buildAdminSkillRadarFallbackMarkup = (skills) =>
     )).join('') +
   '</div>';
 
+const getRadarSkillLevelPercent = (skill) => {
+  if (!skill || skill.assessed_level_code === 'N/A') {
+    return null;
+  }
+  return getLevelPercent(skill.assessed_level_code);
+};
+
 const renderAdminSkillRadar = (skills = []) => {
   if (!adminReportDetailSkillsRadarChart || !adminReportDetailSkillsRadarFallback) {
     return;
@@ -4096,7 +4103,7 @@ const renderAdminSkillRadar = (skills = []) => {
       datasets: [
         {
           label: 'Оценка навыка',
-          data: radarSkills.map((skill) => getLevelPercent(skill.assessed_level_code)),
+          data: radarSkills.map((skill) => getRadarSkillLevelPercent(skill)),
           fill: true,
           borderColor: '#334155',
           backgroundColor: 'rgba(51, 65, 85, 0.12)',
@@ -4152,7 +4159,13 @@ const renderAdminSkillRadar = (skills = []) => {
             },
             label(context) {
               const skill = radarSkills[context.dataIndex];
-              return (skill?.assessed_level_name || 'Нет уровня') + ' - ' + context.formattedValue + '%';
+              if (!skill) {
+                return 'Нет данных';
+              }
+              if (skill.assessed_level_code === 'N/A') {
+                return (skill.assessed_level_name || 'Не проявлено');
+              }
+              return (skill.assessed_level_name || 'Нет уровня') + ' - ' + context.formattedValue + '%';
             },
             afterLabel(context) {
               const skill = radarSkills[context.dataIndex];

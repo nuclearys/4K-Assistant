@@ -1670,10 +1670,26 @@ textarea {
 }
 
 .report-recommendations {
-    margin: 12px 0 0;
-    padding-left: 18px;
-    display: grid;
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    justify-content: space-between;
     gap: 10px;
+    margin: 16px 0 0;
+    color: #fff8ef;
+    list-style: none;
+    padding: 0;
+}
+
+.report-recommendations li {
+    padding: 12px 14px;
+    border: 1px solid rgba(255, 251, 255, 0.22);
+    border-radius: 8px;
+    background: rgba(255, 251, 255, 0.08);
+    box-shadow: inset 0 1px 0 rgba(255, 251, 255, 0.12);
+    color: #fff8ef;
+    font-size: 16px;
+    font-weight: 600;
     line-height: 1.45;
 }
 
@@ -1693,6 +1709,16 @@ textarea {
 }
 
 .report-competency-bars {
+    position: relative;
+    min-height: 276px;
+}
+
+.report-competency-bars canvas {
+    width: 100% !important;
+    height: 100% !important;
+}
+
+.report-competency-bars-fallback {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 16px;
@@ -5437,11 +5463,6 @@ textarea {
     background: rgba(248, 249, 255, 0.88);
 }
 
-.admin-detail-insight-column .report-recommendations {
-    margin: 0;
-    padding-left: 20px;
-}
-
 .admin-detail-cases-list,
 .admin-detail-case-body,
 .admin-detail-case-dialogue,
@@ -5933,20 +5954,9 @@ textarea {
     line-height: 24px;
 }
 
-.report-recommendations {
-    flex: 1;
-    margin: 12px 0 0;
-    padding-left: 18px;
-    gap: 12px;
-    color: #fffbff;
-    font-size: 14px;
-    line-height: 20px;
-}
-
 .report-competencies-card {
     grid-area: competencies;
     display: grid;
-    gap: 32px;
     padding: 25px;
 }
 
@@ -5984,11 +5994,16 @@ textarea {
 
 .report-competency-bars {
     min-height: 276px;
+    height: 276px;
+}
+
+.report-competency-bars-fallback {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 16px;
     align-items: end;
-    padding: 32px 16px 0;
+    height: 100%;
+    padding: 20px 16px 0;
 }
 
 .report-competency-bar-card {
@@ -6044,10 +6059,13 @@ textarea {
     min-height: 2px;
     border-radius: 8px 8px 0 0;
     background: linear-gradient(
-        180deg,
-        rgba(96, 99, 238, 0) 0%,
-        rgba(96, 99, 238, 0.3) 50%,
-        var(--accent-bright) 100%
+        0deg,
+        var(--accent) 0%,
+        var(--accent) 56%,
+        rgba(70, 72, 212, 0.9) 74%,
+        rgba(70, 72, 212, 0.62) 88%,
+        rgba(70, 72, 212, 0.28) 97%,
+        rgba(70, 72, 212, 0.08) 100%
     );
 }
 
@@ -6304,7 +6322,7 @@ textarea {
         text-align: left;
     }
 
-    .report-competency-bars {
+    .report-competency-bars-fallback {
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 

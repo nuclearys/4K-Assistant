@@ -259,6 +259,7 @@ let adminSkillRadarChart = null;
 let adminCompetencyBarChart = null;
 let adminMbtiPieChart = null;
 let adminActivityBarChart = null;
+let reportCompetencyBarChart = null;
 
 const authPanel = document.getElementById('auth-panel');
 const onboardingPanel = document.getElementById('onboarding-panel');
@@ -526,6 +527,8 @@ if (appReleaseNumber) {
 }
 const reportRecommendations = document.getElementById('report-recommendations');
 const reportCompetencyBars = document.getElementById('report-competency-bars');
+const reportCompetencyBarChartCanvas = document.getElementById('report-competency-bar-chart');
+const reportCompetencyBarsFallback = document.getElementById('report-competency-bars-fallback');
 const reportStrengthTitle = document.getElementById('report-strength-title');
 const reportStrengthText = document.getElementById('report-strength-text');
 const reportDetailTitle = document.getElementById('report-detail-title');
@@ -1498,6 +1501,7 @@ const resetChat = () => {
   destroyAdminCompetencyBarChart();
   destroyAdminMbtiPieChart();
   destroyAdminActivityBarChart();
+  destroyReportCompetencyBarChart();
   destroyAdminCompetencyRadarChart();
   destroyAdminSkillRadarChart();
   state.skillAssessments = [];
@@ -5644,6 +5648,215 @@ const getReportRecommendations = (summary) => {
   return weakest.map((item) => buildCompetencyGrowthRecommendation(item));
 };
 
+const destroyReportCompetencyBarChart = () => {
+  if (reportCompetencyBarChart) {
+    reportCompetencyBarChart.destroy();
+    reportCompetencyBarChart = null;
+  }
+};
+
+const reportCompetencyValueLabelsPlugin = {
+  id: 'reportCompetencyValueLabels',
+  afterDatasetsDraw(chart) {
+    const meta = chart.getDatasetMeta(0);
+    if (!meta || meta.hidden) {
+      return;
+    }
+    const dataset = chart.data.datasets[0];
+    const context = chart.ctx;
+    context.save();
+    context.fillStyle = '#4648d4';
+    context.font = '700 13px Inter, sans-serif';
+    context.textAlign = 'center';
+    context.textBaseline = 'bottom';
+    meta.data.forEach((bar, index) => {
+      const value = Number(dataset.data[index]) || 0;
+      context.fillText(value + '%', bar.x, bar.y - 8);
+    });
+    context.restore();
+  },
+};
+
+const getReportCompetencyGradient = (context) => {
+  const chart = context.chart;
+  const yScale = chart.scales?.y;
+  const value = Number(context.parsed?.y ?? context.raw ?? 0);
+  if (!chart.chartArea || !yScale || value <= 0) {
+    return '#4648d4';
+  }
+
+  const top = yScale.getPixelForValue(value);
+  const bottom = yScale.getPixelForValue(0);
+  const gradient = chart.ctx.createLinearGradient(0, bottom, 0, top);
+  gradient.addColorStop(0, '#4648d4');
+  gradient.addColorStop(0.56, '#4648d4');
+  gradient.addColorStop(0.74, 'rgba(70, 72, 212, 0.9)');
+  gradient.addColorStop(0.88, 'rgba(70, 72, 212, 0.62)');
+  gradient.addColorStop(0.97, 'rgba(70, 72, 212, 0.28)');
+  gradient.addColorStop(1, 'rgba(70, 72, 212, 0.08)');
+  return gradient;
+};
+
+const buildReportCompetencyFallbackMarkup = (summary) =>
+  summary.map((item) => (
+    '<article class="report-competency-bar-card">' +
+      '<strong>' + item.avgPercent + '%</strong>' +
+      '<span>' + escapeHtml(item.competency) + '</span>' +
+      '<div class="report-competency-meter"><div class="report-competency-meter-fill" style="height:' + item.avgPercent + '%"></div></div>' +
+    '</article>'
+  )).join('');
+
+const renderReportCompetencyBarChart = (summary = []) => {
+  if (!reportCompetencyBars) {
+    return;
+  }
+
+  destroyReportCompetencyBarChart();
+
+  const items = (Array.isArray(summary) ? summary : [])
+    .map((item) => ({
+      competency: String(item.competency || 'Компетенция'),
+      avgPercent: Math.max(0, Math.min(100, Number(item.avgPercent) || 0)),
+    }));
+
+  if (reportCompetencyBarChartCanvas) {
+    reportCompetencyBarChartCanvas.classList.add('hidden');
+  }
+  if (reportCompetencyBarsFallback) {
+    reportCompetencyBarsFallback.classList.add('hidden');
+    reportCompetencyBarsFallback.innerHTML = '';
+  }
+
+  if (!items.length) {
+    if (reportCompetencyBarsFallback) {
+      reportCompetencyBarsFallback.textContent = 'Показатели по компетенциям появятся после завершения ассессмента.';
+      reportCompetencyBarsFallback.classList.remove('hidden');
+    }
+    return;
+  }
+
+  if (typeof window.Chart !== 'function' || !reportCompetencyBarChartCanvas) {
+    if (reportCompetencyBarsFallback) {
+      reportCompetencyBarsFallback.innerHTML = buildReportCompetencyFallbackMarkup(items);
+      reportCompetencyBarsFallback.classList.remove('hidden');
+    }
+    return;
+  }
+
+  const context = reportCompetencyBarChartCanvas.getContext('2d');
+  if (!context) {
+    if (reportCompetencyBarsFallback) {
+      reportCompetencyBarsFallback.innerHTML = buildReportCompetencyFallbackMarkup(items);
+      reportCompetencyBarsFallback.classList.remove('hidden');
+    }
+    return;
+  }
+
+  reportCompetencyBarChartCanvas.classList.remove('hidden');
+  reportCompetencyBarChart = new window.Chart(context, {
+    type: 'bar',
+    data: {
+      labels: items.map((item) => formatAdminChartLabel(item.competency)),
+      datasets: [
+        {
+          data: items.map((item) => item.avgPercent),
+          backgroundColor: getReportCompetencyGradient,
+          hoverBackgroundColor: getReportCompetencyGradient,
+          borderColor: 'rgba(70, 72, 212, 0.32)',
+          hoverBorderColor: 'rgba(70, 72, 212, 0.32)',
+          borderWidth: 1,
+          hoverBorderWidth: 1,
+          borderRadius: {
+            topLeft: 8,
+            topRight: 8,
+            bottomLeft: 0,
+            bottomRight: 0,
+          },
+          borderSkipped: false,
+          barPercentage: 0.86,
+          categoryPercentage: 0.88,
+        },
+      ],
+    },
+    plugins: [reportCompetencyValueLabelsPlugin],
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: false,
+      layout: {
+        padding: {
+          top: 26,
+          right: 0,
+          bottom: 0,
+          left: 0,
+        },
+      },
+      plugins: {
+        legend: {
+          display: false,
+        },
+        tooltip: {
+          backgroundColor: '#191c1e',
+          displayColors: false,
+          titleFont: {
+            family: 'Inter',
+            size: 13,
+            weight: '600',
+          },
+          bodyFont: {
+            family: 'Inter',
+            size: 12,
+            weight: '500',
+          },
+          callbacks: {
+            title(contextItems) {
+              const item = items[contextItems[0]?.dataIndex ?? 0];
+              return item?.competency || 'Компетенция';
+            },
+            label(context) {
+              return context.formattedValue + '%';
+            },
+          },
+        },
+      },
+      scales: {
+        x: {
+          grid: {
+            display: false,
+          },
+          border: {
+            display: false,
+          },
+          ticks: {
+            color: '#4648d4',
+            maxRotation: 0,
+            minRotation: 0,
+            font: {
+              family: 'Inter',
+              size: 11,
+              weight: '700',
+            },
+          },
+        },
+        y: {
+          beginAtZero: true,
+          min: 0,
+          max: 100,
+          ticks: {
+            display: false,
+          },
+          grid: {
+            display: false,
+          },
+          border: {
+            display: false,
+          },
+        },
+      },
+    },
+  });
+};
+
 const renderReport = () => {
   const summary = getCompetencySummary();
   const totalScore = summary.length
@@ -5664,16 +5877,7 @@ const renderReport = () => {
     reportRecommendations.appendChild(item);
   });
 
-  reportCompetencyBars.innerHTML = '';
-  summary.forEach((item) => {
-    const card = document.createElement('article');
-    card.className = 'report-competency-bar-card';
-    card.innerHTML =
-      '<strong>' + item.avgPercent + '%</strong>' +
-      '<span>' + item.competency + '</span>' +
-      '<div class="report-competency-meter"><div class="report-competency-meter-fill" style="height:' + item.avgPercent + '%"></div></div>';
-    reportCompetencyBars.appendChild(card);
-  });
+  renderReportCompetencyBarChart(summary);
 
   reportStrengthTitle.textContent = interpretation?.insight_title || 'AI insights пока недоступны';
   if (interpretation?.insight_text) {
@@ -5737,8 +5941,8 @@ const openReport = (options = {}) => {
   setCurrentScreen('report');
   syncUrlState('report');
   hideAllPanels();
-  renderReport();
   reportPanel.classList.remove('hidden');
+  renderReport();
   clearAssessmentStorage();
 };
 

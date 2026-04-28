@@ -1540,7 +1540,7 @@ textarea {
     color: var(--accent);
 }
 
-.report-hero-score span {
+.report-hero-score > span {
     color: var(--text-muted);
 }
 
@@ -4636,30 +4636,57 @@ textarea {
     width: 20px;
     height: 20px;
     display: inline-grid;
+    flex: 0 0 auto;
     place-items: center;
+    margin: 0;
     border-radius: 999px;
     background: rgba(70, 72, 212, 0.12);
     border: 1px solid rgba(70, 72, 212, 0.2);
-    color: var(--accent);
+    color: #14151f;
     font-size: 12px;
-    font-weight: 900;
+    font-weight: 400;
     line-height: 1;
+    letter-spacing: 0;
+    text-transform: none;
     cursor: help;
 }
 
-.report-score-tooltip {
+.report-skill-name-text {
+    position: relative;
+    display: inline-block;
+    cursor: help;
+}
+
+.report-skill-name-label {
+    text-decoration: underline dotted;
+    text-underline-offset: 3px;
+}
+
+.report-skill-name-text:focus-visible {
+    outline: 2px solid rgba(70, 72, 212, 0.32);
+    outline-offset: 3px;
+    border-radius: 4px;
+}
+
+.report-hero-score .report-score-tooltip,
+.report-skill-name .report-score-tooltip {
     position: absolute;
     right: 0;
     bottom: calc(100% + 12px);
+    display: block;
     width: 280px;
     padding: 12px 14px;
     border-radius: 14px;
-    background: #1f2436;
-    color: #f5f7ff;
-    font-size: 12px;
+    border: 1px solid rgba(18, 24, 42, 0.12);
+    background: #fff;
+    color: #14151f;
+    font-size: 13px;
+    font-weight: 500;
     line-height: 1.45;
+    letter-spacing: 0;
     text-align: left;
-    box-shadow: 0 18px 44px rgba(18, 24, 42, 0.24);
+    text-transform: none;
+    box-shadow: none;
     opacity: 0;
     visibility: hidden;
     transform: translateY(6px);
@@ -4672,7 +4699,9 @@ textarea {
 }
 
 .report-score-hint:hover .report-score-tooltip,
-.report-score-hint:focus-visible .report-score-tooltip {
+.report-score-hint:focus-visible .report-score-tooltip,
+.report-skill-name-text:hover .report-score-tooltip,
+.report-skill-name-text:focus-visible .report-score-tooltip {
     opacity: 1;
     visibility: visible;
     transform: translateY(0);
@@ -5845,8 +5874,11 @@ textarea {
     line-height: 40px;
 }
 
-.report-hero-score span {
-    display: block;
+.report-hero-score > span {
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
     margin-top: 2px;
     color: #904900;
     font-size: 12px;
@@ -6207,7 +6239,7 @@ textarea {
 .report-detail-list {
     display: grid;
     gap: 0;
-    overflow: hidden;
+    overflow: visible;
     border: 1px solid rgba(199, 196, 215, 0.1);
     border-top: 0;
     border-radius: 0 0 8px 8px;
@@ -6227,7 +6259,6 @@ textarea {
     font-size: 16px;
     font-weight: 500;
     text-align: center;
-    text-decoration: underline dotted;
 }
 
 .report-skill-level {

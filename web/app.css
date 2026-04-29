@@ -4484,6 +4484,14 @@ textarea {
         padding-right: 22px;
     }
 
+    #available-assessments.assessment-grid {
+        grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
+    }
+
+    #available-assessments > .assessment-mini-card:first-child {
+        grid-column: 1 / -1;
+    }
+
     .ai-welcome-shell,
     .prechat-shell {
         padding-left: 22px;

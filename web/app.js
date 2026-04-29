@@ -5777,23 +5777,181 @@ const destroyReportCompetencyBarChart = () => {
   }
 };
 
-const reportCompetencyValueLabelsPlugin = {
-  id: 'reportCompetencyValueLabels',
-  afterDatasetsDraw(chart) {
-    const meta = chart.getDatasetMeta(0);
-    if (!meta || meta.hidden) {
+const drawCanvasRoundedRect = (context, x, y, width, height, radius) => {
+  const safeRadius = Math.max(0, Math.min(radius, width / 2, height / 2));
+  context.beginPath();
+  if (typeof context.roundRect === 'function') {
+    context.roundRect(x, y, width, height, safeRadius);
+    return;
+  }
+  context.moveTo(x + safeRadius, y);
+  context.lineTo(x + width - safeRadius, y);
+  context.quadraticCurveTo(x + width, y, x + width, y + safeRadius);
+  context.lineTo(x + width, y + height - safeRadius);
+  context.quadraticCurveTo(x + width, y + height, x + width - safeRadius, y + height);
+  context.lineTo(x + safeRadius, y + height);
+  context.quadraticCurveTo(x, y + height, x, y + height - safeRadius);
+  context.lineTo(x, y + safeRadius);
+  context.quadraticCurveTo(x, y, x + safeRadius, y);
+};
+
+const drawWrappedCanvasText = (context, text, x, y, maxWidth, lineHeight) => {
+  const words = String(text || '').split(/\s+/).filter(Boolean);
+  const lines = [];
+  let currentLine = '';
+
+  words.forEach((word) => {
+    const nextLine = currentLine ? currentLine + ' ' + word : word;
+    if (currentLine && context.measureText(nextLine).width > maxWidth) {
+      lines.push(currentLine);
+      currentLine = word;
       return;
     }
+    currentLine = nextLine;
+  });
+
+  if (currentLine) {
+    lines.push(currentLine);
+  }
+
+  const visibleLines = lines.slice(0, 2);
+  const firstBaseline = y - ((visibleLines.length - 1) * lineHeight) / 2;
+  visibleLines.forEach((line, index) => {
+    context.fillText(line, x, firstBaseline + index * lineHeight);
+  });
+};
+
+const getReportCompetencyCardMetrics = (chart, meta, items) => {
+  const chartArea = chart.chartArea;
+  const count = Math.max(items.length, meta.data.length, 1);
+  const slotWidth = chartArea.width / count;
+  const cardGap = Math.min(8, Math.max(4, slotWidth * 0.025));
+  const cardWidth = Math.max(112, slotWidth - cardGap);
+  const trackInset = 8;
+  const fillOffset = 3;
+  const trackWidth = Math.min(48, Math.max(40, cardWidth * 0.25));
+  const fillWidth = 34;
+
+  return {
+    cardWidth,
+    fillOffset,
+    fillWidth,
+    trackInset,
+    trackWidth,
+    cardTop: 0,
+    cardHeight: chart.height,
+    trackTop: chartArea.top - trackInset,
+    trackHeight: chartArea.bottom - chartArea.top + trackInset * 2,
+    fillTop: chartArea.top + fillOffset,
+    fillBottom: chartArea.bottom + fillOffset,
+  };
+};
+
+const reportCompetencyCardsPlugin = {
+  id: 'reportCompetencyCards',
+  beforeDatasetsDraw(chart, args, pluginOptions) {
+    const meta = chart.getDatasetMeta(0);
+    const xScale = chart.scales?.x;
+    if (!meta || meta.hidden || !xScale || !chart.chartArea) {
+      return;
+    }
+
+    const context = chart.ctx;
+    const items = Array.isArray(pluginOptions?.items) ? pluginOptions.items : [];
+    const {
+      cardWidth,
+      trackWidth,
+      cardTop,
+      cardHeight,
+      trackTop,
+      trackHeight,
+    } = getReportCompetencyCardMetrics(chart, meta, items);
+
+    context.save();
+    meta.data.forEach((bar, index) => {
+      const centerX = typeof xScale.getPixelForValue === 'function'
+        ? xScale.getPixelForValue(index)
+        : bar.x;
+      const cardLeft = centerX - cardWidth / 2;
+      const cardGradient = context.createLinearGradient(0, cardTop, 0, cardTop + cardHeight);
+      cardGradient.addColorStop(0, '#f1efff');
+      cardGradient.addColorStop(1, '#dfdcfb');
+
+      context.fillStyle = cardGradient;
+      drawCanvasRoundedRect(context, cardLeft, cardTop, cardWidth, cardHeight, 18);
+      context.fill();
+
+      context.fillStyle = 'rgba(255, 255, 255, 0.78)';
+      drawCanvasRoundedRect(
+        context,
+        centerX - trackWidth / 2,
+        trackTop,
+        trackWidth,
+        trackHeight,
+        trackWidth / 2,
+      );
+      context.fill();
+    });
+    context.restore();
+  },
+  beforeDatasetDraw(chart, args) {
+    if (args.index === 0) {
+      return false;
+    }
+    return undefined;
+  },
+  afterDatasetsDraw(chart, args, pluginOptions) {
+    const meta = chart.getDatasetMeta(0);
+    const xScale = chart.scales?.x;
+    const yScale = chart.scales?.y;
+    if (!meta || meta.hidden || !xScale || !yScale || !chart.chartArea) {
+      return;
+    }
+
     const dataset = chart.data.datasets[0];
     const context = chart.ctx;
+    const chartArea = chart.chartArea;
+    const items = Array.isArray(pluginOptions?.items) ? pluginOptions.items : [];
+    const { cardWidth, fillBottom, fillOffset, fillWidth } = getReportCompetencyCardMetrics(chart, meta, items);
+    const valueY = Math.max(22, chartArea.top - 50);
+    const labelY = Math.max(valueY + 24, chartArea.top - 24);
+
     context.save();
-    context.fillStyle = '#4648d4';
-    context.font = '700 13px Inter, sans-serif';
     context.textAlign = 'center';
-    context.textBaseline = 'bottom';
+    context.textBaseline = 'middle';
     meta.data.forEach((bar, index) => {
       const value = Number(dataset.data[index]) || 0;
-      context.fillText(value + '%', bar.x, bar.y - 8);
+      const centerX = typeof xScale.getPixelForValue === 'function'
+        ? xScale.getPixelForValue(index)
+        : bar.x;
+      const item = items[index] || {};
+
+      if (value > 0) {
+        const fillTop = yScale.getPixelForValue(value) + fillOffset;
+        const fillHeight = Math.max(0, fillBottom - fillTop);
+        const fillGradient = context.createLinearGradient(0, fillBottom, 0, fillTop);
+        fillGradient.addColorStop(0, '#5d4be8');
+        fillGradient.addColorStop(0.54, '#6757f0');
+        fillGradient.addColorStop(1, '#8d84ff');
+        context.fillStyle = fillGradient;
+        drawCanvasRoundedRect(
+          context,
+          centerX - fillWidth / 2,
+          fillTop,
+          fillWidth,
+          fillHeight,
+          fillWidth / 2,
+        );
+        context.fill();
+      }
+
+      context.fillStyle = '#6d61f3';
+      context.font = '800 26px Inter, sans-serif';
+      context.fillText(value + '%', centerX, valueY);
+
+      context.fillStyle = '#2b2d42';
+      context.font = '800 11px Inter, sans-serif';
+      drawWrappedCanvasText(context, item.competency || 'Компетенция', centerX, labelY, cardWidth - 18, 14);
     });
     context.restore();
   },
@@ -5803,20 +5961,14 @@ const getReportCompetencyGradient = (context) => {
   const chart = context.chart;
   const yScale = chart.scales?.y;
   const value = Number(context.parsed?.y ?? context.raw ?? 0);
-  if (!chart.chartArea || !yScale || value <= 0) {
-    return '#4648d4';
+  if (value <= 0) {
+    return 'rgba(93, 75, 232, 0)';
+  }
+  if (!chart.chartArea || !yScale) {
+    return 'rgba(93, 75, 232, 0)';
   }
 
-  const top = yScale.getPixelForValue(value);
-  const bottom = yScale.getPixelForValue(0);
-  const gradient = chart.ctx.createLinearGradient(0, bottom, 0, top);
-  gradient.addColorStop(0, '#4648d4');
-  gradient.addColorStop(0.56, '#4648d4');
-  gradient.addColorStop(0.74, 'rgba(70, 72, 212, 0.9)');
-  gradient.addColorStop(0.88, 'rgba(70, 72, 212, 0.62)');
-  gradient.addColorStop(0.97, 'rgba(70, 72, 212, 0.28)');
-  gradient.addColorStop(1, 'rgba(70, 72, 212, 0.08)');
-  return gradient;
+  return 'rgba(93, 75, 232, 0)';
 };
 
 const buildReportCompetencyFallbackMarkup = (summary) =>
@@ -5886,34 +6038,35 @@ const renderReportCompetencyBarChart = (summary = []) => {
           hoverBackgroundColor: getReportCompetencyGradient,
           borderColor: 'rgba(70, 72, 212, 0.32)',
           hoverBorderColor: 'rgba(70, 72, 212, 0.32)',
-          borderWidth: 1,
-          hoverBorderWidth: 1,
-          borderRadius: {
-            topLeft: 8,
-            topRight: 8,
-            bottomLeft: 0,
-            bottomRight: 0,
-          },
+          borderWidth: 0,
+          hoverBorderWidth: 0,
+          borderRadius: 999,
           borderSkipped: false,
-          barPercentage: 0.86,
-          categoryPercentage: 0.88,
+          clip: false,
+          barThickness: 34,
+          maxBarThickness: 34,
+          barPercentage: 1,
+          categoryPercentage: 1,
         },
       ],
     },
-    plugins: [reportCompetencyValueLabelsPlugin],
+    plugins: [reportCompetencyCardsPlugin],
     options: {
       responsive: true,
       maintainAspectRatio: false,
       animation: false,
       layout: {
         padding: {
-          top: 26,
+          top: 82,
           right: 0,
-          bottom: 0,
+          bottom: 36,
           left: 0,
         },
       },
       plugins: {
+        reportCompetencyCards: {
+          items,
+        },
         legend: {
           display: false,
         },
@@ -5943,6 +6096,7 @@ const renderReportCompetencyBarChart = (summary = []) => {
       },
       scales: {
         x: {
+          display: false,
           grid: {
             display: false,
           },
@@ -5950,17 +6104,11 @@ const renderReportCompetencyBarChart = (summary = []) => {
             display: false,
           },
           ticks: {
-            color: '#4648d4',
-            maxRotation: 0,
-            minRotation: 0,
-            font: {
-              family: 'Inter',
-              size: 11,
-              weight: '700',
-            },
+            display: false,
           },
         },
         y: {
+          display: false,
           beginAtZero: true,
           min: 0,
           max: 100,

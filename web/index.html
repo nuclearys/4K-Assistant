@@ -83,20 +83,19 @@
       <div class="dashboard-topbar">
         <div class="brand dashboard-brand">4K Ассистент</div>
         <div class="dashboard-topbar-actions">
-          <button id="dashboard-profile-button" class="topbar-profile-button profile-settings-button topbar-icon" type="button" aria-label="Открыть профиль">
-            ⚙
-          </button>
-          <div class="user-chip">
-            <div class="user-chip-copy">
-              <strong id="dashboard-user-name">Александр</strong>
-              <span id="dashboard-user-role">Product Lead</span>
+          <div class="user-menu">
+            <div class="user-chip" tabindex="0" aria-haspopup="true" aria-label="Меню пользователя">
+              <div class="user-chip-copy">
+                <strong id="dashboard-user-name">Александр</strong>
+                <span id="dashboard-user-role">Product Lead</span>
+              </div>
+              <div id="dashboard-avatar" class="user-avatar">А</div>
             </div>
-            <div id="dashboard-avatar" class="user-avatar">А</div>
+            <div class="user-menu-dropdown" role="menu" aria-label="Меню пользователя">
+              <button id="dashboard-profile-button" class="user-menu-item" type="button" role="menuitem">Настройки</button>
+              <button id="dashboard-restart-button" class="user-menu-item" type="button" role="menuitem">Выйти</button>
+            </div>
           </div>
-          <button id="dashboard-restart-button" class="topbar-exit-button" type="button">
-            <span class="topbar-user-icon" aria-hidden="true">👤</span>
-            <span>Выйти</span>
-          </button>
         </div>
       </div>
 
@@ -112,7 +111,7 @@
         <div class="assessment-card">
           <div class="assessment-icon">4K</div>
           <div class="assessment-copy">
-            <h3 id="assessment-title">4K Competency Assessment</h3>
+            <h3 id="assessment-title">Компетенции 4К</h3>
             <p id="assessment-description"></p>
             <div class="assessment-meta">
               <span id="assessment-status-label" class="assessment-state"></span>
@@ -230,17 +229,19 @@
       <div class="dashboard-topbar">
         <div class="brand dashboard-brand">4K Ассистент</div>
         <div class="dashboard-topbar-actions">
-          <div class="topbar-user-chip">
-            <div class="topbar-user-copy">
-              <strong id="admin-user-name">Администратор системы</strong>
-              <span id="admin-user-role">Администратор</span>
+          <div class="user-menu">
+            <div class="topbar-user-chip" tabindex="0" aria-haspopup="true" aria-label="Меню администратора">
+              <div class="topbar-user-copy">
+                <strong id="admin-user-name">Администратор системы</strong>
+                <span id="admin-user-role">Администратор</span>
+              </div>
+              <div id="admin-avatar" class="user-avatar">АД</div>
             </div>
-            <div id="admin-avatar" class="user-avatar">АД</div>
+            <div class="user-menu-dropdown" role="menu" aria-label="Меню администратора">
+              <button id="admin-profile-button" class="user-menu-item" type="button" role="menuitem">Настройки</button>
+              <button id="admin-logout-button" class="user-menu-item" type="button" role="menuitem">Выйти</button>
+            </div>
           </div>
-          <button id="admin-logout-button" class="topbar-exit-button" type="button">
-            <span class="topbar-user-icon" aria-hidden="true">👤</span>
-            <span>Выйти</span>
-          </button>
         </div>
       </div>
 
@@ -1026,7 +1027,7 @@
         <section class="reports-intro-card">
           <div class="profile-card-head">
             <h3>Как смотреть результаты</h3>
-            <p>Разбивка по навыкам открывается внутри каждой попытки. Нажмите <strong>«Раскрыть»</strong> у нужного прохождения, чтобы посмотреть детали.</p>
+            <p>Разбивка по навыкам открывается внутри каждой попытки. Нажмите <strong>«Раскрыть»</strong> для деталей или <strong>«Открыть отчет»</strong>, чтобы снова посмотреть итоговый экран.</p>
           </div>
         </section>
         <section class="profile-history-card reports-history-card">
@@ -1088,7 +1089,10 @@
 
     <section class="panel report-panel hidden" id="report-panel">
       <div class="dashboard-topbar">
-        <div class="brand dashboard-brand">Профиль компетенций</div>
+        <div class="report-title-group">
+          <button id="report-back-button" class="report-back-button" type="button" aria-label="Назад"></button>
+          <div class="brand dashboard-brand">Профиль компетенций</div>
+        </div>
         <div class="dashboard-topbar-actions">
           <button id="report-home-button" class="ghost-button compact-ghost" type="button">Главная</button>
           <button id="report-download-button" class="primary-button compact-primary" type="button">Скачать PDF</button>
@@ -1139,7 +1143,10 @@
                 <h3>Сводные показатели по компетенциям</h3>
               </div>
             </div>
-            <div id="report-competency-bars" class="report-competency-bars"></div>
+            <div id="report-competency-bars" class="report-competency-bars">
+              <canvas id="report-competency-bar-chart" aria-label="Сводные показатели по компетенциям"></canvas>
+              <div id="report-competency-bars-fallback" class="report-competency-bars-fallback hidden"></div>
+            </div>
           </article>
 
           <article class="report-insight-card">

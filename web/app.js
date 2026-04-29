@@ -1,4 +1,6 @@
 const APP_RELEASE = '1.2.3';
+const PROFILE_NO_CHANGES_LABEL = 'Профиль актуален';
+const PROFILE_NO_CHANGES_MESSAGE = 'Профиль актуален';
 
 const state = {
   sessionId: null,
@@ -32,6 +34,7 @@ const state = {
   adminReportsPage: 1,
   adminPeriodKey: '30d',
   pendingRoleOptions: [],
+  pendingNoChangesQuickReply: false,
   assessmentSessionCode: null,
   assessmentCaseNumber: 0,
   assessmentTotalCases: 0,
@@ -53,6 +56,7 @@ const state = {
   assessmentSessionId: null,
   skillAssessments: [],
   reportCompetencyTab: 'Коммуникация',
+  reportReturnTarget: 'home',
   processingAnimationDone: false,
   processingDataLoaded: false,
   processingAutoTransitionStarted: false,
@@ -258,6 +262,7 @@ let adminSkillRadarChart = null;
 let adminCompetencyBarChart = null;
 let adminMbtiPieChart = null;
 let adminActivityBarChart = null;
+let reportCompetencyBarChart = null;
 
 const authPanel = document.getElementById('auth-panel');
 const onboardingPanel = document.getElementById('onboarding-panel');
@@ -313,6 +318,7 @@ const dashboardRestartButton = document.getElementById('dashboard-restart-button
 const adminUserName = document.getElementById('admin-user-name');
 const adminUserRole = document.getElementById('admin-user-role');
 const adminAvatar = document.getElementById('admin-avatar');
+const adminProfileButton = document.getElementById('admin-profile-button');
 const adminLogoutButton = document.getElementById('admin-logout-button');
 const adminTitle = document.getElementById('admin-title');
 const adminSubtitle = document.getElementById('admin-subtitle');
@@ -494,6 +500,7 @@ const processingTotalProgressBar = document.getElementById('processing-total-pro
 const processingStatusText = document.getElementById('processing-status-text');
 const processingAgentsList = document.getElementById('processing-agents-list');
 const processingPhaseLabel = document.getElementById('processing-phase-label');
+const reportBackButton = document.getElementById('report-back-button');
 const reportHomeButton = document.getElementById('report-home-button');
 const reportDownloadButton = document.getElementById('report-download-button');
 const profileBackButton = document.getElementById('profile-back-button');
@@ -524,6 +531,8 @@ if (appReleaseNumber) {
 }
 const reportRecommendations = document.getElementById('report-recommendations');
 const reportCompetencyBars = document.getElementById('report-competency-bars');
+const reportCompetencyBarChartCanvas = document.getElementById('report-competency-bar-chart');
+const reportCompetencyBarsFallback = document.getElementById('report-competency-bars-fallback');
 const reportStrengthTitle = document.getElementById('report-strength-title');
 const reportStrengthText = document.getElementById('report-strength-text');
 const reportDetailTitle = document.getElementById('report-detail-title');
@@ -560,6 +569,7 @@ const sanitizeDisplayRole = (value) => {
   if (
     normalized === 'не изменений' ||
     normalized === 'нет изменений' ||
+    normalized === 'изменений нет' ||
     normalized === 'без изменений' ||
     normalized.includes('ничего не измен')
   ) {
@@ -616,6 +626,15 @@ const buildExistingUserAgentMessage = (user, fallbackMessage = '') => {
   }
 
   return message + 'Продолжим актуализацию профиля.';
+};
+
+const shouldOfferNoChangesQuickReply = (message) => {
+  const normalized = String(message || '').toLowerCase();
+  return (
+    normalized.includes('если изменений нет') &&
+    normalized.includes('профиль актуален') &&
+    normalized.includes('ничего не изменилось')
+  );
 };
 
 const setProfileStatus = (text = '', tone = '') => {
@@ -1012,6 +1031,7 @@ const STORAGE_KEYS = {
   adminReportsPage: 'agent4k.adminReportsPage',
   adminPeriodKey: 'agent4k.adminPeriodKey',
   pendingRoleOptions: 'agent4k.pendingRoleOptions',
+  pendingNoChangesQuickReply: 'agent4k.pendingNoChangesQuickReply',
   assessmentSessionId: 'agent4k.assessmentSessionId',
   assessmentSessionCode: 'agent4k.assessmentSessionCode',
   assessmentTotalCases: 'agent4k.assessmentTotalCases',
@@ -1097,6 +1117,7 @@ const persistAssessmentContext = () => {
   safeStorage.setItem(STORAGE_KEYS.adminMethodologySearch, state.adminMethodologySearch || '');
   safeStorage.setItem(STORAGE_KEYS.adminMethodologyTab, state.adminMethodologyTab || 'library');
   safeStorage.setItem(STORAGE_KEYS.pendingRoleOptions, JSON.stringify(state.pendingRoleOptions || []));
+  safeStorage.setItem(STORAGE_KEYS.pendingNoChangesQuickReply, state.pendingNoChangesQuickReply ? '1' : '0');
   safeStorage.setItem(STORAGE_KEYS.adminReportsSearch, state.adminReportsSearch || '');
   safeStorage.setItem(STORAGE_KEYS.adminReportsPage, String(state.adminReportsPage || 1));
   if (state.assessmentSessionId) {
@@ -1130,6 +1151,7 @@ const restoreAssessmentContext = () => {
     const storedAdminReportDetailSessionId = safeStorage.getItem(STORAGE_KEYS.adminReportDetailSessionId);
     const storedAdminPeriodKey = safeStorage.getItem(STORAGE_KEYS.adminPeriodKey);
     const storedPendingRoleOptions = safeStorage.getItem(STORAGE_KEYS.pendingRoleOptions);
+    const storedPendingNoChangesQuickReply = safeStorage.getItem(STORAGE_KEYS.pendingNoChangesQuickReply);
     const storedAdminReportsSearch = safeStorage.getItem(STORAGE_KEYS.adminReportsSearch);
     const storedAdminReportsPage = safeStorage.getItem(STORAGE_KEYS.adminReportsPage);
     const storedSessionCode = safeStorage.getItem(STORAGE_KEYS.assessmentSessionCode);
@@ -1181,6 +1203,9 @@ const restoreAssessmentContext = () => {
     }
     if (storedPendingRoleOptions) {
       state.pendingRoleOptions = JSON.parse(storedPendingRoleOptions);
+    }
+    if (storedPendingNoChangesQuickReply) {
+      state.pendingNoChangesQuickReply = storedPendingNoChangesQuickReply === '1';
     }
     if (storedAdminReportsSearch) {
       state.adminReportsSearch = storedAdminReportsSearch;
@@ -1279,6 +1304,7 @@ const restoreServerSession = async () => {
     state.sessionId = null;
     state.pendingAgentMessage = null;
     state.pendingRoleOptions = [];
+    state.pendingNoChangesQuickReply = false;
     state.currentScreen = 'admin';
   } else if (!state.currentScreen || state.currentScreen === 'auth') {
     state.currentScreen = state.dashboard ? 'dashboard' : 'chat';
@@ -1304,6 +1330,7 @@ const restoreLocalUserSession = async () => {
     state.sessionId = null;
     state.pendingAgentMessage = null;
     state.pendingRoleOptions = [];
+    state.pendingNoChangesQuickReply = false;
     state.currentScreen = 'admin';
   } else if (!state.currentScreen || state.currentScreen === 'auth') {
     state.currentScreen = 'dashboard';
@@ -1477,6 +1504,7 @@ const resetChat = () => {
   state.adminReportsSearch = '';
   state.adminReportsPage = 1;
   state.pendingRoleOptions = [];
+  state.pendingNoChangesQuickReply = false;
   state.assessmentSessionCode = null;
   state.assessmentCaseNumber = 0;
   state.assessmentTotalCases = 0;
@@ -1496,6 +1524,7 @@ const resetChat = () => {
   destroyAdminCompetencyBarChart();
   destroyAdminMbtiPieChart();
   destroyAdminActivityBarChart();
+  destroyReportCompetencyBarChart();
   destroyAdminCompetencyRadarChart();
   destroyAdminSkillRadarChart();
   state.skillAssessments = [];
@@ -1569,19 +1598,34 @@ const renderChatRoleOptions = () => {
     return;
   }
   const options = Array.isArray(state.pendingRoleOptions) ? state.pendingRoleOptions : [];
+  const showNoChangesQuickReply = Boolean(state.pendingNoChangesQuickReply);
   chatRoleOptions.innerHTML = '';
-  if (!options.length) {
+  if (!options.length && !showNoChangesQuickReply) {
     chatRoleOptions.classList.add('hidden');
     return;
   }
 
-  const label = document.createElement('p');
-  label.className = 'chat-role-options-label';
-  label.textContent = 'Выберите одну роль:';
-  chatRoleOptions.appendChild(label);
-
   const list = document.createElement('div');
   list.className = 'chat-role-options-list';
+
+  if (options.length) {
+    const label = document.createElement('p');
+    label.className = 'chat-role-options-label';
+    label.textContent = 'Выберите одну роль:';
+    chatRoleOptions.appendChild(label);
+  }
+
+  if (showNoChangesQuickReply) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'chat-role-option-button';
+    button.textContent = PROFILE_NO_CHANGES_LABEL;
+    button.addEventListener('click', () => {
+      void sendChatMessage(PROFILE_NO_CHANGES_MESSAGE, PROFILE_NO_CHANGES_LABEL);
+    });
+    list.appendChild(button);
+  }
+
   options.forEach((option) => {
     const button = document.createElement('button');
     button.type = 'button';
@@ -3594,7 +3638,7 @@ const formatAdminReportDate = (item) => {
   });
 };
 
-const sendChatMessage = async (text) => {
+const sendChatMessage = async (text, displayText = null) => {
   if (!state.sessionId || state.completed) {
     return;
   }
@@ -3602,10 +3646,14 @@ const sendChatMessage = async (text) => {
   if (!messageText) {
     return;
   }
+  const hadNoChangesQuickReply = state.pendingNoChangesQuickReply;
+  state.pendingNoChangesQuickReply = false;
+  safeStorage.setItem(STORAGE_KEYS.pendingNoChangesQuickReply, '0');
+  renderChatRoleOptions();
 
-  addMessage('user', Array.isArray(state.pendingRoleOptions) && state.pendingRoleOptions.length
+  addMessage('user', displayText || (Array.isArray(state.pendingRoleOptions) && state.pendingRoleOptions.length
     ? (state.pendingRoleOptions.find((item) => String(item.id) === messageText)?.name || messageText)
-    : messageText);
+    : messageText));
   chatInput.value = '';
   showError(chatError, '');
 
@@ -3661,6 +3709,11 @@ const sendChatMessage = async (text) => {
   } catch (error) {
     if (state.isNewUserFlow) {
       hideLoader();
+    }
+    if (hadNoChangesQuickReply) {
+      state.pendingNoChangesQuickReply = true;
+      safeStorage.setItem(STORAGE_KEYS.pendingNoChangesQuickReply, '1');
+      renderChatRoleOptions();
     }
     showError(chatError, error.message);
   }
@@ -4930,6 +4983,28 @@ const openWelcomeScreen = () => {
   openAiWelcome();
 };
 
+const openHomePage = async () => {
+  if (state.isAdmin) {
+    openAdminDashboard();
+    return;
+  }
+
+  if (!state.dashboard && state.pendingUser?.id) {
+    try {
+      await restoreLocalUserSession();
+    } catch (error) {
+      console.error('Failed to restore dashboard before opening home page', error);
+    }
+  }
+
+  if (state.dashboard) {
+    openDashboard();
+    return;
+  }
+
+  returnToStart();
+};
+
 const openPrechat = () => {
   state.newUserSequenceStep = 'prechat';
   setCurrentScreen('prechat');
@@ -4983,6 +5058,62 @@ const buildArtifactHint = (skill) => {
     parts.push('Соответствие: ' + skill.artifact_compliance_percent + '%');
   }
   return parts.join(' • ');
+};
+
+const normalizeSkillDescriptionKey = (value) => String(value || '').replace(/\s+/g, ' ').trim().toLowerCase();
+
+const reportSkillDescriptions = new Map([
+  ['k1.1', 'Умении четко, точно и понятно выражать мысли, эмоции и факты в устной, письменной и невербальной форме. Это предполагает создание сообщений, соответствующих восприятию и уровню знаний получателя, а также использование различных средств (жесты, мимика, интонация) для передачи смысла. Ясная коммуникация обеспечивает отсутствие двусмысленностей и недоразумений, что способствует эффективному достижению поставленных целей'],
+  ['ясность коммуникации и сообщений', 'Умении четко, точно и понятно выражать мысли, эмоции и факты в устной, письменной и невербальной форме. Это предполагает создание сообщений, соответствующих восприятию и уровню знаний получателя, а также использование различных средств (жесты, мимика, интонация) для передачи смысла. Ясная коммуникация обеспечивает отсутствие двусмысленностей и недоразумений, что способствует эффективному достижению поставленных целей'],
+  ['k1.2', 'Способность слушать и понимать не только вербальное содержание сообщения, но и эмоциональный контекст и скрытые намерения собеседника. Эффективное активное слушание и эмпатия способствуют формированию доверия и взаимопонимания, позволяя точнее реагировать на получаемую информацию.'],
+  ['активное слушание и эмпатия', 'Способность слушать и понимать не только вербальное содержание сообщения, но и эмоциональный контекст и скрытые намерения собеседника. Эффективное активное слушание и эмпатия способствуют формированию доверия и взаимопонимания, позволяя точнее реагировать на получаемую информацию.'],
+  ['k1.3', 'Способность эффективно использовать вопросы как инструмент познания, анализа ситуации и улучшения взаимопонимания. Это включает выбор подходящих формулировок, определение момента для задавания вопросов и использование ответов для углубления знаний и достижения целей.'],
+  ['вопрошание (умение задавать вопросы)', 'Способность эффективно использовать вопросы как инструмент познания, анализа ситуации и улучшения взаимопонимания. Это включает выбор подходящих формулировок, определение момента для задавания вопросов и использование ответов для углубления знаний и достижения целей.'],
+  ['k2.1', 'Умение создавать атмосферу, в которой участники команды чувствуют себя принятыми, услышанными и в безопасности. Основано на открытости, эмпатии, честности и уважении. Команда может открыто делиться мнениями и ошибками без страха осуждения.'],
+  ['формирование доверия и безопасной среды', 'Умение создавать атмосферу, в которой участники команды чувствуют себя принятыми, услышанными и в безопасности. Основано на открытости, эмпатии, честности и уважении. Команда может открыто делиться мнениями и ошибками без страха осуждения.'],
+  ['k2.2', 'Способность структурировать совместную деятельность команды: формулировать цели, планировать шаги, распределять роли и отслеживать прогресс. Обеспечивает прозрачность, предсказуемость и слаженность в работе.'],
+  ['организация и взаимодействие в команде', 'Способность структурировать совместную деятельность команды: формулировать цели, планировать шаги, распределять роли и отслеживать прогресс. Обеспечивает прозрачность, предсказуемость и слаженность в работе.'],
+  ['k2.3', 'Инициирование развития команды и её участников, даже без формальной власти. Включает наставничество, развитие инициативы и поддержку обучения. Способность вдохновлять команду, мотивировать членов команды, направлять их на достижение общих целей и обеспечивать их вовлеченность в командный процесс.'],
+  ['лидерство и поддержка роста команды', 'Инициирование развития команды и её участников, даже без формальной власти. Включает наставничество, развитие инициативы и поддержку обучения. Способность вдохновлять команду, мотивировать членов команды, направлять их на достижение общих целей и обеспечивать их вовлеченность в командный процесс.'],
+  ['k3.1', 'Навык воспринимать новые и непривычные идеи, рассматривать альтернативные подходы, допускать неоднозначность, быстро переключаться между различными точками зрения, уметь пересмотреть ранее полученный опыт.'],
+  ['гибкость мышления', 'Навык воспринимать новые и непривычные идеи, рассматривать альтернативные подходы, допускать неоднозначность, быстро переключаться между различными точками зрения, уметь пересмотреть ранее полученный опыт.'],
+  ['k3.2', 'Способность создавать новые, нестандартные идеи и решения, а также развивать «сырые» замыслы до работоспособного уровня, чтобы решить существующие проблемы или улучшить текущие процессы.'],
+  ['создание и видение идей', 'Способность создавать новые, нестандартные идеи и решения, а также развивать «сырые» замыслы до работоспособного уровня, чтобы решить существующие проблемы или улучшить текущие процессы.'],
+  ['k3.3', 'Способность творчески оценивать и дорабатывать идеи с учётом целей, ограничений и обратной связи, превращая их в реализуемые и ценные решения.'],
+  ['оценка и реализация идей', 'Способность творчески оценивать и дорабатывать идеи с учётом целей, ограничений и обратной связи, превращая их в реализуемые и ценные решения.'],
+  ['k4.1', 'Способность выявлять проблемы, анализировать их корни и искать оптимальные решения. Это включает в себя умение анализировать ситуации и выбирать такие методы, которые приведут к наиболее эффективному решению.'],
+  ['решение проблем', 'Способность выявлять проблемы, анализировать их корни и искать оптимальные решения. Это включает в себя умение анализировать ситуации и выбирать такие методы, которые приведут к наиболее эффективному решению.'],
+  ['k4.2', 'Способность собирать и систематизировать данные из различных источников, отделяя существенную информацию от незначимой. Важно уметь проводить анализ, выявлять паттерны и связи между различными данными для формирования более глубокой картины ситуации.'],
+  ['анализ информации', 'Способность собирать и систематизировать данные из различных источников, отделяя существенную информацию от незначимой. Важно уметь проводить анализ, выявлять паттерны и связи между различными данными для формирования более глубокой картины ситуации.'],
+  ['k4.3', 'Способность выстраивать логические цепочки для формирования обоснованных выводов. Это включает в себя умение работать с доказательствами и аргументами, а также умение структурировать информацию так, чтобы она вела к правильным выводам.'],
+  ['логическое мышление', 'Способность выстраивать логические цепочки для формирования обоснованных выводов. Это включает в себя умение работать с доказательствами и аргументами, а также умение структурировать информацию так, чтобы она вела к правильным выводам.'],
+  ['k4.4', 'Способность принимать решения на основе ограниченной или неполной информации, используя анализ рисков и интуицию. Это включает в себя способность действовать в условиях неопределенности и неполных данных, при этом минимизируя возможные негативные последствия.'],
+  ['принятие решений', 'Способность принимать решения на основе ограниченной или неполной информации, используя анализ рисков и интуицию. Это включает в себя способность действовать в условиях неопределенности и неполных данных, при этом минимизируя возможные негативные последствия.'],
+  ['взаимодействие в команде', 'Способность эффективно работать в группе и команде: соблюдение договорённостей, синхронизация действий, взаимопомощь, готовность делегировать и принимать обратную связь. Обеспечивает согласованность действий и взаимную ответственность.'],
+]);
+
+const getReportSkillDescription = (skill) => {
+  const byCode = reportSkillDescriptions.get(normalizeSkillDescriptionKey(skill.skill_code));
+  if (byCode) {
+    return byCode;
+  }
+  return reportSkillDescriptions.get(normalizeSkillDescriptionKey(skill.skill_name)) || '';
+};
+
+const buildReportSkillNameMarkup = (skill) => {
+  const skillName = escapeHtml(skill.skill_name || 'Навык');
+  const description = getReportSkillDescription(skill);
+  if (!description) {
+    return '<strong>' + skillName + '</strong>';
+  }
+  return (
+    '<strong class="report-skill-name-text" tabindex="0" aria-label="' +
+    escapeHtml((skill.skill_name || 'Навык') + ': ' + description) +
+    '">' +
+    '<span class="report-skill-name-label">' + skillName + '</span>' +
+    '<span class="report-score-tooltip" role="tooltip">' + escapeHtml(description) + '</span>' +
+    '</strong>'
+  );
 };
 
 const buildProfileSkillsMarkup = (skills) => {
@@ -5081,6 +5212,43 @@ const resetProfileDraft = () => {
   setProfileStatus('', '');
 };
 
+const openProfileHistoryReport = async (sessionId, triggerButton = null) => {
+  if (!state.pendingUser?.id || !sessionId) {
+    return;
+  }
+
+  const previousSessionId = state.assessmentSessionId;
+  const previousSkillAssessments = state.skillAssessments;
+  const previousReportInterpretation = state.reportInterpretation;
+  const previousButtonText = triggerButton ? triggerButton.textContent : '';
+
+  if (triggerButton) {
+    triggerButton.disabled = true;
+    triggerButton.textContent = 'Открываем...';
+  }
+
+  try {
+    state.assessmentSessionId = sessionId;
+    state.reportCompetencyTab = 'Коммуникация';
+    persistAssessmentContext();
+    await loadSkillAssessments();
+    openReport({ returnTarget: 'reports' });
+  } catch (error) {
+    state.assessmentSessionId = previousSessionId;
+    state.skillAssessments = previousSkillAssessments;
+    state.reportInterpretation = previousReportInterpretation;
+    persistAssessmentContext();
+    if (triggerButton) {
+      triggerButton.textContent = 'Не удалось открыть';
+      window.setTimeout(() => {
+        triggerButton.disabled = false;
+        triggerButton.textContent = previousButtonText || 'Открыть отчет';
+      }, 1800);
+    }
+    console.error('Failed to open history report', error);
+  }
+};
+
 const renderReportsPage = () => {
   const summary = state.profileSummary;
   profileHistoryList.innerHTML = '';
@@ -5123,7 +5291,10 @@ const renderReportsPage = () => {
               '<span>Результат попытки</span>' +
               '<strong>' + (item.overall_score_percent != null ? item.overall_score_percent + '%' : 'Нет данных') + '</strong>' +
             '</div>' +
-            '<button type="button" class="profile-history-pdf-button" data-session-id="' + item.session_id + '">Скачать PDF</button>' +
+            '<div class="profile-history-panel-actions">' +
+              '<button type="button" class="profile-history-pdf-button profile-history-report-button" data-session-id="' + item.session_id + '">Открыть отчет</button>' +
+              '<button type="button" class="profile-history-pdf-button profile-history-download-button" data-session-id="' + item.session_id + '">Скачать PDF</button>' +
+            '</div>' +
           '</div>' +
           '<div class="profile-history-panel-body">' +
             (expanded ? buildProfileSkillsMarkup(skills) : '') +
@@ -5139,7 +5310,14 @@ const renderReportsPage = () => {
         state.profileSelectedSessionId = item.session_id;
         void loadProfileSessionSkills(item.session_id);
       });
-      const pdfButton = card.querySelector('.profile-history-pdf-button');
+      const reportButton = card.querySelector('.profile-history-report-button');
+      if (reportButton) {
+        reportButton.addEventListener('click', (event) => {
+          event.stopPropagation();
+          void openProfileHistoryReport(item.session_id, reportButton);
+        });
+      }
+      const pdfButton = card.querySelector('.profile-history-download-button');
       if (pdfButton) {
         pdfButton.addEventListener('click', (event) => {
           event.stopPropagation();
@@ -5573,6 +5751,215 @@ const getReportRecommendations = (summary) => {
   return weakest.map((item) => buildCompetencyGrowthRecommendation(item));
 };
 
+const destroyReportCompetencyBarChart = () => {
+  if (reportCompetencyBarChart) {
+    reportCompetencyBarChart.destroy();
+    reportCompetencyBarChart = null;
+  }
+};
+
+const reportCompetencyValueLabelsPlugin = {
+  id: 'reportCompetencyValueLabels',
+  afterDatasetsDraw(chart) {
+    const meta = chart.getDatasetMeta(0);
+    if (!meta || meta.hidden) {
+      return;
+    }
+    const dataset = chart.data.datasets[0];
+    const context = chart.ctx;
+    context.save();
+    context.fillStyle = '#4648d4';
+    context.font = '700 13px Inter, sans-serif';
+    context.textAlign = 'center';
+    context.textBaseline = 'bottom';
+    meta.data.forEach((bar, index) => {
+      const value = Number(dataset.data[index]) || 0;
+      context.fillText(value + '%', bar.x, bar.y - 8);
+    });
+    context.restore();
+  },
+};
+
+const getReportCompetencyGradient = (context) => {
+  const chart = context.chart;
+  const yScale = chart.scales?.y;
+  const value = Number(context.parsed?.y ?? context.raw ?? 0);
+  if (!chart.chartArea || !yScale || value <= 0) {
+    return '#4648d4';
+  }
+
+  const top = yScale.getPixelForValue(value);
+  const bottom = yScale.getPixelForValue(0);
+  const gradient = chart.ctx.createLinearGradient(0, bottom, 0, top);
+  gradient.addColorStop(0, '#4648d4');
+  gradient.addColorStop(0.56, '#4648d4');
+  gradient.addColorStop(0.74, 'rgba(70, 72, 212, 0.9)');
+  gradient.addColorStop(0.88, 'rgba(70, 72, 212, 0.62)');
+  gradient.addColorStop(0.97, 'rgba(70, 72, 212, 0.28)');
+  gradient.addColorStop(1, 'rgba(70, 72, 212, 0.08)');
+  return gradient;
+};
+
+const buildReportCompetencyFallbackMarkup = (summary) =>
+  summary.map((item) => (
+    '<article class="report-competency-bar-card">' +
+      '<strong>' + item.avgPercent + '%</strong>' +
+      '<span>' + escapeHtml(item.competency) + '</span>' +
+      '<div class="report-competency-meter"><div class="report-competency-meter-fill" style="height:' + item.avgPercent + '%"></div></div>' +
+    '</article>'
+  )).join('');
+
+const renderReportCompetencyBarChart = (summary = []) => {
+  if (!reportCompetencyBars) {
+    return;
+  }
+
+  destroyReportCompetencyBarChart();
+
+  const items = (Array.isArray(summary) ? summary : [])
+    .map((item) => ({
+      competency: String(item.competency || 'Компетенция'),
+      avgPercent: Math.max(0, Math.min(100, Number(item.avgPercent) || 0)),
+    }));
+
+  if (reportCompetencyBarChartCanvas) {
+    reportCompetencyBarChartCanvas.classList.add('hidden');
+  }
+  if (reportCompetencyBarsFallback) {
+    reportCompetencyBarsFallback.classList.add('hidden');
+    reportCompetencyBarsFallback.innerHTML = '';
+  }
+
+  if (!items.length) {
+    if (reportCompetencyBarsFallback) {
+      reportCompetencyBarsFallback.textContent = 'Показатели по компетенциям появятся после завершения ассессмента.';
+      reportCompetencyBarsFallback.classList.remove('hidden');
+    }
+    return;
+  }
+
+  if (typeof window.Chart !== 'function' || !reportCompetencyBarChartCanvas) {
+    if (reportCompetencyBarsFallback) {
+      reportCompetencyBarsFallback.innerHTML = buildReportCompetencyFallbackMarkup(items);
+      reportCompetencyBarsFallback.classList.remove('hidden');
+    }
+    return;
+  }
+
+  const context = reportCompetencyBarChartCanvas.getContext('2d');
+  if (!context) {
+    if (reportCompetencyBarsFallback) {
+      reportCompetencyBarsFallback.innerHTML = buildReportCompetencyFallbackMarkup(items);
+      reportCompetencyBarsFallback.classList.remove('hidden');
+    }
+    return;
+  }
+
+  reportCompetencyBarChartCanvas.classList.remove('hidden');
+  reportCompetencyBarChart = new window.Chart(context, {
+    type: 'bar',
+    data: {
+      labels: items.map((item) => formatAdminChartLabel(item.competency)),
+      datasets: [
+        {
+          data: items.map((item) => item.avgPercent),
+          backgroundColor: getReportCompetencyGradient,
+          hoverBackgroundColor: getReportCompetencyGradient,
+          borderColor: 'rgba(70, 72, 212, 0.32)',
+          hoverBorderColor: 'rgba(70, 72, 212, 0.32)',
+          borderWidth: 1,
+          hoverBorderWidth: 1,
+          borderRadius: {
+            topLeft: 8,
+            topRight: 8,
+            bottomLeft: 0,
+            bottomRight: 0,
+          },
+          borderSkipped: false,
+          barPercentage: 0.86,
+          categoryPercentage: 0.88,
+        },
+      ],
+    },
+    plugins: [reportCompetencyValueLabelsPlugin],
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: false,
+      layout: {
+        padding: {
+          top: 26,
+          right: 0,
+          bottom: 0,
+          left: 0,
+        },
+      },
+      plugins: {
+        legend: {
+          display: false,
+        },
+        tooltip: {
+          backgroundColor: '#191c1e',
+          displayColors: false,
+          titleFont: {
+            family: 'Inter',
+            size: 13,
+            weight: '600',
+          },
+          bodyFont: {
+            family: 'Inter',
+            size: 12,
+            weight: '500',
+          },
+          callbacks: {
+            title(contextItems) {
+              const item = items[contextItems[0]?.dataIndex ?? 0];
+              return item?.competency || 'Компетенция';
+            },
+            label(context) {
+              return context.formattedValue + '%';
+            },
+          },
+        },
+      },
+      scales: {
+        x: {
+          grid: {
+            display: false,
+          },
+          border: {
+            display: false,
+          },
+          ticks: {
+            color: '#4648d4',
+            maxRotation: 0,
+            minRotation: 0,
+            font: {
+              family: 'Inter',
+              size: 11,
+              weight: '700',
+            },
+          },
+        },
+        y: {
+          beginAtZero: true,
+          min: 0,
+          max: 100,
+          ticks: {
+            display: false,
+          },
+          grid: {
+            display: false,
+          },
+          border: {
+            display: false,
+          },
+        },
+      },
+    },
+  });
+};
+
 const renderReport = () => {
   const summary = getCompetencySummary();
   const totalScore = summary.length
@@ -5593,16 +5980,7 @@ const renderReport = () => {
     reportRecommendations.appendChild(item);
   });
 
-  reportCompetencyBars.innerHTML = '';
-  summary.forEach((item) => {
-    const card = document.createElement('article');
-    card.className = 'report-competency-bar-card';
-    card.innerHTML =
-      '<strong>' + item.avgPercent + '%</strong>' +
-      '<span>' + item.competency + '</span>' +
-      '<div class="report-competency-meter"><div class="report-competency-meter-fill" style="height:' + item.avgPercent + '%"></div></div>';
-    reportCompetencyBars.appendChild(card);
-  });
+  renderReportCompetencyBarChart(summary);
 
   reportStrengthTitle.textContent = interpretation?.insight_title || 'AI insights пока недоступны';
   if (interpretation?.insight_text) {
@@ -5648,10 +6026,10 @@ const renderReport = () => {
     item.className = 'report-skill-row';
     item.innerHTML =
       '<div class="report-skill-name">' +
-      '<strong>' + skill.skill_name + '</strong>' +
-      (artifactHint ? '<span class="skill-artifact-hint">' + artifactHint + '</span>' : '') +
+      buildReportSkillNameMarkup(skill) +
+      (artifactHint ? '<span class="skill-artifact-hint">' + escapeHtml(artifactHint) + '</span>' : '') +
       '</div>' +
-      '<div class="report-skill-level">' + skill.assessed_level_name + '</div>' +
+      '<div class="report-skill-level">' + escapeHtml(skill.assessed_level_name) + '</div>' +
       '<div class="report-skill-progress">' +
       '<div class="report-skill-progress-track"><div class="report-skill-progress-fill" style="width:' + percent + '%"></div></div>' +
       '<span>' + percent + '%</span>' +
@@ -5660,13 +6038,24 @@ const renderReport = () => {
   });
 };
 
-const openReport = () => {
+const openReport = (options = {}) => {
+  const { returnTarget = 'home' } = options;
+  state.reportReturnTarget = returnTarget === 'reports' ? 'reports' : 'home';
   setCurrentScreen('report');
   syncUrlState('report');
   hideAllPanels();
-  renderReport();
   reportPanel.classList.remove('hidden');
+  renderReport();
   clearAssessmentStorage();
+};
+
+const handleReportBack = () => {
+  if (state.reportReturnTarget === 'reports') {
+    void openReports();
+    return;
+  }
+
+  void openHomePage();
 };
 
 const loadSkillAssessments = async () => {
@@ -6270,6 +6659,7 @@ phoneForm.addEventListener('submit', async (event) => {
     state.sessionId = null;
     state.pendingAgentMessage = null;
     state.pendingRoleOptions = [];
+    state.pendingNoChangesQuickReply = false;
     state.pendingUser = null;
     state.dashboard = null;
     state.isAdmin = false;
@@ -6278,6 +6668,7 @@ phoneForm.addEventListener('submit', async (event) => {
     safeStorage.removeItem(STORAGE_KEYS.sessionId);
     safeStorage.removeItem(STORAGE_KEYS.pendingAgentMessage);
     safeStorage.removeItem(STORAGE_KEYS.pendingRoleOptions);
+    safeStorage.removeItem(STORAGE_KEYS.pendingNoChangesQuickReply);
     const response = await fetch('/users/check-or-create', {
       method: 'POST',
       headers: {
@@ -6298,11 +6689,13 @@ phoneForm.addEventListener('submit', async (event) => {
     state.pendingAgentMessage = data.exists
       ? buildExistingUserAgentMessage(data.user, agent?.message || data.message || '')
       : (agent?.message || data.message || null);
+    state.pendingNoChangesQuickReply = data.exists && shouldOfferNoChangesQuickReply(state.pendingAgentMessage);
 
     if (state.isAdmin) {
       state.sessionId = null;
       state.pendingAgentMessage = null;
       state.pendingRoleOptions = [];
+      state.pendingNoChangesQuickReply = false;
       setCurrentScreen('admin');
       persistAssessmentContext();
       hideLoader();
@@ -6539,6 +6932,12 @@ dashboardProfileButton.addEventListener('click', () => {
   void openProfile();
 });
 
+if (adminProfileButton) {
+  adminProfileButton.addEventListener('click', () => {
+    void openProfile();
+  });
+}
+
 welcomeProfileButton.addEventListener('click', () => {
   void openProfile();
 });
@@ -6674,8 +7073,14 @@ processingBackButton.addEventListener('click', () => {
 });
 
 reportHomeButton.addEventListener('click', () => {
-  openWelcomeScreen();
+  void openHomePage();
 });
+
+if (reportBackButton) {
+  reportBackButton.addEventListener('click', () => {
+    handleReportBack();
+  });
+}
 
 profileBackButton.addEventListener('click', () => {
   openWelcomeScreen();

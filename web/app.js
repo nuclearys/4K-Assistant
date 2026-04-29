@@ -314,6 +314,7 @@ const dashboardRestartButton = document.getElementById('dashboard-restart-button
 const adminUserName = document.getElementById('admin-user-name');
 const adminUserRole = document.getElementById('admin-user-role');
 const adminAvatar = document.getElementById('admin-avatar');
+const adminProfileButton = document.getElementById('admin-profile-button');
 const adminLogoutButton = document.getElementById('admin-logout-button');
 const adminTitle = document.getElementById('admin-title');
 const adminSubtitle = document.getElementById('admin-subtitle');
@@ -6892,6 +6893,12 @@ if (adminReportDetailPdfButton) {
 dashboardProfileButton.addEventListener('click', () => {
   void openProfile();
 });
+
+if (adminProfileButton) {
+  adminProfileButton.addEventListener('click', () => {
+    void openProfile();
+  });
+}
 
 welcomeProfileButton.addEventListener('click', () => {
   void openProfile();

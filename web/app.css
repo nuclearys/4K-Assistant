@@ -2481,6 +2481,122 @@ textarea {
     align-items: center;
 }
 
+.user-menu {
+    position: relative;
+    order: 4;
+    display: inline-flex;
+    align-items: center;
+}
+
+.user-menu::after {
+    content: "";
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    height: 10px;
+}
+
+.user-menu .user-chip,
+.user-menu .topbar-user-chip {
+    cursor: pointer;
+}
+
+.user-menu .user-chip::after,
+.user-menu .topbar-user-chip::after {
+    content: "";
+    width: 7px;
+    height: 7px;
+    border-right: 1.5px solid #64748b;
+    border-bottom: 1.5px solid #64748b;
+    transform: rotate(45deg) translateY(-1px);
+    transition:
+        border-color 0.18s ease,
+        transform 0.18s ease;
+}
+
+.user-menu:hover .user-chip::after,
+.user-menu:focus-within .user-chip::after,
+.user-menu:hover .topbar-user-chip::after,
+.user-menu:focus-within .topbar-user-chip::after {
+    border-color: #14151f;
+    transform: rotate(225deg) translateY(-1px);
+}
+
+.user-menu .user-chip:focus-visible,
+.user-menu .topbar-user-chip:focus-visible {
+    outline: 2px solid rgba(70, 72, 212, 0.32);
+    outline-offset: 4px;
+}
+
+.user-menu-dropdown {
+    position: absolute;
+    top: calc(100% + 10px);
+    right: 0;
+    z-index: 20;
+    display: grid;
+    gap: 4px;
+    min-width: 148px;
+    padding: 6px;
+    border-radius: 14px;
+    border: 1px solid rgba(18, 24, 42, 0.12);
+    background: #fff;
+    color: #14151f;
+    font-size: 13px;
+    font-weight: 500;
+    line-height: 1.45;
+    letter-spacing: 0;
+    text-align: left;
+    text-transform: none;
+    box-shadow: none;
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(-6px);
+    transition:
+        opacity 0.18s ease,
+        transform 0.18s ease,
+        visibility 0.18s ease;
+    pointer-events: none;
+}
+
+.user-menu-dropdown::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: -10px;
+    height: 10px;
+}
+
+.user-menu:hover .user-menu-dropdown,
+.user-menu:focus-within .user-menu-dropdown {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0);
+    pointer-events: auto;
+}
+
+.user-menu-item {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    padding: 9px 10px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: #14151f;
+    font: inherit;
+    font-weight: 600;
+    text-align: left;
+    cursor: pointer;
+}
+
+.user-menu-item:hover,
+.user-menu-item:focus-visible {
+    background: var(--control-bg);
+    outline: none;
+}
+
 .dashboard-topbar-actions .topbar-profile-button {
     order: 2;
 }
@@ -2674,6 +2790,11 @@ textarea {
     border: 0;
 }
 
+.user-menu .user-chip {
+    order: 0;
+    padding-left: 0;
+}
+
 .user-chip::before {
     content: "";
     position: absolute;
@@ -2683,9 +2804,13 @@ textarea {
     background: var(--line);
 }
 
+.user-menu .user-chip::before {
+    content: none;
+}
+
 .user-chip-copy {
     display: grid;
-    gap: 4px;
+    gap: 8px;
     text-align: right;
 }
 

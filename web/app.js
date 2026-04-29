@@ -561,6 +561,14 @@ const buildInitials = (fullName) => {
     .join('');
 };
 
+const getSignupFirstName = (fullName, fallback = 'Пользователь') => {
+  const parts = String(fullName || '').trim().split(/\s+/).filter(Boolean);
+  if (parts.length >= 2) {
+    return parts[1];
+  }
+  return parts[0] || fallback;
+};
+
 const sanitizeDisplayRole = (value) => {
   const normalized = String(value || '').trim().toLowerCase().replace(/ё/g, 'е');
   if (!normalized) {
@@ -4830,7 +4838,9 @@ const renderDashboard = () => {
     : 'Завершено ' + dashboard.active_assessment.progress_percent + '%';
 
   dashboardGreeting.textContent = 'Добро пожаловать, ' + (user?.full_name || dashboard.greeting_name);
-  dashboardUserName.textContent = user ? user.full_name : dashboard.greeting_name;
+  dashboardUserName.textContent = user
+    ? getSignupFirstName(user.full_name, dashboard.greeting_name)
+    : getSignupFirstName(dashboard.greeting_name);
   dashboardUserRole.textContent = position;
   dashboardUserRole.style.display = position ? '' : 'none';
   dashboardAvatar.textContent = buildInitials(user ? user.full_name : dashboard.greeting_name);

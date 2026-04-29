@@ -4414,11 +4414,56 @@ textarea {
         grid-template-columns: 1fr;
     }
 
-    .dashboard-topbar,
     .assessment-card,
     .report-card {
         grid-template-columns: 1fr;
         display: grid;
+    }
+
+    .dashboard-topbar {
+        display: flex;
+        flex-wrap: nowrap;
+        align-items: center;
+        gap: 12px;
+        padding-left: 16px;
+        padding-right: 16px;
+    }
+
+    .dashboard-topbar .dashboard-brand,
+    .dashboard-topbar .report-title-group {
+        flex: 0 1 auto;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .dashboard-topbar .dashboard-topbar-actions {
+        flex: 1 1 auto;
+        min-width: 0;
+        flex-wrap: nowrap;
+        justify-content: flex-end;
+    }
+
+    .dashboard-topbar .user-chip,
+    .dashboard-topbar .topbar-user-chip {
+        min-width: 0;
+        gap: 10px;
+    }
+
+    .dashboard-topbar .user-chip-copy,
+    .dashboard-topbar .topbar-user-copy {
+        min-width: 0;
+        max-width: clamp(72px, 28vw, 136px);
+    }
+
+    .dashboard-topbar .user-chip-copy strong,
+    .dashboard-topbar .user-chip-copy span,
+    .dashboard-topbar .topbar-user-copy strong,
+    .dashboard-topbar .topbar-user-copy span {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
     }
 
     .profile-hero-card {

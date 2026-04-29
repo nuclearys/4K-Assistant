@@ -3216,7 +3216,7 @@ textarea {
     background: rgba(70, 72, 212, 0.08);
     color: var(--accent);
     font: inherit;
-    font-weight: 800;
+    font-weight: 600;
     cursor: pointer;
     transition:
         transform 0.18s ease,

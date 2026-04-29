@@ -1,4 +1,6 @@
 const APP_RELEASE = '1.2.3';
+const PROFILE_NO_CHANGES_LABEL = 'Профиль актуален';
+const PROFILE_NO_CHANGES_MESSAGE = 'Профиль актуален';
 
 const state = {
   sessionId: null,
@@ -32,6 +34,7 @@ const state = {
   adminReportsPage: 1,
   adminPeriodKey: '30d',
   pendingRoleOptions: [],
+  pendingNoChangesQuickReply: false,
   assessmentSessionCode: null,
   assessmentCaseNumber: 0,
   assessmentTotalCases: 0,
@@ -565,6 +568,7 @@ const sanitizeDisplayRole = (value) => {
   if (
     normalized === 'не изменений' ||
     normalized === 'нет изменений' ||
+    normalized === 'изменений нет' ||
     normalized === 'без изменений' ||
     normalized.includes('ничего не измен')
   ) {
@@ -621,6 +625,15 @@ const buildExistingUserAgentMessage = (user, fallbackMessage = '') => {
   }
 
   return message + 'Продолжим актуализацию профиля.';
+};
+
+const shouldOfferNoChangesQuickReply = (message) => {
+  const normalized = String(message || '').toLowerCase();
+  return (
+    normalized.includes('если изменений нет') &&
+    normalized.includes('профиль актуален') &&
+    normalized.includes('ничего не изменилось')
+  );
 };
 
 const setProfileStatus = (text = '', tone = '') => {
@@ -1017,6 +1030,7 @@ const STORAGE_KEYS = {
   adminReportsPage: 'agent4k.adminReportsPage',
   adminPeriodKey: 'agent4k.adminPeriodKey',
   pendingRoleOptions: 'agent4k.pendingRoleOptions',
+  pendingNoChangesQuickReply: 'agent4k.pendingNoChangesQuickReply',
   assessmentSessionId: 'agent4k.assessmentSessionId',
   assessmentSessionCode: 'agent4k.assessmentSessionCode',
   assessmentTotalCases: 'agent4k.assessmentTotalCases',
@@ -1102,6 +1116,7 @@ const persistAssessmentContext = () => {
   safeStorage.setItem(STORAGE_KEYS.adminMethodologySearch, state.adminMethodologySearch || '');
   safeStorage.setItem(STORAGE_KEYS.adminMethodologyTab, state.adminMethodologyTab || 'library');
   safeStorage.setItem(STORAGE_KEYS.pendingRoleOptions, JSON.stringify(state.pendingRoleOptions || []));
+  safeStorage.setItem(STORAGE_KEYS.pendingNoChangesQuickReply, state.pendingNoChangesQuickReply ? '1' : '0');
   safeStorage.setItem(STORAGE_KEYS.adminReportsSearch, state.adminReportsSearch || '');
   safeStorage.setItem(STORAGE_KEYS.adminReportsPage, String(state.adminReportsPage || 1));
   if (state.assessmentSessionId) {
@@ -1135,6 +1150,7 @@ const restoreAssessmentContext = () => {
     const storedAdminReportDetailSessionId = safeStorage.getItem(STORAGE_KEYS.adminReportDetailSessionId);
     const storedAdminPeriodKey = safeStorage.getItem(STORAGE_KEYS.adminPeriodKey);
     const storedPendingRoleOptions = safeStorage.getItem(STORAGE_KEYS.pendingRoleOptions);
+    const storedPendingNoChangesQuickReply = safeStorage.getItem(STORAGE_KEYS.pendingNoChangesQuickReply);
     const storedAdminReportsSearch = safeStorage.getItem(STORAGE_KEYS.adminReportsSearch);
     const storedAdminReportsPage = safeStorage.getItem(STORAGE_KEYS.adminReportsPage);
     const storedSessionCode = safeStorage.getItem(STORAGE_KEYS.assessmentSessionCode);
@@ -1186,6 +1202,9 @@ const restoreAssessmentContext = () => {
     }
     if (storedPendingRoleOptions) {
       state.pendingRoleOptions = JSON.parse(storedPendingRoleOptions);
+    }
+    if (storedPendingNoChangesQuickReply) {
+      state.pendingNoChangesQuickReply = storedPendingNoChangesQuickReply === '1';
     }
     if (storedAdminReportsSearch) {
       state.adminReportsSearch = storedAdminReportsSearch;
@@ -1284,6 +1303,7 @@ const restoreServerSession = async () => {
     state.sessionId = null;
     state.pendingAgentMessage = null;
     state.pendingRoleOptions = [];
+    state.pendingNoChangesQuickReply = false;
     state.currentScreen = 'admin';
   } else if (!state.currentScreen || state.currentScreen === 'auth') {
     state.currentScreen = state.dashboard ? 'dashboard' : 'chat';
@@ -1309,6 +1329,7 @@ const restoreLocalUserSession = async () => {
     state.sessionId = null;
     state.pendingAgentMessage = null;
     state.pendingRoleOptions = [];
+    state.pendingNoChangesQuickReply = false;
     state.currentScreen = 'admin';
   } else if (!state.currentScreen || state.currentScreen === 'auth') {
     state.currentScreen = 'dashboard';
@@ -1482,6 +1503,7 @@ const resetChat = () => {
   state.adminReportsSearch = '';
   state.adminReportsPage = 1;
   state.pendingRoleOptions = [];
+  state.pendingNoChangesQuickReply = false;
   state.assessmentSessionCode = null;
   state.assessmentCaseNumber = 0;
   state.assessmentTotalCases = 0;
@@ -1575,19 +1597,34 @@ const renderChatRoleOptions = () => {
     return;
   }
   const options = Array.isArray(state.pendingRoleOptions) ? state.pendingRoleOptions : [];
+  const showNoChangesQuickReply = Boolean(state.pendingNoChangesQuickReply);
   chatRoleOptions.innerHTML = '';
-  if (!options.length) {
+  if (!options.length && !showNoChangesQuickReply) {
     chatRoleOptions.classList.add('hidden');
     return;
   }
 
-  const label = document.createElement('p');
-  label.className = 'chat-role-options-label';
-  label.textContent = 'Выберите одну роль:';
-  chatRoleOptions.appendChild(label);
-
   const list = document.createElement('div');
   list.className = 'chat-role-options-list';
+
+  if (options.length) {
+    const label = document.createElement('p');
+    label.className = 'chat-role-options-label';
+    label.textContent = 'Выберите одну роль:';
+    chatRoleOptions.appendChild(label);
+  }
+
+  if (showNoChangesQuickReply) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'chat-role-option-button';
+    button.textContent = PROFILE_NO_CHANGES_LABEL;
+    button.addEventListener('click', () => {
+      void sendChatMessage(PROFILE_NO_CHANGES_MESSAGE, PROFILE_NO_CHANGES_LABEL);
+    });
+    list.appendChild(button);
+  }
+
   options.forEach((option) => {
     const button = document.createElement('button');
     button.type = 'button';
@@ -3600,7 +3637,7 @@ const formatAdminReportDate = (item) => {
   });
 };
 
-const sendChatMessage = async (text) => {
+const sendChatMessage = async (text, displayText = null) => {
   if (!state.sessionId || state.completed) {
     return;
   }
@@ -3608,10 +3645,14 @@ const sendChatMessage = async (text) => {
   if (!messageText) {
     return;
   }
+  const hadNoChangesQuickReply = state.pendingNoChangesQuickReply;
+  state.pendingNoChangesQuickReply = false;
+  safeStorage.setItem(STORAGE_KEYS.pendingNoChangesQuickReply, '0');
+  renderChatRoleOptions();
 
-  addMessage('user', Array.isArray(state.pendingRoleOptions) && state.pendingRoleOptions.length
+  addMessage('user', displayText || (Array.isArray(state.pendingRoleOptions) && state.pendingRoleOptions.length
     ? (state.pendingRoleOptions.find((item) => String(item.id) === messageText)?.name || messageText)
-    : messageText);
+    : messageText));
   chatInput.value = '';
   showError(chatError, '');
 
@@ -3667,6 +3708,11 @@ const sendChatMessage = async (text) => {
   } catch (error) {
     if (state.isNewUserFlow) {
       hideLoader();
+    }
+    if (hadNoChangesQuickReply) {
+      state.pendingNoChangesQuickReply = true;
+      safeStorage.setItem(STORAGE_KEYS.pendingNoChangesQuickReply, '1');
+      renderChatRoleOptions();
     }
     showError(chatError, error.message);
   }
@@ -6625,6 +6671,7 @@ phoneForm.addEventListener('submit', async (event) => {
     state.sessionId = null;
     state.pendingAgentMessage = null;
     state.pendingRoleOptions = [];
+    state.pendingNoChangesQuickReply = false;
     state.pendingUser = null;
     state.dashboard = null;
     state.isAdmin = false;
@@ -6633,6 +6680,7 @@ phoneForm.addEventListener('submit', async (event) => {
     safeStorage.removeItem(STORAGE_KEYS.sessionId);
     safeStorage.removeItem(STORAGE_KEYS.pendingAgentMessage);
     safeStorage.removeItem(STORAGE_KEYS.pendingRoleOptions);
+    safeStorage.removeItem(STORAGE_KEYS.pendingNoChangesQuickReply);
     const response = await fetch('/users/check-or-create', {
       method: 'POST',
       headers: {
@@ -6653,11 +6701,13 @@ phoneForm.addEventListener('submit', async (event) => {
     state.pendingAgentMessage = data.exists
       ? buildExistingUserAgentMessage(data.user, agent?.message || data.message || '')
       : (agent?.message || data.message || null);
+    state.pendingNoChangesQuickReply = data.exists && shouldOfferNoChangesQuickReply(state.pendingAgentMessage);
 
     if (state.isAdmin) {
       state.sessionId = null;
       state.pendingAgentMessage = null;
       state.pendingRoleOptions = [];
+      state.pendingNoChangesQuickReply = false;
       setCurrentScreen('admin');
       persistAssessmentContext();
       hideLoader();

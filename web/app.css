@@ -2835,7 +2835,7 @@ textarea {
 .user-avatar {
     width: 36px;
     height: 36px;
-    border-radius: 12px;
+    border-radius: 8px;
     display: grid;
     place-items: center;
     background: var(--text-strong);

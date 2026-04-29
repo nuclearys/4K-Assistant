@@ -2998,6 +2998,23 @@ textarea {
     color: var(--text-muted);
 }
 
+.mini-card-action-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 36px;
+    padding: 8px 14px;
+    border-radius: 8px;
+    background: var(--accent-bright);
+    color: #fff;
+    font-size: 14px;
+    line-height: 20px;
+}
+
+.mini-card-action-button:hover {
+    background: var(--accent);
+}
+
 .assessment-mini-card.muted-card .mini-card-icon::before {
     opacity: 0.42;
     filter: grayscale(1);

@@ -4858,14 +4858,23 @@ const renderDashboard = () => {
   renderAssessmentPreparationState();
 
   availableAssessments.innerHTML = '';
-  dashboard.available_assessments.forEach((item) => {
+  dashboard.available_assessments.forEach((item, index) => {
     const card = document.createElement('article');
     card.className = 'assessment-mini-card';
+    const actionMarkup = index === 0
+      ? '<button class="mini-card-action-button" type="button">' +
+          (canReusePreparedAssessment() ? 'К кейсам' : 'Начать') +
+        '</button>'
+      : '<span>' + escapeHtml(item.status) + '</span>';
     card.innerHTML =
       '<div class="mini-card-icon">4K</div>' +
-      '<h3>' + item.title + '</h3>' +
-      '<p>' + item.description + '</p>' +
-      '<div class="mini-card-meta"><span>' + item.duration_minutes + ' минут</span><span>' + item.status + '</span></div>';
+      '<h3>' + escapeHtml(item.title) + '</h3>' +
+      '<p>' + escapeHtml(item.description) + '</p>' +
+      '<div class="mini-card-meta"><span>' + escapeHtml(item.duration_minutes) + ' минут</span>' + actionMarkup + '</div>';
+    if (index === 0) {
+      const actionButton = card.querySelector('.mini-card-action-button');
+      actionButton.addEventListener('click', handleAssessmentEntryClick);
+    }
     availableAssessments.appendChild(card);
   });
 

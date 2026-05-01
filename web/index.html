@@ -685,10 +685,6 @@
             <h2>Индивидуальный отчет</h2>
             <p id="admin-report-detail-date">Без даты</p>
           </div>
-          <div class="report-hero-score">
-            <strong id="admin-report-detail-score">0%</strong>
-            <span>Интегральный показатель</span>
-          </div>
         </section>
 
         <section class="admin-detail-user-card">
@@ -708,9 +704,9 @@
                 </div>
               </div>
             </div>
-            <div class="admin-detail-user-meta">
-              <strong>Статус оценки</strong>
-              <p id="admin-report-detail-status">Черновик</p>
+            <div class="report-hero-score admin-detail-user-score">
+              <strong id="admin-report-detail-score">0%</strong>
+              <span>Интегральный показатель</span>
             </div>
           </div>
         </section>
@@ -723,44 +719,24 @@
                 <h3>Сводные показатели по компетенциям</h3>
               </div>
             </div>
-            <div class="admin-detail-chart-stack">
-              <section id="admin-report-detail-competency-bars" class="admin-detail-competency-visual" aria-labelledby="admin-report-detail-competency-chart-title">
-                <div class="admin-detail-competency-radar-head">
-                  <strong id="admin-report-detail-competency-chart-title">Распределение по 4 компетенциям</strong>
-                  <p>Сводная оценка по коммуникации, командной работе, креативности и критическому мышлению.</p>
-                </div>
-                <div class="admin-detail-competency-radar-card">
-                  <div class="admin-detail-competency-radar-frame">
-                    <canvas id="admin-report-detail-competency-chart" aria-label="Радар компетенций 4K" role="img"></canvas>
-                    <div id="admin-report-detail-competency-radar-labels" class="admin-detail-radar-competency-labels hidden" aria-hidden="true">
-                      <span data-competency="communication">Коммуникация</span>
-                      <span data-competency="teamwork">Командная работа</span>
-                      <span data-competency="creativity">Креативность</span>
-                      <span data-competency="critical-thinking">Критическое мышление</span>
-                    </div>
-                    <div id="admin-report-detail-competency-fallback" class="admin-detail-skills-radar-fallback hidden" aria-live="polite"></div>
+            <section class="admin-detail-skill-radar-section" aria-labelledby="admin-report-detail-skills-radar-title">
+              <div class="admin-detail-skill-radar-head">
+                <strong id="admin-report-detail-skills-radar-title">Распределение по 13 навыкам</strong>
+                <p>Оценки отдельных навыков, из которых собирается итоговый профиль 4K.</p>
+              </div>
+              <div class="admin-detail-skills-radar-card">
+                <div class="admin-detail-skills-radar-frame">
+                  <canvas id="admin-report-detail-skills-radar-chart" aria-label="Радар навыков 4K" role="img"></canvas>
+                  <div id="admin-report-detail-skills-radar-labels" class="admin-detail-radar-competency-labels hidden" aria-hidden="true">
+                    <span data-competency="communication">Коммуникация</span>
+                    <span data-competency="teamwork">Командная работа</span>
+                    <span data-competency="creativity">Креативность</span>
+                    <span data-competency="critical-thinking">Критическое мышление</span>
                   </div>
+                  <div id="admin-report-detail-skills-radar-fallback" class="admin-detail-skills-radar-fallback hidden" aria-live="polite"></div>
                 </div>
-              </section>
-              <section class="admin-detail-skill-radar-section" aria-labelledby="admin-report-detail-skills-radar-title">
-                <div class="admin-detail-skill-radar-head">
-                  <strong id="admin-report-detail-skills-radar-title">Распределение по 13 навыкам</strong>
-                  <p>Оценки отдельных навыков, из которых собирается итоговый профиль 4K.</p>
-                </div>
-                <div class="admin-detail-skills-radar-card">
-                  <div class="admin-detail-skills-radar-frame">
-                    <canvas id="admin-report-detail-skills-radar-chart" aria-label="Радар навыков 4K" role="img"></canvas>
-                    <div id="admin-report-detail-skills-radar-labels" class="admin-detail-radar-competency-labels hidden" aria-hidden="true">
-                      <span data-competency="communication">Коммуникация</span>
-                      <span data-competency="teamwork">Командная работа</span>
-                      <span data-competency="creativity">Креативность</span>
-                      <span data-competency="critical-thinking">Критическое мышление</span>
-                    </div>
-                    <div id="admin-report-detail-skills-radar-fallback" class="admin-detail-skills-radar-fallback hidden" aria-live="polite"></div>
-                  </div>
-                </div>
-              </section>
-            </div>
+              </div>
+            </section>
           </article>
         </section>
 

@@ -9,5 +9,5 @@ dependencies = [
     "psycopg[binary]>=3.2.0",
     "python-dotenv>=1.0.1",
     "uvicorn>=0.30.0",
-    "reportlab>=4.4.10",
+    "typst>=0.14.8",
 ]

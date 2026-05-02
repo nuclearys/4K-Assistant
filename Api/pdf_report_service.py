@@ -1,17 +1,8 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from io import BytesIO
-
-from reportlab.lib import colors
-from reportlab.lib.enums import TA_LEFT
-from reportlab.lib.pagesizes import A4
-from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
-from reportlab.lib.units import mm
-from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
 from Api.database import get_level_percent_map
-from Api.report_font_utils import ensure_pdf_font
 from Api.report_growth_logic import (
     ZERO_SIGNAL_RECOMMENDATIONS,
     WEAK_SIGNAL_RECOMMENDATIONS,
@@ -20,20 +11,10 @@ from Api.report_growth_logic import (
     build_interpretation_basis_items,
     build_response_pattern_text,
 )
+from Api.typst_pdf_renderer import render_typst_competency_report
 
 
 class PdfReportService:
-    FONT_NAME = "ArialUnicodeAgent4K"
-
-    def __init__(self) -> None:
-        self._font_registered = False
-
-    def _ensure_font(self) -> None:
-        if self._font_registered:
-            return
-        self.FONT_NAME = ensure_pdf_font(self.FONT_NAME)
-        self._font_registered = True
-
     def _load_user(self, connection, user_id: int):
         row = connection.execute(
             """
@@ -55,6 +36,7 @@ class PdfReportService:
                 assessed_level_code,
                 assessed_level_name,
                 rationale,
+                evidence_excerpt,
                 red_flags,
                 found_evidence,
                 block_coverage_percent,
@@ -193,9 +175,119 @@ class PdfReportService:
         ]
         return recommendations or ["Завершите полный цикл оценки, чтобы получить персональные рекомендации."]
 
-    def build_pdf(self, connection, user_id: int, session_id: int) -> tuple[str, bytes]:
-        self._ensure_font()
+    def _is_meaningful_quote_candidate(self, value: str) -> bool:
+        normalized = " ".join(str(value or "").split())
+        if len(normalized) < 24:
+            return False
+        generic_markers = (
+            "оценка сформирована",
+            "структурным признакам",
+            "по рубрике",
+            "недостаточно данных",
+        )
+        return not any(marker in normalized.lower() for marker in generic_markers)
 
+    def _build_strengths(
+        self,
+        *,
+        strongest: dict | None,
+        has_confident_strongest: bool,
+        response_pattern: str,
+    ) -> list[str]:
+        strengths: list[str] = []
+        if strongest and has_confident_strongest:
+            strengths.append(
+                f"Наиболее устойчиво проявлена компетенция «{strongest['competency_name']}»: "
+                f"средний показатель составил {strongest['avg_percent']}%."
+            )
+        if response_pattern:
+            strengths.append(response_pattern)
+        return strengths or ["Выраженная сильная сторона пока не выделена: для этого нужны более устойчивые сигналы по сессии."]
+
+    def _build_quotes(self, rows: list[dict]) -> list[str]:
+        quotes: list[str] = []
+        seen_quotes: set[str] = set()
+        for row in rows:
+            candidate = str(row.get("evidence_excerpt") or row.get("rationale") or "").strip()
+            normalized_candidate = " ".join(candidate.split()).lower()
+            if (
+                candidate
+                and normalized_candidate
+                and normalized_candidate not in seen_quotes
+                and self._is_meaningful_quote_candidate(candidate)
+            ):
+                seen_quotes.add(normalized_candidate)
+                quotes.append(candidate)
+            if len(quotes) >= 3:
+                break
+        return quotes
+
+    def _build_typst_payload(
+        self,
+        *,
+        user: dict,
+        session_id: int,
+        grouped_rows: list[dict],
+        level_percent_map: dict[str, int],
+        overall_score: int,
+        insight_title: str,
+        insight_text: str,
+        basis_items: list[str],
+        recommendations: list[str],
+        strengths: list[str],
+        growth_areas: list[str],
+        quotes: list[str],
+    ) -> dict:
+        competencies = []
+        for item in grouped_rows:
+            avg_percent = int(item["avg_percent"])
+            competencies.append(
+                {
+                    "name": str(item["competency_name"]),
+                    "avg_percent": avg_percent,
+                    "interpretation": (
+                        "Высокий потенциал" if avg_percent >= 80 else
+                        "Стабильный уровень" if avg_percent >= 55 else
+                        "Требует развития"
+                    ),
+                    "skills": [
+                        {
+                            "name": str(skill.get("skill_name") or "Навык"),
+                            "level": str(skill.get("assessed_level_name") or "Не определен"),
+                            "percent": int(level_percent_map.get(skill.get("assessed_level_code"), 0)),
+                            "rationale": str(
+                                skill.get("rationale")
+                                or "Оценка сформирована по рубрике и структурным признакам ответа."
+                            ),
+                        }
+                        for skill in item["skills"]
+                    ],
+                }
+            )
+
+        return {
+            "title": "Профиль компетенций 4K Assistant",
+            "subtitle": "Глубокий анализ оценок по четырем направлениям и детализация результатов по каждому навыку пользователя.",
+            "session_id": int(session_id),
+            "overall_score": int(overall_score),
+            "user": {
+                "full_name": str(user.get("full_name") or "Не указан"),
+                "job_description": str(user.get("job_description") or "Не указана"),
+                "phone": str(user.get("phone") or "Не указан"),
+            },
+            "insight": {
+                "title": insight_title,
+                "text": insight_text,
+            },
+            "basis_items": [str(item) for item in basis_items],
+            "recommendations": [str(item) for item in recommendations],
+            "strengths": [str(item) for item in strengths],
+            "growth_areas": [str(item) for item in growth_areas],
+            "quotes": [str(item) for item in quotes],
+            "competencies": competencies,
+        }
+
+    def build_pdf(self, connection, user_id: int, session_id: int) -> tuple[str, bytes]:
         user = self._load_user(connection, user_id)
         if user is None:
             raise ValueError("User not found")
@@ -226,188 +318,31 @@ class PdfReportService:
         recommendations = self._build_recommendations(grouped_rows)
         if not has_interpretation_signal:
             recommendations = list(WEAK_SIGNAL_RECOMMENDATIONS)
-
-        styles = getSampleStyleSheet()
-        title_style = ParagraphStyle(
-            "Agent4KTitle",
-            parent=styles["Heading1"],
-            fontName=self.FONT_NAME,
-            fontSize=22,
-            leading=28,
-            textColor=colors.HexColor("#202334"),
-            alignment=TA_LEFT,
-            spaceAfter=10,
+        strengths = self._build_strengths(
+            strongest=strongest,
+            has_confident_strongest=has_confident_strongest,
+            response_pattern=response_pattern,
         )
-        subtitle_style = ParagraphStyle(
-            "Agent4KSubtitle",
-            parent=styles["BodyText"],
-            fontName=self.FONT_NAME,
-            fontSize=10,
-            leading=15,
-            textColor=colors.HexColor("#6f7690"),
-            spaceAfter=10,
-        )
-        heading_style = ParagraphStyle(
-            "Agent4KHeading",
-            parent=styles["Heading2"],
-            fontName=self.FONT_NAME,
-            fontSize=14,
-            leading=18,
-            textColor=colors.HexColor("#202334"),
-            spaceAfter=8,
-            spaceBefore=10,
-        )
-        body_style = ParagraphStyle(
-            "Agent4KBody",
-            parent=styles["BodyText"],
-            fontName=self.FONT_NAME,
-            fontSize=10,
-            leading=14,
-            textColor=colors.HexColor("#2a2f45"),
-        )
-        small_style = ParagraphStyle(
-            "Agent4KSmall",
-            parent=styles["BodyText"],
-            fontName=self.FONT_NAME,
-            fontSize=9,
-            leading=12,
-            textColor=colors.HexColor("#6f7690"),
-        )
-
-        buffer = BytesIO()
-        doc = SimpleDocTemplate(
-            buffer,
-            pagesize=A4,
-            leftMargin=16 * mm,
-            rightMargin=16 * mm,
-            topMargin=14 * mm,
-            bottomMargin=14 * mm,
-            title="Профиль компетенций 4K Assistant",
-            author="Agent_4K",
-        )
-
-        story = [
-            Paragraph("Ваш профиль компетенций", title_style),
-            Paragraph(
-                "Глубокий анализ оценок по четырем направлениям и детализация результатов по каждому навыку пользователя.",
-                subtitle_style,
-            ),
-            Spacer(1, 4),
-        ]
-
-        profile_table = Table(
-            [
-                [
-                    Paragraph(f"<b>Пользователь:</b> {user.get('full_name') or 'Не указан'}", body_style),
-                    Paragraph(f"<b>Интегральный показатель:</b> {overall_score}%", body_style),
-                ],
-                [
-                    Paragraph(f"<b>Должность:</b> {user.get('job_description') or 'Не указана'}", body_style),
-                    Paragraph(f"<b>Телефон:</b> {user.get('phone') or 'Не указан'}", body_style),
-                ],
-            ],
-            colWidths=[88 * mm, 82 * mm],
-        )
-        profile_table.setStyle(
-            TableStyle(
-                [
-                    ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#f7f8fe")),
-                    ("BOX", (0, 0), (-1, -1), 0.6, colors.HexColor("#d9def3")),
-                    ("INNERGRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#e6e9f6")),
-                    ("LEFTPADDING", (0, 0), (-1, -1), 10),
-                    ("RIGHTPADDING", (0, 0), (-1, -1), 10),
-                    ("TOPPADDING", (0, 0), (-1, -1), 8),
-                    ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
-                ]
-            )
-        )
-        story.extend([profile_table, Spacer(1, 10)])
-
-        story.append(Paragraph("Сводные показатели по компетенциям", heading_style))
-        competency_data = [["Компетенция", "Средний показатель", "Интерпретация"]]
-        for item in grouped_rows:
-            competency_data.append(
-                [
-                    Paragraph(item["competency_name"], body_style),
-                    Paragraph(f"{item['avg_percent']}%", body_style),
-                    Paragraph(
-                        "Высокий потенциал" if item["avg_percent"] >= 80 else
-                        "Стабильный уровень" if item["avg_percent"] >= 55 else
-                        "Требует развития",
-                        body_style,
-                    ),
-                ]
-            )
-        competency_table = Table(competency_data, colWidths=[72 * mm, 42 * mm, 56 * mm])
-        competency_table.setStyle(
-            TableStyle(
-                [
-                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#e9ecfb")),
-                    ("TEXTCOLOR", (0, 0), (-1, 0), colors.HexColor("#202334")),
-                    ("FONTNAME", (0, 0), (-1, -1), self.FONT_NAME),
-                    ("FONTSIZE", (0, 0), (-1, -1), 9),
-                    ("BOX", (0, 0), (-1, -1), 0.6, colors.HexColor("#d9def3")),
-                    ("INNERGRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#e6e9f6")),
-                    ("LEFTPADDING", (0, 0), (-1, -1), 8),
-                    ("RIGHTPADDING", (0, 0), (-1, -1), 8),
-                    ("TOPPADDING", (0, 0), (-1, -1), 7),
-                    ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
-                ]
-            )
-        )
-        story.extend([competency_table, Spacer(1, 10)])
-
-        story.append(Paragraph("AI insights", heading_style))
-        story.append(Paragraph(f"<b>{insight_title}.</b> {insight_text}", body_style))
-        story.append(Spacer(1, 4))
-        story.append(Paragraph("<b>Основание вывода.</b>", body_style))
-        for item in basis_items:
-            story.append(Paragraph("• " + item, small_style))
-        story.append(Spacer(1, 8))
-
-        story.append(Paragraph("Рекомендации по росту", heading_style))
-        for recommendation in recommendations:
-            story.append(Paragraph("• " + recommendation, body_style))
-            story.append(Spacer(1, 2))
-
-        for item in grouped_rows:
-            story.append(Spacer(1, 8))
-            story.append(Paragraph(item["competency_name"], heading_style))
-            table_data = [["Навык", "Уровень", "Прогресс", "Комментарий"]]
-            for skill in item["skills"]:
-                percent = level_percent_map.get(skill["assessed_level_code"], 0)
-                table_data.append(
-                    [
-                        Paragraph(skill["skill_name"], body_style),
-                        Paragraph(skill["assessed_level_name"], body_style),
-                        Paragraph(f"{percent}%", body_style),
-                        Paragraph(skill.get("rationale") or "Оценка сформирована по рубрике и структурным признакам ответа.", small_style),
-                    ]
-                )
-            detail_table = Table(table_data, colWidths=[58 * mm, 30 * mm, 22 * mm, 60 * mm])
-            detail_table.setStyle(
-                TableStyle(
-                    [
-                        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#f0f2ff")),
-                        ("FONTNAME", (0, 0), (-1, -1), self.FONT_NAME),
-                        ("FONTSIZE", (0, 0), (-1, -1), 8.7),
-                        ("BOX", (0, 0), (-1, -1), 0.6, colors.HexColor("#d9def3")),
-                        ("INNERGRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#e6e9f6")),
-                        ("LEFTPADDING", (0, 0), (-1, -1), 6),
-                        ("RIGHTPADDING", (0, 0), (-1, -1), 6),
-                        ("TOPPADDING", (0, 0), (-1, -1), 6),
-                        ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
-                        ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                    ]
-                )
-            )
-            story.append(detail_table)
-
-        doc.build(story)
+        growth_areas = recommendations
+        quotes = self._build_quotes(assessments)
 
         safe_name = (user.get("full_name") or f"user-{user_id}").replace(" ", "_")
         filename = f"competency_profile_{safe_name}_session_{session_id}.pdf"
-        return filename, buffer.getvalue()
+        typst_payload = self._build_typst_payload(
+            user=user,
+            session_id=session_id,
+            grouped_rows=grouped_rows,
+            level_percent_map=level_percent_map,
+            overall_score=overall_score,
+            insight_title=insight_title,
+            insight_text=insight_text,
+            basis_items=basis_items,
+            recommendations=recommendations,
+            strengths=strengths,
+            growth_areas=growth_areas,
+            quotes=quotes,
+        )
+        return filename, render_typst_competency_report(typst_payload)
 
 
 pdf_report_service = PdfReportService()

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import re
 import xml.etree.ElementTree as ET
 import zipfile
@@ -25,14 +26,25 @@ class PassportRecord:
     type_name: str
     goal: str
     context: str
+    stakeholders_text: str
+    triggers_text: str
     artifact_text: str
     structure_text: str
     checked_skills_text: str
+    selection_tags_text: str
     roles_text: str
+    role_personalization_rules: str
     personalization_text: str
+    difficulty_toggles_text: str
     estimated_time_text: str
+    interactivity_mode: str
+    format_control_rules: str
     evaluation_criteria_text: str
     red_flags_text: str
+    scoring_aggregation_rules: str
+    bad_case_risks: str
+    generation_notes: str
+    recommended_answer_length: str
 
 
 @dataclass
@@ -74,7 +86,28 @@ class BaseCaseRecord:
     evaluator_notes: str
     status: str
     version: int
+    author_name: str
+    reviewer_name: str
     methodologist_comment: str
+
+
+@dataclass
+class SkillRubricRecord:
+    skill_code: str
+    anchors_l1: str
+    anchors_l2: str
+    anchors_l3: str
+    red_flags_text: str
+    evidence_text: str
+    examples_text: str
+    comment_text: str
+
+
+@dataclass
+class RoleSkillTargetRecord:
+    skill_code: str
+    role_code: str
+    target_level_code: str
 
 
 class WorkbookReader:
@@ -207,6 +240,29 @@ def split_bullets(value: str) -> list[str]:
     return items
 
 
+def split_inline_tags(value: str) -> list[str]:
+    text = (value or "").replace("\r", "\n")
+    normalized = re.sub(r"[;,]+", "\n", text)
+    items: list[str] = []
+    for part in re.split(r"\n+", normalized):
+        cleaned = clean_text(re.sub(r"^[•\-\d\)\.\s]+", "", part))
+        if cleaned:
+            items.append(cleaned)
+    return items
+
+
+def split_author_reviewer(value: str) -> tuple[str, str]:
+    raw = clean_text(value)
+    if not raw:
+        return "", ""
+    parts = [clean_text(part) for part in re.split(r"\s*/\s*|\s*\|\s*", raw) if clean_text(part)]
+    if not parts:
+        return "", ""
+    if len(parts) == 1:
+        return parts[0], ""
+    return parts[0], " / ".join(parts[1:])
+
+
 def _normalize_flag_code_fragment(value: str) -> str:
     normalized = clean_text(value).lower()
     normalized = normalized.replace("ё", "е")
@@ -324,14 +380,25 @@ def load_passports(reader: WorkbookReader) -> dict[str, PassportRecord]:
             type_name=clean_text(row[1] if len(row) > 1 else ""),
             goal=clean_text(row[2] if len(row) > 2 else ""),
             context=clean_text(row[3] if len(row) > 3 else ""),
+            stakeholders_text=(row[4] if len(row) > 4 else "").strip(),
+            triggers_text=(row[5] if len(row) > 5 else "").strip(),
             artifact_text=clean_text(row[6] if len(row) > 6 else ""),
             structure_text=(row[7] if len(row) > 7 else "").strip(),
             checked_skills_text=(row[8] if len(row) > 8 else "").strip(),
+            selection_tags_text=(row[9] if len(row) > 9 else "").strip(),
             roles_text=clean_text(row[10] if len(row) > 10 else ""),
+            role_personalization_rules=(row[11] if len(row) > 11 else "").strip(),
             personalization_text=(row[12] if len(row) > 12 else "").strip(),
+            difficulty_toggles_text=(row[13] if len(row) > 13 else "").strip(),
             estimated_time_text=clean_text(row[14] if len(row) > 14 else ""),
+            interactivity_mode=clean_text(row[15] if len(row) > 15 else ""),
+            format_control_rules=(row[16] if len(row) > 16 else "").strip(),
             evaluation_criteria_text=(row[17] if len(row) > 17 else "").strip(),
             red_flags_text=(row[18] if len(row) > 18 else "").strip(),
+            scoring_aggregation_rules=(row[19] if len(row) > 19 else "").strip(),
+            bad_case_risks=(row[20] if len(row) > 20 else "").strip(),
+            generation_notes=(row[21] if len(row) > 21 else "").strip(),
+            recommended_answer_length=clean_text(row[22] if len(row) > 22 else ""),
         )
     return passports
 
@@ -389,6 +456,7 @@ def load_base_cases(reader: WorkbookReader) -> dict[str, BaseCaseRecord]:
         seen_case_text_ids[unique_case_text_id] = linked_case_id
         if unique_case_text_id == canonical_case_text_id:
             seen_case_text_ids[canonical_case_text_id] = linked_case_id
+        author_name, reviewer_name = split_author_reviewer(row[18] if len(row) > 18 else "")
         base_cases[linked_case_id] = BaseCaseRecord(
             case_text_id=unique_case_text_id,
             case_id=linked_case_id,
@@ -408,9 +476,68 @@ def load_base_cases(reader: WorkbookReader) -> dict[str, BaseCaseRecord]:
             evaluator_notes=(row[15] if len(row) > 15 else "").strip(),
             status=normalize_status(row[16] if len(row) > 16 else "", default="draft"),
             version=parse_version(row[17] if len(row) > 17 else ""),
+            author_name=author_name,
+            reviewer_name=reviewer_name,
             methodologist_comment=(row[20] if len(row) > 20 else "").strip(),
         )
     return base_cases
+
+
+def load_skill_rubrics(reader: WorkbookReader) -> list[SkillRubricRecord]:
+    rows = reader.read_sheet("Рубрика оценки")
+    records: list[SkillRubricRecord] = []
+    for row in rows[1:]:
+        skill_code = normalize_skill_code(row[0] if len(row) > 0 else "")
+        if not skill_code:
+            continue
+        records.append(
+            SkillRubricRecord(
+                skill_code=skill_code,
+                anchors_l1=(row[4] if len(row) > 4 else "").strip(),
+                anchors_l2=(row[5] if len(row) > 5 else "").strip(),
+                anchors_l3=(row[6] if len(row) > 6 else "").strip(),
+                red_flags_text=(row[7] if len(row) > 7 else "").strip(),
+                evidence_text=(row[8] if len(row) > 8 else "").strip(),
+                examples_text=(row[9] if len(row) > 9 else "").strip(),
+                comment_text=(row[10] if len(row) > 10 else "").strip(),
+            )
+        )
+    return records
+
+
+def _is_marked_target(value: str) -> bool:
+    normalized = clean_text(value).lower()
+    return normalized in {"x", "х", "1", "+"}
+
+
+def load_role_skill_targets(reader: WorkbookReader) -> list[RoleSkillTargetRecord]:
+    rows = reader.read_sheet("Карта компетенций")
+    records: list[RoleSkillTargetRecord] = []
+    role_columns = {
+        "linear_employee": (3, 4, 5),
+        "manager": (6, 7, 8),
+        "leader": (9, 10, 11),
+    }
+    level_map = {
+        0: "L1",
+        1: "L2",
+        2: "L3",
+    }
+    for row in rows[2:]:
+        skill_code = normalize_skill_code(row[0] if len(row) > 0 else "")
+        if not skill_code:
+            continue
+        for role_code, columns in role_columns.items():
+            marked_levels = [
+                level_map[offset]
+                for offset, column_index in enumerate(columns)
+                if len(row) > column_index and _is_marked_target(row[column_index])
+            ]
+            if not marked_levels:
+                continue
+            target_level_code = marked_levels[-1]
+            records.append(RoleSkillTargetRecord(skill_code=skill_code, role_code=role_code, target_level_code=target_level_code))
+    return records
 
 
 def build_placeholder_base_case(registry_row: RegistryRecord) -> BaseCaseRecord:
@@ -437,6 +564,8 @@ def build_placeholder_base_case(registry_row: RegistryRecord) -> BaseCaseRecord:
         evaluator_notes="Автоматически созданный placeholder: в Excel не найден текст кейса по связанному CaseID.",
         status="draft",
         version=registry_row.version,
+        author_name="",
+        reviewer_name="",
         methodologist_comment=registry_row.methodologist_comment,
     )
 
@@ -487,6 +616,7 @@ def upsert_passports(connection, passports: dict[str, PassportRecord], registry_
         roles = parse_roles(record.roles_text)
         category = infer_type_category(type_code, registry_rows)
         description = "\n".join(part for part in [record.goal, record.context] if part)
+        selection_tags = split_inline_tags(record.selection_tags_text)
         row = connection.execute(
             """
             INSERT INTO case_type_passports (
@@ -499,13 +629,21 @@ def upsert_passports(connection, passports: dict[str, PassportRecord], registry_
                 success_criteria,
                 recommended_time_min,
                 recommended_time_max,
+                interactivity_mode,
+                recommended_answer_length,
+                selection_tags,
+                role_personalization_rules,
+                format_control_rules,
+                scoring_aggregation_rules,
+                bad_case_risks,
+                generation_notes,
                 allowed_role_linear,
                 allowed_role_manager,
                 allowed_role_leader,
                 status,
                 version
             )
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'draft', 1)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s, %s, %s, %s, %s, %s, %s, %s, 'draft', 1)
             ON CONFLICT (type_code) DO UPDATE
             SET
                 type_name = EXCLUDED.type_name,
@@ -516,6 +654,14 @@ def upsert_passports(connection, passports: dict[str, PassportRecord], registry_
                 success_criteria = EXCLUDED.success_criteria,
                 recommended_time_min = EXCLUDED.recommended_time_min,
                 recommended_time_max = EXCLUDED.recommended_time_max,
+                interactivity_mode = EXCLUDED.interactivity_mode,
+                recommended_answer_length = EXCLUDED.recommended_answer_length,
+                selection_tags = EXCLUDED.selection_tags,
+                role_personalization_rules = EXCLUDED.role_personalization_rules,
+                format_control_rules = EXCLUDED.format_control_rules,
+                scoring_aggregation_rules = EXCLUDED.scoring_aggregation_rules,
+                bad_case_risks = EXCLUDED.bad_case_risks,
+                generation_notes = EXCLUDED.generation_notes,
                 allowed_role_linear = EXCLUDED.allowed_role_linear,
                 allowed_role_manager = EXCLUDED.allowed_role_manager,
                 allowed_role_leader = EXCLUDED.allowed_role_leader,
@@ -532,6 +678,14 @@ def upsert_passports(connection, passports: dict[str, PassportRecord], registry_
                 record.evaluation_criteria_text,
                 recommended_min,
                 recommended_max,
+                record.interactivity_mode,
+                record.recommended_answer_length,
+                json.dumps(selection_tags, ensure_ascii=False),
+                record.role_personalization_rules,
+                record.format_control_rules,
+                record.scoring_aggregation_rules,
+                record.bad_case_risks,
+                record.generation_notes,
                 "linear_employee" in roles,
                 "manager" in roles,
                 "leader" in roles,
@@ -607,19 +761,21 @@ def upsert_registry(
                 title,
                 context_domain,
                 trigger_event,
+                stakeholders_text,
                 estimated_time_min,
                 difficulty_level,
                 status,
                 version,
                 methodologist_comment
             )
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (case_id_code) DO UPDATE
             SET
                 case_type_passport_id = EXCLUDED.case_type_passport_id,
                 title = EXCLUDED.title,
                 context_domain = EXCLUDED.context_domain,
                 trigger_event = EXCLUDED.trigger_event,
+                stakeholders_text = EXCLUDED.stakeholders_text,
                 estimated_time_min = EXCLUDED.estimated_time_min,
                 difficulty_level = EXCLUDED.difficulty_level,
                 status = %s,
@@ -634,6 +790,7 @@ def upsert_registry(
                 row.title,
                 row.context_domain,
                 row.trigger_event,
+                row.stakeholders,
                 row.estimated_time_min,
                 row.difficulty_level,
                 incoming_status,
@@ -689,6 +846,16 @@ def upsert_registry(
             base_case.structure_hint,
             base_case.difficulty_variants,
             "\n\n".join(part for part in [base_case.evaluator_notes, base_case.methodologist_comment] if part),
+            base_case.stakeholders,
+            base_case.artifact_text,
+            base_case.structure_hint,
+            base_case.dialogue_turns,
+            base_case.personalization_text or row.personalization_text,
+            base_case.difficulty_variants,
+            base_case.evaluator_notes,
+            base_case.author_name,
+            base_case.reviewer_name,
+            base_case.methodologist_comment,
             preserved_text_status,
             base_case.version,
         )
@@ -709,6 +876,16 @@ def upsert_registry(
                     base_variant_text = %s,
                     hard_variant_text = %s,
                     notes = %s,
+                    participants_roles = %s,
+                    expected_artifact = %s,
+                    answer_structure_hint = %s,
+                    dialog_turns_hint = %s,
+                    personalization_options = %s,
+                    difficulty_toggles = %s,
+                    evaluation_notes = %s,
+                    author_name = %s,
+                    reviewer_name = %s,
+                    methodologist_comment = %s,
                     status = %s,
                     version = GREATEST(version, %s),
                     updated_at = NOW()
@@ -732,10 +909,20 @@ def upsert_registry(
                     base_variant_text,
                     hard_variant_text,
                     notes,
+                    participants_roles,
+                    expected_artifact,
+                    answer_structure_hint,
+                    dialog_turns_hint,
+                    personalization_options,
+                    difficulty_toggles,
+                    evaluation_notes,
+                    author_name,
+                    reviewer_name,
+                    methodologist_comment,
                     status,
                     version
                 )
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ON CONFLICT (case_text_code) DO UPDATE
                 SET
                     cases_registry_id = EXCLUDED.cases_registry_id,
@@ -749,6 +936,16 @@ def upsert_registry(
                     base_variant_text = EXCLUDED.base_variant_text,
                     hard_variant_text = EXCLUDED.hard_variant_text,
                     notes = EXCLUDED.notes,
+                    participants_roles = EXCLUDED.participants_roles,
+                    expected_artifact = EXCLUDED.expected_artifact,
+                    answer_structure_hint = EXCLUDED.answer_structure_hint,
+                    dialog_turns_hint = EXCLUDED.dialog_turns_hint,
+                    personalization_options = EXCLUDED.personalization_options,
+                    difficulty_toggles = EXCLUDED.difficulty_toggles,
+                    evaluation_notes = EXCLUDED.evaluation_notes,
+                    author_name = EXCLUDED.author_name,
+                    reviewer_name = EXCLUDED.reviewer_name,
+                    methodologist_comment = EXCLUDED.methodologist_comment,
                     status = EXCLUDED.status,
                     version = GREATEST(case_texts.version, EXCLUDED.version),
                     updated_at = NOW()
@@ -756,6 +953,70 @@ def upsert_registry(
                 common_payload,
             )
     return case_registry_ids
+
+
+def upsert_skill_rubrics(connection, rubric_rows: list[SkillRubricRecord]) -> None:
+    skill_ids = fetch_skill_ids(connection)
+    for row in rubric_rows:
+        skill_id = skill_ids.get(row.skill_code)
+        if not skill_id:
+            continue
+        common_tail = (
+            row.evidence_text,
+            row.examples_text,
+            row.comment_text,
+        )
+        for level_code, anchors_text in (
+            ("L1", row.anchors_l1),
+            ("L2", row.anchors_l2),
+            ("L3", row.anchors_l3),
+        ):
+            if not any([anchors_text, row.evidence_text, row.examples_text, row.comment_text]):
+                continue
+            connection.execute(
+                """
+                INSERT INTO skill_level_rubrics (
+                    skill_id,
+                    level_code,
+                    anchors_text,
+                    evidence_to_look_for,
+                    examples_text,
+                    comment,
+                    version
+                )
+                VALUES (%s, %s, %s, %s, %s, %s, 1)
+                ON CONFLICT (skill_id, level_code) DO UPDATE
+                SET
+                    anchors_text = EXCLUDED.anchors_text,
+                    evidence_to_look_for = EXCLUDED.evidence_to_look_for,
+                    examples_text = EXCLUDED.examples_text,
+                    comment = EXCLUDED.comment,
+                    version = GREATEST(skill_level_rubrics.version, EXCLUDED.version),
+                    updated_at = NOW()
+                """,
+                (skill_id, level_code, anchors_text, *common_tail),
+            )
+
+
+def upsert_role_targets(connection, target_rows: list[RoleSkillTargetRecord]) -> None:
+    skill_ids = fetch_skill_ids(connection)
+    role_ids = fetch_role_ids(connection)
+    for row in target_rows:
+        skill_id = skill_ids.get(row.skill_code)
+        role_id = role_ids.get(row.role_code)
+        if not skill_id or not role_id:
+            continue
+        connection.execute(
+            """
+            INSERT INTO role_skill_targets (role_id, skill_id, target_level_code)
+            VALUES (%s, %s, %s)
+            ON CONFLICT (role_id, skill_id) DO UPDATE
+            SET
+                target_level_code = EXCLUDED.target_level_code,
+                updated_at = NOW()
+            """,
+            (role_id, skill_id, row.target_level_code),
+        )
 
 
 def build_dry_run(connection, registry_rows: list[RegistryRecord]) -> tuple[list[str], list[str], list[str], list[str]]:
@@ -802,6 +1063,8 @@ def main() -> None:
         passports = load_passports(reader)
         registry_rows = load_registry(reader)
         base_cases = load_base_cases(reader)
+        rubric_rows = load_skill_rubrics(reader)
+        role_target_rows = load_role_skill_targets(reader)
     finally:
         reader.close()
 
@@ -813,6 +1076,8 @@ def main() -> None:
 
         passport_ids = upsert_passports(connection, passports, registry_rows)
         upsert_registry(connection, registry_rows, base_cases, passport_ids)
+        upsert_skill_rubrics(connection, rubric_rows)
+        upsert_role_targets(connection, role_target_rows)
         recompute_case_quality_checks(connection)
         connection.commit()
         final_count_row = connection.execute("SELECT COUNT(*) AS count FROM cases_registry").fetchone()

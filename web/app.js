@@ -11,7 +11,9 @@ const state = {
   isAdmin: false,
   adminDashboard: null,
   adminPromptLab: null,
+  adminPromptLabPreviewResult: null,
   adminPromptLabResult: null,
+  adminPromptLabSelectedCaseCodes: [],
   adminPromptLabRunning: false,
   adminMethodology: null,
   adminMethodologyDetail: null,
@@ -59,6 +61,7 @@ const state = {
   assessmentRemainingSeconds: null,
   assessmentTimerId: null,
   assessmentTimeoutInFlight: false,
+  assessmentPauseInFlight: false,
   activeInterviewCaseKey: null,
   caseOutcomeByNumber: {},
   processingTimerId: null,
@@ -77,6 +80,12 @@ const state = {
   assessmentPreparationMessage: '',
   assessmentPreparationOperationId: null,
   assessmentPreparationPollId: null,
+  adminPromptLabProgressStatus: 'idle',
+  adminPromptLabProgressPercent: 0,
+  adminPromptLabProgressTitle: '',
+  adminPromptLabProgressMessage: '',
+  adminPromptLabOperationId: null,
+  adminPromptLabPollId: null,
   preparedAssessmentStartResponse: null,
   profileSummary: null,
   profileAvatarDraft: null,
@@ -338,11 +347,15 @@ const adminOpenPromptLabButton = document.getElementById('admin-open-prompt-lab-
 const adminOpenReportsButton = document.getElementById('admin-open-reports-button');
 const adminPromptLabBackButton = document.getElementById('admin-prompt-lab-back-button');
 const adminPromptLabSourceSelect = document.getElementById('admin-prompt-lab-source-select');
-const adminPromptLabPromptSelect = document.getElementById('admin-prompt-lab-prompt-select');
 const adminPromptLabPromptName = document.getElementById('admin-prompt-lab-prompt-name');
 const adminPromptLabPromptText = document.getElementById('admin-prompt-lab-prompt-text');
 const adminPromptLabUserSelect = document.getElementById('admin-prompt-lab-user-select');
 const adminPromptLabCaseSelect = document.getElementById('admin-prompt-lab-case-select');
+const adminPromptLabCasePickerButton = document.getElementById('admin-prompt-lab-case-picker-button');
+const adminPromptLabCasePickerSummary = document.getElementById('admin-prompt-lab-case-picker-summary');
+const adminPromptLabCaseDialog = document.getElementById('admin-prompt-lab-case-dialog');
+const adminPromptLabCaseDialogClose = document.getElementById('admin-prompt-lab-case-dialog-close');
+const adminPromptLabCaseDialogList = document.getElementById('admin-prompt-lab-case-dialog-list');
 const adminPromptLabUserName = document.getElementById('admin-prompt-lab-user-name');
 const adminPromptLabRoleSelect = document.getElementById('admin-prompt-lab-role-select');
 const adminPromptLabPosition = document.getElementById('admin-prompt-lab-position');
@@ -351,7 +364,11 @@ const adminPromptLabDuties = document.getElementById('admin-prompt-lab-duties');
 const adminPromptLabProfileJson = document.getElementById('admin-prompt-lab-profile-json');
 const adminPromptLabRunButton = document.getElementById('admin-prompt-lab-run-button');
 const adminPromptLabStatus = document.getElementById('admin-prompt-lab-status');
-const adminPromptLabRuns = document.getElementById('admin-prompt-lab-runs');
+const adminPromptLabProgress = document.getElementById('admin-prompt-lab-progress');
+const adminPromptLabProgressTitle = document.getElementById('admin-prompt-lab-progress-title');
+const adminPromptLabProgressValue = document.getElementById('admin-prompt-lab-progress-value');
+const adminPromptLabProgressText = document.getElementById('admin-prompt-lab-progress-text');
+const adminPromptLabProgressBar = document.getElementById('admin-prompt-lab-progress-bar');
 const adminPromptLabResult = document.getElementById('admin-prompt-lab-result');
 const adminMetricsGrid = document.getElementById('admin-metrics-grid');
 const adminCompetencyChart = document.getElementById('admin-competency-chart');
@@ -420,6 +437,25 @@ const adminMethodologyDetailBlockers = document.getElementById('admin-methodolog
 const adminMethodologyDetailChecks = document.getElementById('admin-methodology-detail-checks');
 const adminMethodologyDetailSignals = document.getElementById('admin-methodology-detail-signals');
 const adminMethodologyDetailHistory = document.getElementById('admin-methodology-detail-history');
+const adminMethodologyDetailStakeholders = document.getElementById('admin-methodology-detail-stakeholders');
+const adminMethodologyDetailParticipants = document.getElementById('admin-methodology-detail-participants');
+const adminMethodologyDetailExpectedArtifact = document.getElementById('admin-methodology-detail-expected-artifact');
+const adminMethodologyDetailAnswerStructure = document.getElementById('admin-methodology-detail-answer-structure');
+const adminMethodologyDetailInteractivity = document.getElementById('admin-methodology-detail-interactivity');
+const adminMethodologyDetailAnswerLength = document.getElementById('admin-methodology-detail-answer-length');
+const adminMethodologyDetailDialogTurns = document.getElementById('admin-methodology-detail-dialog-turns');
+const adminMethodologyDetailPersonalizationOptions = document.getElementById('admin-methodology-detail-personalization-options');
+const adminMethodologyDetailDifficultyToggles = document.getElementById('admin-methodology-detail-difficulty-toggles');
+const adminMethodologyDetailSelectionTags = document.getElementById('admin-methodology-detail-selection-tags');
+const adminMethodologyDetailRoleRules = document.getElementById('admin-methodology-detail-role-rules');
+const adminMethodologyDetailFormatRules = document.getElementById('admin-methodology-detail-format-rules');
+const adminMethodologyDetailScoringRules = document.getElementById('admin-methodology-detail-scoring-rules');
+const adminMethodologyDetailBadCaseRisks = document.getElementById('admin-methodology-detail-bad-case-risks');
+const adminMethodologyDetailGenerationNotes = document.getElementById('admin-methodology-detail-generation-notes');
+const adminMethodologyDetailEvaluationNotes = document.getElementById('admin-methodology-detail-evaluation-notes');
+const adminMethodologyDetailAuthorName = document.getElementById('admin-methodology-detail-author-name');
+const adminMethodologyDetailReviewerName = document.getElementById('admin-methodology-detail-reviewer-name');
+const adminMethodologyDetailMethodologistComment = document.getElementById('admin-methodology-detail-methodologist-comment');
 const adminMethodologyDrawerPanel = document.querySelector('.admin-methodology-drawer-panel');
 
 if (adminMethodologyScenarioTemplate) {
@@ -894,6 +930,77 @@ const createOperationId = () => (
     : 'op-' + Date.now() + '-' + Math.random().toString(16).slice(2)
 );
 
+const stopAdminPromptLabPolling = () => {
+  if (state.adminPromptLabPollId) {
+    window.clearInterval(state.adminPromptLabPollId);
+    state.adminPromptLabPollId = null;
+  }
+};
+
+const renderAdminPromptLabProgress = () => {
+  if (!adminPromptLabProgress) {
+    return;
+  }
+  const status = state.adminPromptLabProgressStatus;
+  const visible = status === 'preparing' || status === 'failed' || status === 'ready';
+  const progressPercent = Math.max(0, Math.min(100, Number(state.adminPromptLabProgressPercent || 0)));
+  adminPromptLabProgress.classList.toggle('hidden', !visible);
+  if (adminPromptLabProgressTitle) {
+    adminPromptLabProgressTitle.textContent = state.adminPromptLabProgressTitle || 'Формируем кейсы';
+  }
+  if (adminPromptLabProgressValue) {
+    adminPromptLabProgressValue.textContent = progressPercent + '%';
+  }
+  if (adminPromptLabProgressText) {
+    adminPromptLabProgressText.textContent = state.adminPromptLabProgressMessage || 'Генерация кейсов выполняется.';
+  }
+  if (adminPromptLabProgressBar) {
+    adminPromptLabProgressBar.style.width = progressPercent + '%';
+  }
+};
+
+const startAdminPromptLabPolling = (operationId) => {
+  stopAdminPromptLabPolling();
+  if (!operationId) {
+    return;
+  }
+  const poll = async () => {
+    try {
+      const response = await fetch('/users/operations/' + operationId, {
+        credentials: 'same-origin',
+      });
+      if (!response.ok) {
+        return;
+      }
+      const snapshot = await response.json();
+      if (state.adminPromptLabOperationId !== operationId) {
+        stopAdminPromptLabPolling();
+        return;
+      }
+      state.adminPromptLabProgressPercent = Number(snapshot.progress_percent || 0);
+      state.adminPromptLabProgressTitle = snapshot.title || 'Формируем кейсы';
+      state.adminPromptLabProgressMessage = snapshot.message || 'Генерация кейсов выполняется.';
+      if (snapshot.status === 'failed') {
+        state.adminPromptLabProgressStatus = 'failed';
+      } else if (snapshot.status === 'completed') {
+        state.adminPromptLabProgressStatus = 'ready';
+      } else {
+        state.adminPromptLabProgressStatus = 'preparing';
+      }
+      renderAdminPromptLabProgress();
+      if (snapshot.status === 'completed' || snapshot.status === 'failed') {
+        stopAdminPromptLabPolling();
+      }
+    } catch (_error) {
+      // keep prompt lab polling resilient to short polling failures
+    }
+  };
+  void poll();
+  state.adminPromptLabPollId = window.setInterval(() => {
+    void poll();
+  }, 500);
+};
+
 const stopAssessmentPreparationPolling = () => {
   if (state.assessmentPreparationPollId) {
     window.clearInterval(state.assessmentPreparationPollId);
@@ -1158,6 +1265,10 @@ const safeStorage = {
 };
 
 const setCurrentScreen = (screen) => {
+  if (state.currentScreen === 'interview' && screen !== 'interview') {
+    clearInterviewTimer();
+    void pauseAssessmentTimerIfNeeded();
+  }
   state.currentScreen = screen;
   safeStorage.setItem(STORAGE_KEYS.currentScreen, screen);
 };
@@ -2416,13 +2527,6 @@ const loadAdminDashboard = async (periodKey = state.adminPeriodKey || '30d') => 
   persistAssessmentContext();
 };
 
-const defaultPromptLabPrompt = [
-  'Сформируй системный промт интервьюера так, чтобы персонализированный кейс оставался реалистичным для должности, обязанностей и отрасли пользователя.',
-  'Не меняй проверяемые навыки, тип кейса, обязательные блоки ответа и ожидаемый артефакт.',
-  'Добавляй конкретику только из профиля пользователя, методологии кейса и карты персонализации.',
-  'Не проси пользователя переходить во внешние сервисы, документы, мессенджеры или почту.',
-].join('\n');
-
 const loadAdminPromptLab = async () => {
   const response = await fetch('/users/admin/prompt-lab', {
     credentials: 'same-origin',
@@ -2430,6 +2534,34 @@ const loadAdminPromptLab = async () => {
   const data = await readApiResponse(response, 'Не удалось загрузить Prompt Lab.');
   state.adminPromptLab = data;
   persistAssessmentContext();
+};
+
+const loadPromptLabSystemCasePreview = async () => {
+  const userId = Number(adminPromptLabUserSelect?.value || 0);
+  const selectedCaseCodes = getSelectedPromptLabCaseCodes();
+  const caseIdCode = selectedCaseCodes.find((code) => code && code !== '__all__')
+    || String(state.adminPromptLab?.cases?.[0]?.case_id_code || '').trim();
+  if (!userId || !caseIdCode) {
+    return;
+  }
+  const response = await fetch(
+    '/users/admin/prompt-lab/system-case-preview?user_id=' + encodeURIComponent(userId) + '&case_id_code=' + encodeURIComponent(caseIdCode),
+    { credentials: 'same-origin' },
+  );
+  const data = await readApiResponse(response, 'Не удалось загрузить кейс из системы.');
+  state.adminPromptLabPreviewResult = {
+    id: 'system-preview',
+    total_cases: 1,
+    user: data.user,
+    case: data.case,
+    case_items: [{
+      ...data,
+      case_number: 1,
+      personalized_context: '',
+      personalized_task: '',
+      system_prompt: '',
+    }],
+  };
 };
 
 const setPromptLabStatus = (message, tone = 'muted') => {
@@ -2441,16 +2573,228 @@ const setPromptLabStatus = (message, tone = 'muted') => {
   adminPromptLabStatus.dataset.tone = tone;
 };
 
-const getSelectedPromptLabPrompt = () => {
-  const promptId = Number(adminPromptLabPromptSelect?.value || 0);
-  const prompts = Array.isArray(state.adminPromptLab?.prompts) ? state.adminPromptLab.prompts : [];
-  return prompts.find((item) => Number(item.id) === promptId) || null;
-};
-
 const getSelectedPromptLabUser = () => {
   const userId = Number(adminPromptLabUserSelect?.value || 0);
   const users = Array.isArray(state.adminPromptLab?.users) ? state.adminPromptLab.users : [];
   return users.find((item) => Number(item.id) === userId) || null;
+};
+
+const getSelectedPromptLabCaseCodes = () => {
+  const cases = Array.isArray(state.adminPromptLab?.cases) ? state.adminPromptLab.cases : [];
+  const availableCodes = new Set(cases.map((item) => String(item.case_id_code || '').trim()).filter(Boolean));
+  const selectedCodes = Array.isArray(state.adminPromptLabSelectedCaseCodes)
+    ? state.adminPromptLabSelectedCaseCodes
+    : [];
+  if (!selectedCodes.length) {
+    return [];
+  }
+  if (selectedCodes.includes('__all__')) {
+    return ['__all__'];
+  }
+  return selectedCodes.filter((code) => availableCodes.has(code));
+};
+
+const setSelectedPromptLabCaseCodes = (codes) => {
+  const cases = Array.isArray(state.adminPromptLab?.cases) ? state.adminPromptLab.cases : [];
+  const availableCodes = new Set(cases.map((item) => String(item.case_id_code || '').trim()).filter(Boolean));
+  const normalizedCodes = [];
+  const seen = new Set();
+  for (const rawCode of (Array.isArray(codes) ? codes : [])) {
+    const code = String(rawCode || '').trim();
+    if (!code || seen.has(code)) {
+      continue;
+    }
+    if (code === '__all__') {
+      state.adminPromptLabSelectedCaseCodes = ['__all__'];
+      if (adminPromptLabCaseSelect) {
+        Array.from(adminPromptLabCaseSelect.options).forEach((option) => {
+          option.selected = option.value === '__all__';
+        });
+      }
+      return;
+    }
+    if (!availableCodes.has(code)) {
+      continue;
+    }
+    normalizedCodes.push(code);
+    seen.add(code);
+  }
+  if (!normalizedCodes.length && cases.length) {
+    const fallbackCode = String(cases[0].case_id_code || '').trim();
+    state.adminPromptLabSelectedCaseCodes = fallbackCode ? [fallbackCode] : [];
+  } else {
+    state.adminPromptLabSelectedCaseCodes = normalizedCodes;
+  }
+  if (adminPromptLabCaseSelect) {
+    const selectedSet = new Set(state.adminPromptLabSelectedCaseCodes);
+    Array.from(adminPromptLabCaseSelect.options).forEach((option) => {
+      option.selected = selectedSet.has(String(option.value || '').trim());
+    });
+  }
+};
+
+const syncPromptLabCasePickerSummary = () => {
+  if (!adminPromptLabCasePickerSummary) {
+    return;
+  }
+  const selectedCodes = getSelectedPromptLabCaseCodes();
+  const cases = Array.isArray(state.adminPromptLab?.cases) ? state.adminPromptLab.cases : [];
+  if (selectedCodes.includes('__all__')) {
+    adminPromptLabCasePickerSummary.textContent = 'Выбраны все шаблоны кейсов';
+    return;
+  }
+  if (!selectedCodes.length) {
+    adminPromptLabCasePickerSummary.textContent = 'Кейсы не выбраны';
+    return;
+  }
+  const selectedItems = cases.filter((item) => selectedCodes.includes(String(item.case_id_code || '').trim()));
+  if (!selectedItems.length) {
+    adminPromptLabCasePickerSummary.textContent = 'Выбрано кейсов: ' + selectedCodes.length;
+    return;
+  }
+  if (selectedItems.length === 1) {
+    const item = selectedItems[0];
+    adminPromptLabCasePickerSummary.textContent = [item.case_id_code, item.title].filter(Boolean).join(' · ');
+    return;
+  }
+  adminPromptLabCasePickerSummary.textContent = 'Выбрано кейсов: ' + selectedItems.length;
+};
+
+const renderPromptLabCaseDialog = () => {
+  if (!adminPromptLabCaseDialogList) {
+    return;
+  }
+  const cases = Array.isArray(state.adminPromptLab?.cases) ? state.adminPromptLab.cases : [];
+  const selectedCodes = new Set(getSelectedPromptLabCaseCodes());
+  adminPromptLabCaseDialogList.innerHTML = (
+    '<label class="admin-prompt-lab-case-option">' +
+      '<input type="checkbox" value="__all__"' + (selectedCodes.has('__all__') ? ' checked' : '') + '>' +
+      '<span class="admin-prompt-lab-case-option-copy">' +
+        '<strong>Все шаблоны кейсов</strong>' +
+        '<small>Сгенерировать кейсы по всему набору шаблонов, доступному в системе</small>' +
+      '</span>' +
+    '</label>'
+  ) + cases.map((item) => (
+    '<label class="admin-prompt-lab-case-option">' +
+      '<input type="checkbox" value="' + escapeHtml(item.case_id_code) + '"' + (selectedCodes.has(String(item.case_id_code || '').trim()) ? ' checked' : '') + '>' +
+      '<span class="admin-prompt-lab-case-option-copy">' +
+        '<strong>' + escapeHtml(item.case_id_code || '') + ' · ' + escapeHtml(item.title || '') + '</strong>' +
+        '<small>' + escapeHtml(item.type_code || '') + '</small>' +
+      '</span>' +
+    '</label>'
+  )).join('');
+};
+
+const syncPromptLabCaseSelectionFromDialog = () => {
+  if (!adminPromptLabCaseDialogList) {
+    return;
+  }
+  let selectedCodes = Array.from(adminPromptLabCaseDialogList.querySelectorAll('input[type="checkbox"]:checked'))
+    .map((node) => String(node.value || '').trim())
+    .filter(Boolean);
+  if (selectedCodes.includes('__all__')) {
+    selectedCodes = ['__all__'];
+    Array.from(adminPromptLabCaseDialogList.querySelectorAll('input[type="checkbox"]')).forEach((node) => {
+      node.checked = String(node.value || '').trim() === '__all__';
+    });
+  }
+  setSelectedPromptLabCaseCodes(selectedCodes);
+  syncPromptLabCasePickerSummary();
+};
+
+const getPromptLabProductionPromptText = () => (
+  String(state.adminPromptLab?.production_prompt_text || '').trim()
+);
+
+const getPromptLabProductionPromptName = () => {
+  const instructionName = String(state.adminPromptLab?.production_prompt_name || '').trim();
+  const instructionCode = String(state.adminPromptLab?.production_instruction_code || '').trim();
+  if (instructionName && instructionCode) {
+    return instructionName + ' (' + instructionCode + ')';
+  }
+  return instructionName || instructionCode || 'Промт из case_text_build_instructions';
+};
+
+const getPromptLabProductionPromptVersion = () => {
+  const version = state.adminPromptLab?.production_instruction_version;
+  if (version === null || version === undefined || version === '') {
+    return '';
+  }
+  return 'v' + String(version);
+};
+
+let promptLabLastSourceMode = null;
+let promptLabCustomPromptDirty = false;
+let promptLabProfileDirty = false;
+let promptLabLastUserId = null;
+
+const normalizePromptLabProfileValue = (value) => {
+  if (Array.isArray(value)) {
+    const seen = new Set();
+    const normalizedItems = value
+      .map((item) => (typeof item === 'string' ? item.trim() : item))
+      .filter((item) => {
+        if (item === null || item === undefined) {
+          return false;
+        }
+        if (typeof item === 'string') {
+          if (!item) {
+            return false;
+          }
+          const key = item.toLowerCase();
+          if (seen.has(key)) {
+            return false;
+          }
+          seen.add(key);
+          return true;
+        }
+        return true;
+      });
+    return normalizedItems.length ? normalizedItems : null;
+  }
+  if (value && typeof value === 'object') {
+    const normalizedObject = Object.entries(value).reduce((accumulator, [key, nestedValue]) => {
+      const normalizedNestedValue = normalizePromptLabProfileValue(nestedValue);
+      if (
+        normalizedNestedValue === null ||
+        normalizedNestedValue === undefined ||
+        normalizedNestedValue === '' ||
+        (Array.isArray(normalizedNestedValue) && !normalizedNestedValue.length) ||
+        (typeof normalizedNestedValue === 'object' && !Array.isArray(normalizedNestedValue) && !Object.keys(normalizedNestedValue).length)
+      ) {
+        return accumulator;
+      }
+      accumulator[key] = normalizedNestedValue;
+      return accumulator;
+    }, {});
+    return Object.keys(normalizedObject).length ? normalizedObject : null;
+  }
+  if (typeof value === 'string') {
+    const trimmedValue = value.trim();
+    return trimmedValue || null;
+  }
+  return value ?? null;
+};
+
+const buildPromptLabDutiesText = (user) => {
+  if (!user) {
+    return '';
+  }
+  const profileTasks = Array.isArray(user.user_profile?.user_tasks)
+    ? user.user_profile.user_tasks.map((item) => String(item || '').trim()).filter(Boolean)
+    : [];
+  if (profileTasks.length) {
+    return profileTasks.map((item) => '- ' + item).join('\n');
+  }
+  return String(user.duties || '').trim();
+};
+
+const buildPromptLabProfileJson = (user) => {
+  if (!user || !user.user_profile || typeof user.user_profile !== 'object') {
+    return '{}';
+  }
+  const fullProfile = normalizePromptLabProfileValue(user.user_profile);
+  return JSON.stringify(fullProfile || {}, null, 2);
 };
 
 const fillPromptLabProfileFromUser = (user) => {
@@ -2470,50 +2814,67 @@ const fillPromptLabProfileFromUser = (user) => {
     adminPromptLabCompanyIndustry.value = user.company_industry || '';
   }
   if (adminPromptLabDuties) {
-    adminPromptLabDuties.value = user.duties || '';
+    adminPromptLabDuties.value = buildPromptLabDutiesText(user);
   }
   if (adminPromptLabProfileJson) {
-    adminPromptLabProfileJson.value = JSON.stringify(user.user_profile || {}, null, 2);
+    adminPromptLabProfileJson.value = buildPromptLabProfileJson(user);
   }
+  promptLabProfileDirty = false;
+  promptLabLastUserId = Number(user.id || 0) || null;
 };
 
 const syncPromptLabPromptSource = () => {
   const useFilePrompt = (adminPromptLabSourceSelect?.value || 'file') === 'file';
-  [adminPromptLabPromptSelect, adminPromptLabPromptName, adminPromptLabPromptText].forEach((node) => {
+  const currentSourceMode = useFilePrompt ? 'file' : 'custom';
+  const productionPromptText = getPromptLabProductionPromptText();
+  const productionPromptVersion = getPromptLabProductionPromptVersion();
+  const promptNameField = adminPromptLabPromptName?.closest?.('.admin-prompt-lab-field') || null;
+  const promptNameLabel = promptNameField?.querySelector?.('span') || null;
+  const sourceChanged = promptLabLastSourceMode !== currentSourceMode;
+  [adminPromptLabPromptName, adminPromptLabPromptText].forEach((node) => {
     if (!node) {
       return;
     }
     node.disabled = useFilePrompt;
     node.closest?.('.admin-prompt-lab-field')?.classList.toggle('muted', useFilePrompt);
   });
+  if (useFilePrompt) {
+    promptNameField?.classList.remove('hidden');
+    if (promptNameLabel) {
+      promptNameLabel.textContent = 'Версия промта';
+    }
+    if (adminPromptLabPromptName) {
+      adminPromptLabPromptName.value = productionPromptVersion;
+    }
+    if (adminPromptLabPromptText) {
+      adminPromptLabPromptText.value = productionPromptText;
+    }
+    promptLabCustomPromptDirty = false;
+    promptLabLastSourceMode = currentSourceMode;
+    return;
+  }
+  promptNameField?.classList.add('hidden');
+  if (promptNameLabel) {
+    promptNameLabel.textContent = 'Название версии';
+  }
+  const shouldHydrateCustomPrompt = sourceChanged || !promptLabCustomPromptDirty;
+  if (shouldHydrateCustomPrompt) {
+    if (adminPromptLabPromptName) {
+      adminPromptLabPromptName.value = 'Пользовательский промт';
+    }
+    if (adminPromptLabPromptText && sourceChanged) {
+      adminPromptLabPromptText.value = '';
+    }
+    promptLabCustomPromptDirty = false;
+  }
+  promptLabLastSourceMode = currentSourceMode;
 };
 
 const renderAdminPromptLab = () => {
   const data = state.adminPromptLab || {};
-  const prompts = Array.isArray(data.prompts) ? data.prompts : [];
   const users = Array.isArray(data.users) ? data.users : [];
   const cases = Array.isArray(data.cases) ? data.cases : [];
   const roles = Array.isArray(data.role_options) ? data.role_options : [];
-  const runs = Array.isArray(data.recent_runs) ? data.recent_runs : [];
-
-  if (adminPromptLabPromptSelect) {
-    const currentValue = adminPromptLabPromptSelect.value;
-    adminPromptLabPromptSelect.innerHTML =
-      '<option value="0">Новая версия</option>' +
-      prompts.map((item) => '<option value="' + escapeHtml(item.id) + '">' + escapeHtml(item.name) + '</option>').join('');
-    const hasCurrentValue = Array.from(adminPromptLabPromptSelect.options).some((option) => option.value === currentValue);
-    adminPromptLabPromptSelect.value = currentValue && hasCurrentValue
-      ? currentValue
-      : (prompts[0]?.id ? String(prompts[0].id) : '0');
-  }
-
-  const selectedPrompt = getSelectedPromptLabPrompt();
-  if (adminPromptLabPromptName && !adminPromptLabPromptName.value) {
-    adminPromptLabPromptName.value = selectedPrompt?.name || 'Case prompt experiment';
-  }
-  if (adminPromptLabPromptText && !adminPromptLabPromptText.value) {
-    adminPromptLabPromptText.value = selectedPrompt?.prompt_text || defaultPromptLabPrompt;
-  }
 
   if (adminPromptLabUserSelect) {
     const currentValue = adminPromptLabUserSelect.value;
@@ -2521,8 +2882,10 @@ const renderAdminPromptLab = () => {
       const label = [item.full_name || ('User #' + item.id), item.role_name, item.position].filter(Boolean).join(' · ');
       return '<option value="' + escapeHtml(item.id) + '">' + escapeHtml(label) + '</option>';
     }).join('');
-    if (currentValue) {
+    if (currentValue && users.some((item) => String(item.id) === currentValue)) {
       adminPromptLabUserSelect.value = currentValue;
+    } else if (users.length) {
+      adminPromptLabUserSelect.value = String(users[0].id);
     }
   }
 
@@ -2537,37 +2900,33 @@ const renderAdminPromptLab = () => {
   }
 
   const selectedUser = getSelectedPromptLabUser();
-  if (selectedUser && !adminPromptLabUserName?.value && !adminPromptLabPosition?.value && !adminPromptLabDuties?.value) {
+  const selectedUserId = selectedUser ? (Number(selectedUser.id || 0) || null) : null;
+  if (selectedUser && (selectedUserId !== promptLabLastUserId || !promptLabProfileDirty)) {
     fillPromptLabProfileFromUser(selectedUser);
   }
 
   if (adminPromptLabCaseSelect) {
-    const currentValue = adminPromptLabCaseSelect.value;
-    adminPromptLabCaseSelect.innerHTML = '<option value="__all__">Все задачи assessment</option>' + cases.map((item) => {
+    adminPromptLabCaseSelect.innerHTML = (
+      '<option value="__all__">Все шаблоны кейсов</option>'
+    ) + cases.map((item) => {
       const label = [item.case_id_code, item.type_code, item.title].filter(Boolean).join(' · ');
       return '<option value="' + escapeHtml(item.case_id_code) + '">' + escapeHtml(label) + '</option>';
     }).join('');
-    if (currentValue) {
-      adminPromptLabCaseSelect.value = currentValue;
+    if (!state.adminPromptLabSelectedCaseCodes.length && cases.length) {
+      setSelectedPromptLabCaseCodes([String(cases[0].case_id_code || '').trim()]);
+    } else {
+      setSelectedPromptLabCaseCodes(getSelectedPromptLabCaseCodes());
     }
   }
 
-  if (adminPromptLabRuns) {
-    adminPromptLabRuns.innerHTML = runs.length
-      ? runs.map((run) => (
-        '<div class="admin-prompt-lab-run">' +
-          '<strong>#' + escapeHtml(run.id) + ' · ' + escapeHtml(run.prompt_name || 'Prompt') + '</strong>' +
-          '<span>' + escapeHtml(run.user_name || ('User #' + run.user_id)) + '</span>' +
-          '<span>' + escapeHtml(run.case_id_code + ' · ' + run.case_title) + '</span>' +
-        '</div>'
-      )).join('')
-      : '<p class="report-empty-state">Запусков пока нет.</p>';
-  }
+  renderPromptLabCaseDialog();
+  syncPromptLabCasePickerSummary();
 
   if (adminPromptLabRunButton) {
     adminPromptLabRunButton.disabled = state.adminPromptLabRunning || !users.length || !cases.length;
   }
   syncPromptLabPromptSource();
+  renderAdminPromptLabProgress();
 };
 
 const renderPromptLabTextBlock = (title, value) => (
@@ -2577,8 +2936,22 @@ const renderPromptLabTextBlock = (title, value) => (
   '</section>'
 );
 
+const buildPromptLabCaseText = (context, task) => {
+  const normalizedContext = String(context || '').trim();
+  const normalizedTask = String(task || '').trim();
+  if (!normalizedContext && !normalizedTask) {
+    return 'Для этого пользователя по этому шаблону в системе пока нет сохраненного персонализированного кейса.';
+  }
+  return [
+    'Ситуация',
+    normalizedContext,
+    'Что нужно сделать',
+    normalizedTask,
+  ].filter(Boolean).join('\n\n');
+};
+
 const renderAdminPromptLabResult = () => {
-  const result = state.adminPromptLabResult;
+  const result = state.adminPromptLabResult || state.adminPromptLabPreviewResult;
   if (!adminPromptLabResult || !result) {
     return;
   }
@@ -2589,16 +2962,18 @@ const renderAdminPromptLabResult = () => {
         '<span>Задача ' + escapeHtml(item.case_number || index + 1) + ' из ' + escapeHtml(result.total_cases || caseItems.length) + '</span>' +
         '<strong>' + escapeHtml(item.case?.case_id_code || '') + ' · ' + escapeHtml(item.case?.title || '') + '</strong>' +
       '</div>' +
-      renderPromptLabTextBlock('Сообщение пользователю', item.opening_message) +
-      renderPromptLabTextBlock('Контекст', item.personalized_context) +
-      renderPromptLabTextBlock('Задача', item.personalized_task) +
-      renderPromptLabTextBlock('Итоговый system prompt', item.system_prompt) +
+      '<div class="admin-prompt-lab-case-compare">' +
+        renderPromptLabTextBlock('Шаблон кейса', buildPromptLabCaseText(item.base_context, item.base_task)) +
+        ((item.personalized_context || item.personalized_task)
+          ? renderPromptLabTextBlock('Сгенерированный кейс', buildPromptLabCaseText(item.personalized_context, item.personalized_task))
+          : '') +
+      '</div>' +
     '</article>'
   )).join('');
   adminPromptLabResult.innerHTML =
     '<div class="admin-prompt-lab-result-summary">' +
       '<span>Run #' + escapeHtml(result.id) + '</span>' +
-      '<strong>' + escapeHtml(result.total_cases || caseItems.length) + ' задач</strong>' +
+      '<strong>' + escapeHtml(result.total_cases || caseItems.length) + ' кейсов</strong>' +
       '<span>' + escapeHtml(result.user?.full_name || 'Пользователь') + '</span>' +
     '</div>' +
     taskBlocks;
@@ -2606,12 +2981,15 @@ const renderAdminPromptLabResult = () => {
 
 const runAdminPromptLabCase = async () => {
   const userId = Number(adminPromptLabUserSelect?.value || 0);
-  const caseIdCode = adminPromptLabCaseSelect?.value || '';
+  const selectedCaseCodes = getSelectedPromptLabCaseCodes();
   const promptSource = adminPromptLabSourceSelect?.value || 'file';
-  const promptId = Number(adminPromptLabPromptSelect?.value || 0);
   const promptName = adminPromptLabPromptName?.value?.trim() || 'Case prompt experiment';
   const promptText = adminPromptLabPromptText?.value?.trim() || '';
+  const fullName = adminPromptLabUserName?.value?.trim() || null;
   const roleId = Number(adminPromptLabRoleSelect?.value || 0) || null;
+  const position = adminPromptLabPosition?.value?.trim() || null;
+  const duties = adminPromptLabDuties?.value?.trim() || null;
+  const companyIndustry = adminPromptLabCompanyIndustry?.value?.trim() || null;
   let userProfile = null;
   const rawProfileJson = adminPromptLabProfileJson?.value?.trim() || '';
   if (rawProfileJson) {
@@ -2622,49 +3000,61 @@ const runAdminPromptLabCase = async () => {
       return;
     }
   }
-  const selectedPrompt = getSelectedPromptLabPrompt();
-  const shouldReusePrompt = Boolean(
-    promptId &&
-    selectedPrompt &&
-    String(selectedPrompt.prompt_text || '').trim() === promptText &&
-    String(selectedPrompt.name || '').trim() === promptName
-  );
-  if (!userId || !caseIdCode || (promptSource === 'custom' && !promptText)) {
-    setPromptLabStatus('Выберите пользователя, кейс и заполните промт.', 'error');
+  if (!userId || !selectedCaseCodes.length || (promptSource === 'custom' && !promptText)) {
+    setPromptLabStatus('Выберите пользователя, хотя бы один кейс и заполните промт.', 'error');
     return;
   }
   state.adminPromptLabRunning = true;
-  setPromptLabStatus('Формируем задачи...', 'muted');
+  const operationId = createOperationId();
+  state.adminPromptLabOperationId = operationId;
+  state.adminPromptLabProgressStatus = 'preparing';
+  state.adminPromptLabProgressPercent = 2;
+  state.adminPromptLabProgressTitle = 'Формируем кейсы';
+  state.adminPromptLabProgressMessage = 'Подготавливаем генерацию кейсов.';
+  setPromptLabStatus('Формируем кейсы...', 'muted');
   renderAdminPromptLab();
+  startAdminPromptLabPolling(operationId);
   try {
     const response = await fetch('/users/admin/prompt-lab/case-runs', {
       method: 'POST',
       credentials: 'same-origin',
       headers: {
         'Content-Type': 'application/json',
+        'X-Agent4K-Operation-Id': operationId,
       },
       body: JSON.stringify({
         user_id: userId,
-        case_id_code: caseIdCode,
+        case_id_code: selectedCaseCodes[0] || null,
+        case_id_codes: selectedCaseCodes,
         prompt_source: promptSource,
-        prompt_id: promptSource === 'custom' && shouldReusePrompt ? promptId : null,
+        prompt_id: null,
         prompt_name: promptName,
         prompt_text: promptSource === 'custom' ? promptText : null,
-        full_name: adminPromptLabUserName?.value?.trim() || null,
+        full_name: fullName,
         role_id: roleId,
-        position: adminPromptLabPosition?.value?.trim() || null,
-        duties: adminPromptLabDuties?.value?.trim() || null,
-        company_industry: adminPromptLabCompanyIndustry?.value?.trim() || null,
+        position: position,
+        duties: duties,
+        company_industry: companyIndustry,
         user_profile: userProfile,
       }),
     });
-    const result = await readApiResponse(response, 'Не удалось сформировать задачи.');
+    const result = await readApiResponse(response, 'Не удалось сформировать кейсы.');
     state.adminPromptLabResult = result;
+    stopAdminPromptLabPolling();
+    state.adminPromptLabProgressStatus = 'ready';
+    state.adminPromptLabProgressPercent = 100;
+    state.adminPromptLabProgressTitle = 'Кейсы готовы';
+    state.adminPromptLabProgressMessage = 'Генерация кейсов завершена.';
     await loadAdminPromptLab();
-    setPromptLabStatus('Задачи сформированы.', 'success');
+    setPromptLabStatus('Кейсы сформированы.', 'success');
     renderAdminPromptLab();
     renderAdminPromptLabResult();
   } catch (error) {
+    stopAdminPromptLabPolling();
+    state.adminPromptLabProgressStatus = 'failed';
+    state.adminPromptLabProgressPercent = 0;
+    state.adminPromptLabProgressTitle = 'Не удалось сформировать кейсы';
+    state.adminPromptLabProgressMessage = error.message || 'Попробуйте запустить генерацию еще раз.';
     setPromptLabStatus(error.message, 'error');
   } finally {
     state.adminPromptLabRunning = false;
@@ -2732,8 +3122,13 @@ const getFilteredAdminMethodologyCases = () => {
       item.title,
       item.case_id_code,
       item.type_code,
+      item.stakeholders_text,
+      item.interactivity_mode,
+      item.recommended_answer_length,
+      item.expected_artifact,
       ...(Array.isArray(item.roles) ? item.roles : []),
       ...(Array.isArray(item.skills) ? item.skills : []),
+      ...(Array.isArray(item.selection_tags) ? item.selection_tags : []),
     ].join(' ').toLowerCase();
     return haystack.includes(query);
   });
@@ -2794,13 +3189,32 @@ const getAdminMethodologyDraftFromDetail = (detail) => ({
   case_status: detail?.case_status || 'draft',
   case_text_status: detail?.case_text_status || 'draft',
   estimated_time_min: Number(detail?.estimated_time_min) || 0,
+  stakeholders_text: detail?.stakeholders_text || '',
+  interactivity_mode: detail?.interactivity_mode || '',
+  recommended_answer_length: detail?.recommended_answer_length || '',
+  selection_tags: Array.isArray(detail?.selection_tags) ? [...detail.selection_tags] : [],
+  role_personalization_rules: detail?.role_personalization_rules || '',
+  format_control_rules: detail?.format_control_rules || '',
+  scoring_aggregation_rules: detail?.scoring_aggregation_rules || '',
+  bad_case_risks: detail?.bad_case_risks || '',
+  generation_notes: detail?.generation_notes || '',
   intro_context: detail?.intro_context || '',
   facts_data: detail?.facts_data || '',
+  participants_roles: detail?.participants_roles || '',
   trigger_event: detail?.trigger_event || '',
   trigger_details: detail?.trigger_details || '',
   task_for_user: detail?.task_for_user || '',
+  expected_artifact: detail?.expected_artifact || '',
+  answer_structure_hint: detail?.answer_structure_hint || '',
   constraints_text: detail?.constraints_text || '',
+  dialog_turns_hint: detail?.dialog_turns_hint || '',
   stakes_text: detail?.stakes_text || '',
+  personalization_options_text: detail?.personalization_options_text || '',
+  difficulty_toggles: detail?.difficulty_toggles || '',
+  evaluation_notes: detail?.evaluation_notes || '',
+  author_name: detail?.author_name || '',
+  reviewer_name: detail?.reviewer_name || '',
+  methodologist_comment: detail?.methodologist_comment || '',
   role_ids: Array.isArray(detail?.selected_role_ids) ? [...detail.selected_role_ids] : [],
   skill_ids: Array.isArray(detail?.selected_skill_ids) ? [...detail.selected_skill_ids] : [],
 });
@@ -2932,8 +3346,8 @@ const collectAdminMethodologyScenarioText = (source) => {
 const collectAdminMethodologyPersonalizationRows = (detail, scenarioText) => {
   const fromText = extractAdminMethodologyPlaceholders(scenarioText);
   const fromStored = extractAdminMethodologyPlaceholders(detail?.personalization_variables || '');
-  const fromDetail = Array.isArray(detail?.personalization_fields)
-    ? detail.personalization_fields.map((item) => normalizePersonalizationCode(item))
+  const fromDetail = Array.isArray(detail?.personalization_items)
+    ? detail.personalization_items.map((item) => normalizePersonalizationCode(item.field_code))
     : [];
   const codes = Array.from(new Set([...fromText, ...fromStored, ...fromDetail])).filter(Boolean);
   return codes.map((code) => {
@@ -3443,6 +3857,118 @@ const renderAdminMethodologyDetail = () => {
         refreshAdminMethodologyScenarioSection(detail, state.adminMethodologyDraft);
       },
     });
+    renderAdminMethodologyEditorField(adminMethodologyDetailStakeholders, 'textarea', {
+      value: draft.stakeholders_text,
+      rows: 3,
+      placeholder: 'Стейкхолдеры кейса',
+      onChange: (value) => { state.adminMethodologyDraft.stakeholders_text = value; },
+    });
+    renderAdminMethodologyEditorField(adminMethodologyDetailParticipants, 'textarea', {
+      value: draft.participants_roles,
+      rows: 3,
+      placeholder: 'Роли и участники',
+      onChange: (value) => { state.adminMethodologyDraft.participants_roles = value; },
+    });
+    renderAdminMethodologyEditorField(adminMethodologyDetailExpectedArtifact, 'textarea', {
+      value: draft.expected_artifact,
+      rows: 2,
+      placeholder: 'Ожидаемый артефакт ответа',
+      onChange: (value) => { state.adminMethodologyDraft.expected_artifact = value; },
+    });
+    renderAdminMethodologyEditorField(adminMethodologyDetailAnswerStructure, 'textarea', {
+      value: draft.answer_structure_hint,
+      rows: 4,
+      placeholder: 'Подсказка по структуре ответа',
+      onChange: (value) => { state.adminMethodologyDraft.answer_structure_hint = value; },
+    });
+    renderAdminMethodologyEditorField(adminMethodologyDetailInteractivity, 'text', {
+      value: draft.interactivity_mode,
+      placeholder: '1 ход / диалог / ...',
+      onChange: (value) => { state.adminMethodologyDraft.interactivity_mode = value; },
+    });
+    renderAdminMethodologyEditorField(adminMethodologyDetailAnswerLength, 'text', {
+      value: draft.recommended_answer_length,
+      placeholder: '5–7 предложений / 8–12 вопросов ...',
+      onChange: (value) => { state.adminMethodologyDraft.recommended_answer_length = value; },
+    });
+    renderAdminMethodologyEditorField(adminMethodologyDetailDialogTurns, 'textarea', {
+      value: draft.dialog_turns_hint,
+      rows: 3,
+      placeholder: 'Уточняющие вопросы / диалоговые ходы',
+      onChange: (value) => { state.adminMethodologyDraft.dialog_turns_hint = value; },
+    });
+    renderAdminMethodologyEditorField(adminMethodologyDetailPersonalizationOptions, 'textarea', {
+      value: draft.personalization_options_text,
+      rows: 3,
+      placeholder: 'Варианты персонализации',
+      onChange: (value) => { state.adminMethodologyDraft.personalization_options_text = value; },
+    });
+    renderAdminMethodologyEditorField(adminMethodologyDetailDifficultyToggles, 'textarea', {
+      value: draft.difficulty_toggles,
+      rows: 3,
+      placeholder: 'Крутилки сложности',
+      onChange: (value) => { state.adminMethodologyDraft.difficulty_toggles = value; },
+    });
+    renderAdminMethodologyEditorField(adminMethodologyDetailSelectionTags, 'textarea', {
+      value: Array.isArray(draft.selection_tags) ? draft.selection_tags.join(', ') : '',
+      rows: 2,
+      placeholder: 'тег1, тег2, тег3',
+      onChange: (value) => {
+        state.adminMethodologyDraft.selection_tags = String(value || '').split(',').map((item) => item.trim()).filter(Boolean);
+      },
+    });
+    renderAdminMethodologyEditorField(adminMethodologyDetailRoleRules, 'textarea', {
+      value: draft.role_personalization_rules,
+      rows: 4,
+      placeholder: 'Ролевые правила персонализации',
+      onChange: (value) => { state.adminMethodologyDraft.role_personalization_rules = value; },
+    });
+    renderAdminMethodologyEditorField(adminMethodologyDetailFormatRules, 'textarea', {
+      value: draft.format_control_rules,
+      rows: 4,
+      placeholder: 'Контроль формата ответа',
+      onChange: (value) => { state.adminMethodologyDraft.format_control_rules = value; },
+    });
+    renderAdminMethodologyEditorField(adminMethodologyDetailScoringRules, 'textarea', {
+      value: draft.scoring_aggregation_rules,
+      rows: 4,
+      placeholder: 'Правила агрегации оценки',
+      onChange: (value) => { state.adminMethodologyDraft.scoring_aggregation_rules = value; },
+    });
+    renderAdminMethodologyEditorField(adminMethodologyDetailBadCaseRisks, 'textarea', {
+      value: draft.bad_case_risks,
+      rows: 4,
+      placeholder: 'Ограничения и риски плохого кейса',
+      onChange: (value) => { state.adminMethodologyDraft.bad_case_risks = value; },
+    });
+    renderAdminMethodologyEditorField(adminMethodologyDetailGenerationNotes, 'textarea', {
+      value: draft.generation_notes,
+      rows: 4,
+      placeholder: 'Примечания для генерации',
+      onChange: (value) => { state.adminMethodologyDraft.generation_notes = value; },
+    });
+    renderAdminMethodologyEditorField(adminMethodologyDetailEvaluationNotes, 'textarea', {
+      value: draft.evaluation_notes,
+      rows: 4,
+      placeholder: 'Заметки для оценивания',
+      onChange: (value) => { state.adminMethodologyDraft.evaluation_notes = value; },
+    });
+    renderAdminMethodologyEditorField(adminMethodologyDetailAuthorName, 'text', {
+      value: draft.author_name,
+      placeholder: 'Автор',
+      onChange: (value) => { state.adminMethodologyDraft.author_name = value; },
+    });
+    renderAdminMethodologyEditorField(adminMethodologyDetailReviewerName, 'text', {
+      value: draft.reviewer_name,
+      placeholder: 'Проверяющий',
+      onChange: (value) => { state.adminMethodologyDraft.reviewer_name = value; },
+    });
+    renderAdminMethodologyEditorField(adminMethodologyDetailMethodologistComment, 'textarea', {
+      value: draft.methodologist_comment,
+      rows: 3,
+      placeholder: 'Комментарий методиста',
+      onChange: (value) => { state.adminMethodologyDraft.methodologist_comment = value; },
+    });
     adminMethodologyDetailFacts.classList.remove('hidden');
     adminMethodologyDetailConstraints.classList.remove('hidden');
     renderAdminMethodologySelectionChips(
@@ -3483,13 +4009,27 @@ const renderAdminMethodologyDetail = () => {
     setDetailNodeMultiline(adminMethodologyDetailFacts, detail.facts_data, 'Дополнительные факты не заданы.', true);
     setDetailNodeMultiline(adminMethodologyDetailTask, detail.task_for_user, 'Задача кейса пока не заполнена.');
     setDetailNodeMultiline(adminMethodologyDetailConstraints, detail.constraints_text, 'Ограничения не заданы.', true);
+    setDetailNodeMultiline(adminMethodologyDetailStakeholders, detail.stakeholders_text, 'Стейкхолдеры не заданы.', true);
+    setDetailNodeMultiline(adminMethodologyDetailParticipants, detail.participants_roles, 'Роли и участники не заданы.', true);
+    setDetailNodeMultiline(adminMethodologyDetailExpectedArtifact, detail.expected_artifact, 'Артефакт ответа не задан.', true);
+    setDetailNodeMultiline(adminMethodologyDetailAnswerStructure, detail.answer_structure_hint, 'Подсказка по структуре ответа не задана.', true);
+    setDetailNodeText(adminMethodologyDetailInteractivity, detail.interactivity_mode, 'Интерактивность не задана');
+    setDetailNodeText(adminMethodologyDetailAnswerLength, detail.recommended_answer_length, 'Длина ответа не задана');
+    setDetailNodeMultiline(adminMethodologyDetailDialogTurns, detail.dialog_turns_hint, 'Диалоговые ходы не заданы.', true);
+    setDetailNodeMultiline(adminMethodologyDetailPersonalizationOptions, detail.personalization_options_text, 'Варианты персонализации не заданы.', true);
+    setDetailNodeMultiline(adminMethodologyDetailDifficultyToggles, detail.difficulty_toggles, 'Крутилки сложности не заданы.', true);
+    setDetailNodeText(adminMethodologyDetailSelectionTags, (detail.selection_tags || []).join(', '), 'Теги не заданы');
+    setDetailNodeMultiline(adminMethodologyDetailRoleRules, detail.role_personalization_rules, 'Ролевые правила не заданы.', true);
+    setDetailNodeMultiline(adminMethodologyDetailFormatRules, detail.format_control_rules, 'Правила формата не заданы.', true);
+    setDetailNodeMultiline(adminMethodologyDetailScoringRules, detail.scoring_aggregation_rules, 'Правила агрегации не заданы.', true);
+    setDetailNodeMultiline(adminMethodologyDetailBadCaseRisks, detail.bad_case_risks, 'Риски плохого кейса не заданы.', true);
+    setDetailNodeMultiline(adminMethodologyDetailGenerationNotes, detail.generation_notes, 'Примечания для генерации не заданы.', true);
+    setDetailNodeMultiline(adminMethodologyDetailEvaluationNotes, detail.evaluation_notes, 'Заметки для оценивания не заданы.', true);
+    setDetailNodeText(adminMethodologyDetailAuthorName, detail.author_name, 'Автор не указан');
+    setDetailNodeText(adminMethodologyDetailReviewerName, detail.reviewer_name, 'Проверяющий не указан');
+    setDetailNodeMultiline(adminMethodologyDetailMethodologistComment, detail.methodologist_comment, 'Комментарий методиста не задан.', true);
     renderMethodologyChips(adminMethodologyDetailRoles, detail.roles, 'Роли не заданы');
     renderMethodologyChips(adminMethodologyDetailSkills, detail.skills, 'Навыки не заданы');
-  }
-
-  renderMethodologyChips(adminMethodologyDetailPersonalization, detail.personalization_fields, 'Персонализация не задана', 'muted');
-  if (adminMethodologyDetailPersonalization && adminMethodologyDetailPersonalization.parentElement) {
-    adminMethodologyDetailPersonalization.parentElement.classList.add('hidden');
   }
 
   adminMethodologyDetailBlocks.innerHTML = '';
@@ -3810,9 +4350,22 @@ const renderAdminMethodology = () => {
       row.setAttribute('role', 'button');
       const statusLabel = item.status === 'ready' ? 'Активен' : item.status === 'retired' ? 'Архив' : 'Черновик';
       const qaLabel = item.qa_ready ? 'QA готов' : 'Нужна проверка';
+      const metadataParts = [
+        item.interactivity_mode ? 'Формат: ' + item.interactivity_mode : '',
+        item.recommended_answer_length ? 'Длина: ' + item.recommended_answer_length : '',
+        item.expected_artifact ? 'Артефакт: ' + item.expected_artifact : '',
+      ].filter(Boolean);
+      const tagsHtml = Array.isArray(item.selection_tags) && item.selection_tags.length
+        ? '<div class="admin-methodology-inline-tags">' + item.selection_tags.slice(0, 3).map((tag) => '<span class="admin-methodology-inline-tag">' + escapeHtml(tag) + '</span>').join('') + '</div>'
+        : '';
+      const metaHtml = metadataParts.length
+        ? '<small class="admin-methodology-row-meta">' + metadataParts.join(' · ') + '</small>'
+        : '';
       row.innerHTML =
         '<div class="admin-report-cell admin-methodology-title-cell">' +
           '<strong>' + item.title + '</strong>' +
+          metaHtml +
+          tagsHtml +
         '</div>' +
         '<div class="admin-report-cell admin-methodology-id-cell"><span>' + item.case_id_code + '</span></div>' +
         '<div class="admin-report-cell"><strong>' + ((item.roles || []).join(', ') || 'Не заданы') + '</strong></div>' +
@@ -3855,6 +4408,13 @@ const renderAdminMethodology = () => {
     const card = document.createElement('article');
     card.className = 'admin-methodology-passport-card';
     const rolesText = Array.isArray(item.roles) && item.roles.length ? item.roles.join(', ') : 'Роли не заданы';
+    const passportMeta = [
+      item.interactivity_mode ? 'Формат: ' + item.interactivity_mode : '',
+      item.recommended_answer_length ? 'Длина: ' + item.recommended_answer_length : '',
+    ].filter(Boolean);
+    const passportTagsHtml = Array.isArray(item.selection_tags) && item.selection_tags.length
+      ? '<div class="admin-methodology-inline-tags">' + item.selection_tags.slice(0, 3).map((tag) => '<span class="admin-methodology-inline-tag">' + escapeHtml(tag) + '</span>').join('') + '</div>'
+      : '';
     card.innerHTML =
       '<div class="admin-methodology-passport-head">' +
         '<strong>' + item.type_code + '</strong>' +
@@ -3862,6 +4422,8 @@ const renderAdminMethodology = () => {
       '</div>' +
       '<h4>' + item.type_name + '</h4>' +
       '<p>' + item.artifact_name + '</p>' +
+      (passportMeta.length ? '<small class="admin-methodology-row-meta">' + passportMeta.join(' · ') + '</small>' : '') +
+      passportTagsHtml +
       '<div class="admin-methodology-passport-meta">' +
         '<span>' + item.ready_cases_count + ' кейсов ready</span>' +
         '<span>' + item.required_blocks_count + ' блока</span>' +
@@ -5340,17 +5902,16 @@ const openAdminPromptLab = async () => {
   if (adminPromptLabPanel) {
     adminPromptLabPanel.classList.remove('hidden');
   }
+  state.adminPromptLabResult = null;
+  state.adminPromptLabPreviewResult = null;
   if (adminPromptLabResult && !state.adminPromptLabResult) {
     adminPromptLabResult.innerHTML = '<p class="report-empty-state">Загружаем Prompt Lab...</p>';
   }
   try {
     await loadAdminPromptLab();
     renderAdminPromptLab();
-    if (state.adminPromptLabResult) {
-      renderAdminPromptLabResult();
-    } else if (adminPromptLabResult) {
-      adminPromptLabResult.innerHTML = '<p class="report-empty-state">Сформируйте задачи, чтобы увидеть персонализированные кейсы.</p>';
-    }
+    await loadPromptLabSystemCasePreview();
+    renderAdminPromptLabResult();
   } catch (error) {
     if (adminPromptLabResult) {
       adminPromptLabResult.innerHTML = '<p class="report-empty-state">' + escapeHtml(error.message) + '</p>';
@@ -7407,6 +7968,33 @@ const clearInterviewTimer = () => {
   state.assessmentTimeoutInFlight = false;
 };
 
+const pauseAssessmentTimerIfNeeded = async () => {
+  if (
+    !state.assessmentSessionCode
+    || state.assessmentPauseInFlight
+    || state.assessmentTimeoutInFlight
+    || !state.activeInterviewCaseKey
+  ) {
+    return;
+  }
+  state.assessmentPauseInFlight = true;
+  try {
+    await fetch('/users/assessment/pause', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        session_code: state.assessmentSessionCode,
+      }),
+    });
+  } catch (_error) {
+    // keep timer pause best-effort when leaving the interview screen
+  } finally {
+    state.assessmentPauseInFlight = false;
+  }
+};
+
 const getRemainingCaseTimeMs = () => {
   if (typeof state.assessmentRemainingSeconds === 'number') {
     return Math.max(0, state.assessmentRemainingSeconds * 1000);
@@ -7836,27 +8424,94 @@ if (adminPromptLabBackButton) {
   });
 }
 
-if (adminPromptLabPromptSelect) {
-  adminPromptLabPromptSelect.addEventListener('change', () => {
-    const selectedPrompt = getSelectedPromptLabPrompt();
-    if (adminPromptLabPromptName) {
-      adminPromptLabPromptName.value = selectedPrompt?.name || 'Case prompt experiment';
-    }
-    if (adminPromptLabPromptText) {
-      adminPromptLabPromptText.value = selectedPrompt?.prompt_text || defaultPromptLabPrompt;
-    }
-  });
-}
-
 if (adminPromptLabSourceSelect) {
   adminPromptLabSourceSelect.addEventListener('change', () => {
     syncPromptLabPromptSource();
   });
 }
 
+if (adminPromptLabPromptText) {
+  adminPromptLabPromptText.addEventListener('input', () => {
+    if ((adminPromptLabSourceSelect?.value || 'file') !== 'file') {
+      promptLabCustomPromptDirty = true;
+    }
+  });
+}
+
+if (adminPromptLabPromptName) {
+  adminPromptLabPromptName.addEventListener('input', () => {
+    if ((adminPromptLabSourceSelect?.value || 'file') !== 'file') {
+      promptLabCustomPromptDirty = true;
+    }
+  });
+}
+
 if (adminPromptLabUserSelect) {
   adminPromptLabUserSelect.addEventListener('change', () => {
     fillPromptLabProfileFromUser(getSelectedPromptLabUser());
+    state.adminPromptLabResult = null;
+    void (async () => {
+      try {
+        await loadPromptLabSystemCasePreview();
+        renderAdminPromptLabResult();
+      } catch (error) {
+        setPromptLabStatus(error.message || 'Не удалось загрузить кейс из системы.', 'error');
+      }
+    })();
+  });
+}
+
+[adminPromptLabUserName, adminPromptLabRoleSelect, adminPromptLabPosition, adminPromptLabCompanyIndustry, adminPromptLabDuties, adminPromptLabProfileJson]
+  .filter(Boolean)
+  .forEach((node) => {
+    node.addEventListener('input', () => {
+      promptLabProfileDirty = true;
+    });
+    node.addEventListener('change', () => {
+      promptLabProfileDirty = true;
+    });
+  });
+
+if (adminPromptLabCaseSelect) {
+  adminPromptLabCaseSelect.addEventListener('change', () => {
+    syncPromptLabCasePickerSummary();
+    state.adminPromptLabResult = null;
+    void (async () => {
+      try {
+        await loadPromptLabSystemCasePreview();
+        renderAdminPromptLabResult();
+      } catch (error) {
+        setPromptLabStatus(error.message || 'Не удалось загрузить кейс из системы.', 'error');
+      }
+    })();
+  });
+}
+
+if (adminPromptLabCasePickerButton) {
+  adminPromptLabCasePickerButton.addEventListener('click', () => {
+    renderPromptLabCaseDialog();
+    adminPromptLabCaseDialog?.showModal();
+  });
+}
+
+if (adminPromptLabCaseDialogList) {
+  adminPromptLabCaseDialogList.addEventListener('change', () => {
+    syncPromptLabCaseSelectionFromDialog();
+  });
+}
+
+if (adminPromptLabCaseDialog) {
+  adminPromptLabCaseDialog.addEventListener('close', () => {
+    syncPromptLabCaseSelectionFromDialog();
+    state.adminPromptLabResult = null;
+    void (async () => {
+      try {
+        await loadPromptLabSystemCasePreview();
+        renderAdminPromptLabResult();
+      } catch (error) {
+        setPromptLabStatus(error.message || 'Не удалось загрузить кейс из системы.', 'error');
+      }
+    })();
   });
 }
 

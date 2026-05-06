@@ -409,8 +409,10 @@ class DeepSeekClient:
             method="POST",
         )
         try:
-            with request.urlopen(req, timeout=12) as response:
+            with request.urlopen(req, timeout=120) as response:
                 body = json.loads(response.read().decode("utf-8"))
+        except TimeoutError as exc:
+            raise RuntimeError("DeepSeek request timed out") from exc
         except error.URLError as exc:
             raise RuntimeError(f"DeepSeek request failed: {exc}") from exc
 
@@ -6706,6 +6708,7 @@ class DeepSeekClient:
             source_task = str(case_task or "") or raw_template_task
             rewritten_context, rewritten_task = self._rewrite_user_case_materials_with_llm(
                 case_title=case_title,
+                case_type_code=case_type_code,
                 case_context=source_context,
                 case_task=source_task,
                 role_name=role_name,
@@ -6714,7 +6717,6 @@ class DeepSeekClient:
                 duties=duties,
                 company_industry=company_industry,
                 user_profile=user_profile,
-                case_specificity=case_specificity,
             )
             return rewritten_context, rewritten_task
 
@@ -10128,6 +10130,7 @@ class DeepSeekClient:
         base_variant_text: str | None = None,
         hard_variant_text: str | None = None,
         personalization_variables: str | None = None,
+        instruction_text_override: str | None = None,
     ) -> tuple[str, str]:
         if not self.enabled:
             return case_context, case_task
@@ -10155,7 +10158,7 @@ class DeepSeekClient:
             user_profile=user_profile,
         )
         instruction = self._get_case_text_build_instruction(case_type_code)
-        instruction_text = str((instruction or {}).get("instruction_text") or "").strip()
+        instruction_text = str(instruction_text_override or "").strip() or str((instruction or {}).get("instruction_text") or "").strip()
         if not instruction_text:
             return case_context, case_task
 
@@ -10279,7 +10282,6 @@ class DeepSeekClient:
     def _is_blocking_case_issue(self, issue: str) -> bool:
         lowered = str(issue or "").lower()
         blocking_markers = (
-            "протекло слишком шаблонное название кейса",
             "масштаб роли в ситуации занижен",
         )
         return any(marker in lowered for marker in blocking_markers)

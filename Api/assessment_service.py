@@ -991,6 +991,12 @@ class AssessmentService:
                     cr.title,
                     txt.intro_context,
                     txt.task_for_user,
+                    txt.facts_data,
+                    txt.trigger_details,
+                    txt.constraints_text,
+                    txt.stakes_text,
+                    txt.base_variant_text,
+                    txt.hard_variant_text,
                     cr.context_domain AS domain_context,
                     txt.personalization_variables,
                     cr.estimated_time_min AS estimated_minutes,
@@ -1014,6 +1020,12 @@ class AssessmentService:
                     cr.title,
                     txt.intro_context,
                     txt.task_for_user,
+                    txt.facts_data,
+                    txt.trigger_details,
+                    txt.constraints_text,
+                    txt.stakes_text,
+                    txt.base_variant_text,
+                    txt.hard_variant_text,
                     cr.context_domain,
                     txt.personalization_variables,
                     cr.estimated_time_min
@@ -1056,70 +1068,40 @@ class AssessmentService:
             base_context = case_row["intro_context"] or case_row["domain_context"] or ""
             base_task = case_row["task_for_user"] or ""
 
-            case_specificity = deepseek_client.generate_case_specificity(
-                position=effective_position,
-                duties=effective_duties,
-                company_industry=effective_company_industry,
-                role_name=role_name,
-                user_profile=user_profile,
-                case_type_code=case_row["type_code"],
-                case_title=case_row["title"],
-                case_context=base_context,
-                case_task=base_task,
-            )
-            personalization_map, personalized_context, personalized_task = deepseek_client.build_personalized_case_materials(
-                full_name=effective_full_name,
-                position=effective_position,
-                duties=effective_duties,
-                company_industry=effective_company_industry,
-                role_name=role_name,
-                user_profile=user_profile,
-                case_type_code=case_row["type_code"],
-                case_title=case_row["title"],
-                case_context=base_context,
-                case_task=base_task,
-                planned_total_duration_min=planned_total_duration_min,
-                personalization_variables=case_row["personalization_variables"],
-                case_specificity=case_specificity,
-            )
-            personalized_context, personalized_task = deepseek_client.enforce_user_case_quality(
-                case_type_code=case_row["type_code"],
-                case_title=case_row["title"],
-                case_context=personalized_context,
-                case_task=personalized_task,
-                role_name=role_name,
-                company_industry=effective_company_industry,
-                case_specificity=case_specificity,
-                existing_contexts=[],
-            )
+            effective_instruction_text = str(case_generation_system_prompt or "").strip() or str(
+                (deepseek_client._get_case_text_build_instruction(case_row["type_code"]) or {}).get("instruction_text") or ""
+            ).strip()
             skill_names = [name for name in (case_row["skill_names"] or []) if name]
-            prompt_text = deepseek_client.generate_case_prompt(
+            personalized_context, personalized_task = deepseek_client._rewrite_user_case_materials_with_llm(
+                case_id_code=case_row.get("case_code"),
+                case_title=case_row["title"],
+                case_type_code=case_row["type_code"],
+                case_context=base_context,
+                case_task=base_task,
+                role_name=role_name,
                 full_name=effective_full_name,
                 position=effective_position,
                 duties=effective_duties,
                 company_industry=effective_company_industry,
-                role_name=role_name,
                 user_profile=user_profile,
-                case_type_code=case_row["type_code"],
-                case_title=case_row["title"],
-                case_context=personalized_context,
-                case_task=personalized_task,
-                case_skills=skill_names,
-                case_artifact_name=methodical_context["artifact_name"],
-                case_artifact_description=methodical_context["artifact_description"],
-                case_required_response_blocks=methodical_context["required_response_blocks"],
-                case_skill_evidence=methodical_context["skill_evidence"],
-                case_difficulty_modifiers=methodical_context["difficulty_modifiers"],
-                planned_total_duration_min=planned_total_duration_min,
-                personalization_variables=case_row["personalization_variables"],
-                personalization_map=personalization_map,
-                case_specificity=case_specificity,
-                case_generation_system_prompt=case_generation_system_prompt,
+                facts_data=case_row.get("facts_data"),
+                trigger_details=case_row.get("trigger_details"),
+                constraints_text=case_row.get("constraints_text"),
+                stakes_text=case_row.get("stakes_text"),
+                base_variant_text=case_row.get("base_variant_text"),
+                hard_variant_text=case_row.get("hard_variant_text"),
+                personalization_variables=case_row.get("personalization_variables"),
+                instruction_text_override=effective_instruction_text,
             )
             opening_message = deepseek_client.build_opening_message(
                 case_title=case_row["title"] or "",
                 case_context=personalized_context,
                 case_task=personalized_task,
+            )
+            system_personalized_context, system_personalized_task = self._get_latest_system_personalized_case(
+                connection,
+                user_id=user_id,
+                case_id_code=case_id_code,
             )
 
         return {
@@ -1142,12 +1124,14 @@ class AssessmentService:
             },
             "base_context": base_context,
             "base_task": base_task,
-            "case_specificity": case_specificity,
-            "personalization_map": personalization_map,
+            "case_specificity": {},
+            "personalization_map": {},
             "personalized_context": personalized_context,
             "personalized_task": personalized_task,
+            "system_personalized_context": system_personalized_context,
+            "system_personalized_task": system_personalized_task,
             "opening_message": opening_message,
-            "system_prompt": prompt_text,
+            "system_prompt": effective_instruction_text,
             "methodical_context": methodical_context,
         }
 
@@ -1210,6 +1194,64 @@ class AssessmentService:
                 case_generation_system_prompt=case_generation_system_prompt,
                 full_name=full_name,
                 role_id=effective_role_id,
+                position=position,
+                duties=duties,
+                company_industry=company_industry,
+                user_profile_override=user_profile_override,
+            )
+            item["case_number"] = index
+            case_items.append(item)
+
+        first_item = case_items[0]
+        return {
+            **first_item,
+            "case": {
+                **first_item["case"],
+                "total_cases": len(case_items),
+            },
+            "case_items": case_items,
+            "total_cases": len(case_items),
+        }
+
+    def preview_personalized_case_batch(
+        self,
+        *,
+        user_id: int,
+        case_id_codes: list[str],
+        case_generation_system_prompt: str | None = None,
+        full_name: str | None = None,
+        role_id: int | None = None,
+        position: str | None = None,
+        duties: str | None = None,
+        company_industry: str | None = None,
+        user_profile_override: dict | None = None,
+        progress_operation_id: str | None = None,
+    ) -> dict:
+        normalized_case_codes: list[str] = []
+        seen_case_codes: set[str] = set()
+        for raw_code in case_id_codes:
+            case_code = str(raw_code or "").strip()
+            if not case_code or case_code in seen_case_codes:
+                continue
+            normalized_case_codes.append(case_code)
+            seen_case_codes.add(case_code)
+        if not normalized_case_codes:
+            raise ValueError("At least one case must be selected")
+
+        case_items = []
+        for index, case_code in enumerate(normalized_case_codes, start=1):
+            operation_progress_service.advance(
+                progress_operation_id,
+                index,
+                title="Формируем кейсы",
+                message=f"Генерируем кейс {index} из {len(normalized_case_codes)}: {case_code}",
+            )
+            item = self.preview_personalized_case(
+                user_id=user_id,
+                case_id_code=case_code,
+                case_generation_system_prompt=case_generation_system_prompt,
+                full_name=full_name,
+                role_id=role_id,
                 position=position,
                 duties=duties,
                 company_industry=company_industry,
@@ -1334,6 +1376,33 @@ class AssessmentService:
             ],
         }
 
+    def _get_latest_system_personalized_case(
+        self,
+        connection,
+        *,
+        user_id: int,
+        case_id_code: str,
+    ) -> tuple[str | None, str | None]:
+        prompt_row = connection.execute(
+            """
+            SELECT sp.user_prompt
+            FROM session_prompts sp
+            JOIN session_cases sc ON sc.id = sp.session_case_id
+            JOIN user_sessions us ON us.id = sp.session_id
+            JOIN cases_registry cr ON cr.id = sc.case_registry_id
+            WHERE us.user_id = %s
+              AND sp.prompt_type = 'case_dialog'
+              AND cr.case_id_code = %s
+            ORDER BY sp.id DESC
+            LIMIT 1
+            """,
+            (user_id, case_id_code),
+        ).fetchone()
+        if prompt_row is None:
+            return None, None
+        context_text, task_text = deepseek_client.split_user_case_message(str(prompt_row["user_prompt"] or ""))
+        return context_text or None, task_text or None
+
     def open_assessment_dialogue(self, session_code: str) -> AssessmentTurnReply:
         with get_connection() as connection:
             session_row = connection.execute(
@@ -1367,6 +1436,20 @@ class AssessmentService:
                 case_started_at=None,
                 case_time_remaining_seconds=None,
                 )
+            resumed_started_at = self._resume_case_timer(connection, plan.current_session_case_id)
+            if resumed_started_at is not None and resumed_started_at != plan.current_case_started_at:
+                plan = AssessmentSessionPlan(
+                    session_id=plan.session_id,
+                    session_code=plan.session_code,
+                    current_session_case_id=plan.current_session_case_id,
+                    current_case_title=plan.current_case_title,
+                    current_case_number=plan.current_case_number,
+                    total_cases=plan.total_cases,
+                    current_case_time_limit_minutes=plan.current_case_time_limit_minutes,
+                    current_case_planned_duration_minutes=plan.current_case_planned_duration_minutes,
+                    current_case_started_at=resumed_started_at,
+                    opening_message=plan.opening_message,
+                )
             history_fields = self._get_session_case_history_fields(connection, plan.current_session_case_id)
 
             user_turn_count = self._get_case_user_turn_count(connection, plan.current_session_case_id)
@@ -1380,6 +1463,7 @@ class AssessmentService:
                     """
                     UPDATE session_cases
                     SET started_at = %s,
+                        paused_remaining_seconds = NULL,
                         status = CASE WHEN status IN ('selected', 'sent_to_personalization', 'personalized') THEN 'shown' ELSE status END
                     WHERE id = %s
                     RETURNING started_at
@@ -1418,6 +1502,7 @@ class AssessmentService:
                         """
                         UPDATE session_cases
                         SET started_at = COALESCE(started_at, %s),
+                            paused_remaining_seconds = NULL,
                             status = CASE WHEN status IN ('selected', 'sent_to_personalization', 'personalized') THEN 'shown' ELSE status END
                         WHERE id = %s
                         RETURNING started_at
@@ -1474,7 +1559,8 @@ class AssessmentService:
                 """
                 UPDATE session_cases
                 SET status = 'shown',
-                    started_at = COALESCE(started_at, %s)
+                    started_at = COALESCE(started_at, %s),
+                    paused_remaining_seconds = NULL
                 WHERE id = %s
                 RETURNING started_at
                 """,
@@ -1530,6 +1616,20 @@ class AssessmentService:
             plan = self._build_plan(connection, session_row["id"], session_code)
             if plan.current_session_case_id is None or plan.current_case_title is None:
                 raise ValueError("No active case found for this session")
+            resumed_started_at = self._resume_case_timer(connection, plan.current_session_case_id)
+            if resumed_started_at is not None and resumed_started_at != plan.current_case_started_at:
+                plan = AssessmentSessionPlan(
+                    session_id=plan.session_id,
+                    session_code=plan.session_code,
+                    current_session_case_id=plan.current_session_case_id,
+                    current_case_title=plan.current_case_title,
+                    current_case_number=plan.current_case_number,
+                    total_cases=plan.total_cases,
+                    current_case_time_limit_minutes=plan.current_case_time_limit_minutes,
+                    current_case_planned_duration_minutes=plan.current_case_planned_duration_minutes,
+                    current_case_started_at=resumed_started_at,
+                    opening_message=plan.opening_message,
+                )
             history_fields = self._get_session_case_history_fields(connection, plan.current_session_case_id)
 
             case_meta = connection.execute(
@@ -1554,6 +1654,7 @@ class AssessmentService:
                     """
                     UPDATE session_cases
                     SET started_at = %s,
+                        paused_remaining_seconds = NULL,
                         status = CASE WHEN status IN ('selected', 'sent_to_personalization', 'personalized') THEN 'shown' ELSE status END
                     WHERE id = %s
                     RETURNING started_at
@@ -1813,7 +1914,8 @@ class AssessmentService:
             """
             UPDATE session_cases
             SET status = 'shown',
-                started_at = COALESCE(started_at, %s)
+                started_at = COALESCE(started_at, %s),
+                paused_remaining_seconds = NULL
             WHERE id = %s
             RETURNING started_at
             """,
@@ -2130,6 +2232,86 @@ class AssessmentService:
             return None
         remaining = int((started_at + timedelta(minutes=estimated_minutes) - self._utc_now()).total_seconds())
         return max(0, remaining)
+
+    def _pause_case_timer(self, connection, session_case_id: int) -> int | None:
+        row = connection.execute(
+            """
+            SELECT sc.started_at, sc.paused_remaining_seconds, cr.estimated_time_min AS estimated_minutes
+            FROM session_cases sc
+            JOIN cases_registry cr ON cr.id = sc.case_registry_id
+            WHERE sc.id = %s
+            LIMIT 1
+            """,
+            (session_case_id,),
+        ).fetchone()
+        if row is None:
+            return None
+        if row["paused_remaining_seconds"] is not None:
+            return int(row["paused_remaining_seconds"])
+        remaining = self._get_remaining_case_seconds(row["started_at"], row["estimated_minutes"])
+        if remaining is None:
+            return None
+        connection.execute(
+            """
+            UPDATE session_cases
+            SET paused_remaining_seconds = %s
+            WHERE id = %s
+            """,
+            (remaining, session_case_id),
+        )
+        return remaining
+
+    def _resume_case_timer(self, connection, session_case_id: int) -> datetime | None:
+        row = connection.execute(
+            """
+            SELECT sc.started_at, sc.paused_remaining_seconds, cr.estimated_time_min AS estimated_minutes
+            FROM session_cases sc
+            JOIN cases_registry cr ON cr.id = sc.case_registry_id
+            WHERE sc.id = %s
+            LIMIT 1
+            """,
+            (session_case_id,),
+        ).fetchone()
+        if row is None:
+            return None
+        paused_remaining_seconds = row["paused_remaining_seconds"]
+        estimated_minutes = row["estimated_minutes"]
+        if paused_remaining_seconds is None or not estimated_minutes:
+            return row["started_at"]
+        total_seconds = max(0, int(estimated_minutes) * 60)
+        elapsed_seconds = max(0, total_seconds - int(paused_remaining_seconds))
+        resumed_started_at = self._utc_now() - timedelta(seconds=elapsed_seconds)
+        updated = connection.execute(
+            """
+            UPDATE session_cases
+            SET started_at = %s,
+                paused_remaining_seconds = NULL
+            WHERE id = %s
+            RETURNING started_at
+            """,
+            (resumed_started_at, session_case_id),
+        ).fetchone()
+        return updated["started_at"] if updated else resumed_started_at
+
+    def pause_assessment_dialogue(self, session_code: str) -> None:
+        with get_connection() as connection:
+            session_row = connection.execute(
+                """
+                SELECT id
+                FROM user_sessions
+                WHERE session_code = %s
+                  AND assessment_code = 'competencies_4k'
+                LIMIT 1
+                """,
+                (session_code,),
+            ).fetchone()
+            if session_row is None:
+                raise ValueError("Assessment session not found")
+            plan = self._build_plan(connection, session_row["id"], session_code)
+            if plan.current_session_case_id is None:
+                return
+            self._pause_case_timer(connection, plan.current_session_case_id)
+            connection.commit()
 
     def _enrich_candidate_case_pool_with_history(self, *, connection, user_id: int, candidate_rows) -> list[dict]:
         history_rows = connection.execute(

@@ -52,6 +52,7 @@ from Api.schemas import (
     PromptLabCaseOption,
     PromptLabCaseRunRequest,
     PromptLabCaseRunResponse,
+    PromptLabSystemCasePreviewResponse,
     PromptLabCaseRunSummary,
     PromptLabDashboard,
     PromptLabPromptCreateRequest,
@@ -61,6 +62,7 @@ from Api.schemas import (
     AgentReply,
     AssessmentMessageRequest,
     AssessmentMessageResponse,
+    AssessmentTimerControlRequest,
     AssessmentSessionLookupResponse,
     AssessmentCard,
     AssessmentReportInterpretationResponse,
@@ -1310,6 +1312,9 @@ def _build_admin_methodology(connection) -> AdminMethodologyResponse:
             ctp.type_name,
             ctp.status,
             cra.artifact_name,
+            ctp.interactivity_mode,
+            ctp.recommended_answer_length,
+            ctp.selection_tags,
             COUNT(DISTINCT cr.id) FILTER (WHERE cr.status = 'ready')::int AS ready_cases_count,
             COUNT(DISTINCT crrb.id)::int AS required_blocks_count,
             COUNT(DISTINCT ctrf.id)::int AS red_flags_count,
@@ -1321,7 +1326,7 @@ def _build_admin_methodology(connection) -> AdminMethodologyResponse:
         LEFT JOIN case_type_red_flags ctrf ON ctrf.case_type_passport_id = ctp.id AND ctrf.is_active = TRUE
         LEFT JOIN case_registry_roles crr ON crr.cases_registry_id = cr.id
         LEFT JOIN roles r ON r.id = crr.role_id
-        GROUP BY ctp.id, ctp.type_code, ctp.type_name, ctp.status, cra.artifact_name
+        GROUP BY ctp.id, ctp.type_code, ctp.type_name, ctp.status, cra.artifact_name, ctp.interactivity_mode, ctp.recommended_answer_length, ctp.selection_tags
         ORDER BY ctp.type_code ASC
         """
     ).fetchall()
@@ -1336,6 +1341,11 @@ def _build_admin_methodology(connection) -> AdminMethodologyResponse:
             cr.status,
             cr.difficulty_level,
             cr.estimated_time_min,
+            cr.stakeholders_text,
+            ctp.interactivity_mode,
+            ctp.recommended_answer_length,
+            txt.expected_artifact,
+            ctp.selection_tags,
             COUNT(DISTINCT cqc.id) FILTER (WHERE cqc.passed)::int AS passed_checks,
             COUNT(DISTINCT cqc.id)::int AS total_checks,
             ARRAY_REMOVE(
@@ -1350,8 +1360,21 @@ def _build_admin_methodology(connection) -> AdminMethodologyResponse:
         LEFT JOIN roles r ON r.id = crr.role_id
         LEFT JOIN case_registry_skills crs ON crs.cases_registry_id = cr.id
         LEFT JOIN skills s ON s.id = crs.skill_id
+        LEFT JOIN case_texts txt ON txt.cases_registry_id = cr.id
         LEFT JOIN case_quality_checks cqc ON cqc.cases_registry_id = cr.id
-        GROUP BY cr.id, cr.case_id_code, cr.title, ctp.type_code, cr.status, cr.difficulty_level, cr.estimated_time_min
+        GROUP BY
+            cr.id,
+            cr.case_id_code,
+            cr.title,
+            ctp.type_code,
+            cr.status,
+            cr.difficulty_level,
+            cr.estimated_time_min,
+            cr.stakeholders_text,
+            ctp.interactivity_mode,
+            ctp.recommended_answer_length,
+            txt.expected_artifact,
+            ctp.selection_tags
         ORDER BY cr.updated_at DESC NULLS LAST, cr.id DESC
         """
     ).fetchall()
@@ -1603,6 +1626,11 @@ def _build_admin_methodology(connection) -> AdminMethodologyResponse:
                 estimated_time_min=int(row["estimated_time_min"]) if row["estimated_time_min"] is not None else None,
                 roles=[str(item) for item in (row["role_names"] or []) if item],
                 skills=[str(item) for item in (row["skill_names"] or []) if item],
+                stakeholders_text=row["stakeholders_text"],
+                interactivity_mode=row["interactivity_mode"],
+                recommended_answer_length=row["recommended_answer_length"],
+                expected_artifact=row["expected_artifact"],
+                selection_tags=[str(item) for item in (row["selection_tags"] or []) if item],
                 qa_ready=qa_ready,
                 passed_checks=passed_checks,
                 total_checks=total_checks,
@@ -1620,6 +1648,9 @@ def _build_admin_methodology(connection) -> AdminMethodologyResponse:
             required_blocks_count=int(row["required_blocks_count"] or 0),
             red_flags_count=int(row["red_flags_count"] or 0),
             roles=[str(item) for item in (row["role_names"] or []) if item],
+            interactivity_mode=row["interactivity_mode"],
+            recommended_answer_length=row["recommended_answer_length"],
+            selection_tags=[str(item) for item in (row["selection_tags"] or []) if item],
         )
         for row in passports_rows
     ]
@@ -1709,6 +1740,15 @@ def _build_admin_methodology_case_detail(connection, case_id_code: str) -> Admin
             ctp.type_name,
             cra.artifact_name,
             cra.description AS artifact_description,
+            cr.stakeholders_text,
+            ctp.interactivity_mode,
+            ctp.recommended_answer_length,
+            ctp.selection_tags,
+            ctp.role_personalization_rules,
+            ctp.format_control_rules,
+            ctp.scoring_aggregation_rules,
+            ctp.bad_case_risks,
+            ctp.generation_notes,
             ctp.status AS passport_status,
             cr.status AS case_status,
             txt.status AS case_text_status,
@@ -1718,11 +1758,21 @@ def _build_admin_methodology_case_detail(connection, case_id_code: str) -> Admin
             cr.trigger_event,
             txt.intro_context,
             txt.facts_data,
+            txt.participants_roles,
             txt.trigger_details,
             txt.task_for_user,
+            txt.expected_artifact,
+            txt.answer_structure_hint,
             txt.constraints_text,
+            txt.dialog_turns_hint,
             txt.stakes_text,
             txt.personalization_variables,
+            txt.personalization_options,
+            txt.difficulty_toggles,
+            txt.evaluation_notes,
+            txt.author_name,
+            txt.reviewer_name,
+            txt.methodologist_comment,
             ARRAY_REMOVE(ARRAY_AGG(DISTINCT r.id ORDER BY r.id), NULL) AS role_ids,
             ARRAY_REMOVE(ARRAY_AGG(DISTINCT r.name ORDER BY r.name), NULL) AS role_names,
             ARRAY_REMOVE(ARRAY_AGG(DISTINCT s.id ORDER BY s.id), NULL) AS skill_ids,
@@ -1744,6 +1794,15 @@ def _build_admin_methodology_case_detail(connection, case_id_code: str) -> Admin
             ctp.type_name,
             cra.artifact_name,
             cra.description,
+            cr.stakeholders_text,
+            ctp.interactivity_mode,
+            ctp.recommended_answer_length,
+            ctp.selection_tags,
+            ctp.role_personalization_rules,
+            ctp.format_control_rules,
+            ctp.scoring_aggregation_rules,
+            ctp.bad_case_risks,
+            ctp.generation_notes,
             ctp.status,
             txt.status,
             cr.status,
@@ -1752,11 +1811,21 @@ def _build_admin_methodology_case_detail(connection, case_id_code: str) -> Admin
             cr.trigger_event,
             txt.intro_context,
             txt.facts_data,
+            txt.participants_roles,
             txt.trigger_details,
             txt.task_for_user,
+            txt.expected_artifact,
+            txt.answer_structure_hint,
             txt.constraints_text,
+            txt.dialog_turns_hint,
             txt.stakes_text,
-            txt.personalization_variables
+            txt.personalization_variables,
+            txt.personalization_options,
+            txt.difficulty_toggles,
+            txt.evaluation_notes,
+            txt.author_name,
+            txt.reviewer_name,
+            txt.methodologist_comment
         LIMIT 1
         """,
         (case_id_code,),
@@ -1901,6 +1970,15 @@ def _build_admin_methodology_case_detail(connection, case_id_code: str) -> Admin
         type_name=case_row["type_name"] or "Тип не указан",
         artifact_name=case_row["artifact_name"] or "Артефакт не указан",
         artifact_description=case_row["artifact_description"],
+        stakeholders_text=case_row["stakeholders_text"],
+        interactivity_mode=case_row["interactivity_mode"],
+        recommended_answer_length=case_row["recommended_answer_length"],
+        selection_tags=[str(item) for item in (case_row["selection_tags"] or []) if item],
+        role_personalization_rules=case_row["role_personalization_rules"],
+        format_control_rules=case_row["format_control_rules"],
+        scoring_aggregation_rules=case_row["scoring_aggregation_rules"],
+        bad_case_risks=case_row["bad_case_risks"],
+        generation_notes=case_row["generation_notes"],
         passport_status=case_row["passport_status"] or "draft",
         case_status=case_row["case_status"] or "draft",
         case_text_status=case_row["case_text_status"] or "draft",
@@ -1911,13 +1989,30 @@ def _build_admin_methodology_case_detail(connection, case_id_code: str) -> Admin
         skills=[str(item) for item in (case_row["skill_names"] or []) if item],
         intro_context=case_row["intro_context"],
         facts_data=case_row["facts_data"],
+        participants_roles=case_row["participants_roles"],
         trigger_event=case_row["trigger_event"],
         trigger_details=case_row["trigger_details"],
         task_for_user=case_row["task_for_user"],
+        expected_artifact=case_row["expected_artifact"],
+        answer_structure_hint=case_row["answer_structure_hint"],
         constraints_text=case_row["constraints_text"],
+        dialog_turns_hint=case_row["dialog_turns_hint"],
         stakes_text=case_row["stakes_text"],
         personalization_variables=case_row["personalization_variables"],
-        personalization_fields=[str(row["field_name"]) for row in personalization_rows if row["field_name"]],
+        personalization_options_text=case_row["personalization_options"],
+        difficulty_toggles=case_row["difficulty_toggles"],
+        evaluation_notes=case_row["evaluation_notes"],
+        author_name=case_row["author_name"],
+        reviewer_name=case_row["reviewer_name"],
+        methodologist_comment=case_row["methodologist_comment"],
+        personalization_fields=[
+            (
+                str(personalization_option_map[code]["field_name"])
+                if code in personalization_option_map and personalization_option_map[code]["field_name"]
+                else _humanize_admin_personalization_field_label(code)
+            )
+            for code in personalization_codes
+        ],
         required_blocks=[str(row["block_name"]) for row in response_block_rows if row["block_name"]],
         red_flags=[str(row["flag_name"]) for row in red_flag_rows if row["flag_name"]],
         qa_blockers=qa_blockers,
@@ -2387,7 +2482,7 @@ def _upsert_admin_methodology_case(
 ) -> AdminMethodologyCaseDetailResponse:
     case_row = connection.execute(
         """
-        SELECT id, title, difficulty_level, estimated_time_min, trigger_event, status, case_type_passport_id
+        SELECT id, title, difficulty_level, estimated_time_min, trigger_event, stakeholders_text, status, case_type_passport_id
         FROM cases_registry
         WHERE case_id_code = %s
         LIMIT 1
@@ -2426,9 +2521,28 @@ def _upsert_admin_methodology_case(
     normalized_estimated_time = int(payload.estimated_time_min) if payload.estimated_time_min and int(payload.estimated_time_min) > 0 else None
     normalized_title = (payload.title or "").strip() or "Без названия"
     normalized_trigger_event = (payload.trigger_event or "").strip() or None
+    normalized_stakeholders_text = (payload.stakeholders_text or "").strip() or None
+    normalized_interactivity_mode = (payload.interactivity_mode or "").strip() or None
+    normalized_recommended_answer_length = (payload.recommended_answer_length or "").strip() or None
+    normalized_selection_tags = [str(item).strip() for item in (payload.selection_tags or []) if str(item).strip()]
+    normalized_role_personalization_rules = (payload.role_personalization_rules or "").strip() or None
+    normalized_format_control_rules = (payload.format_control_rules or "").strip() or None
+    normalized_scoring_aggregation_rules = (payload.scoring_aggregation_rules or "").strip() or None
+    normalized_bad_case_risks = (payload.bad_case_risks or "").strip() or None
+    normalized_generation_notes = (payload.generation_notes or "").strip() or None
     passport_row = connection.execute(
         """
-        SELECT id, status
+        SELECT
+            id,
+            status,
+            interactivity_mode,
+            recommended_answer_length,
+            selection_tags,
+            role_personalization_rules,
+            format_control_rules,
+            scoring_aggregation_rules,
+            bad_case_risks,
+            generation_notes
         FROM case_type_passports
         WHERE id = %s
         LIMIT 1
@@ -2444,11 +2558,22 @@ def _upsert_admin_methodology_case(
         or (case_row["difficulty_level"] or "base") != normalized_difficulty
         or (case_row["estimated_time_min"] if case_row["estimated_time_min"] is not None else None) != normalized_estimated_time
         or (case_row["trigger_event"] if case_row["trigger_event"] is not None else None) != normalized_trigger_event
+        or (case_row["stakeholders_text"] if case_row["stakeholders_text"] is not None else None) != normalized_stakeholders_text
         or (case_row["status"] or "draft") != normalized_case_status
         or role_mapping_changed
         or skill_mapping_changed
     )
-    passport_changed = passport_row is not None and (passport_row["status"] or "draft") != normalized_passport_status
+    passport_changed = passport_row is not None and (
+        (passport_row["status"] or "draft") != normalized_passport_status
+        or (passport_row["interactivity_mode"] if passport_row["interactivity_mode"] is not None else None) != normalized_interactivity_mode
+        or (passport_row["recommended_answer_length"] if passport_row["recommended_answer_length"] is not None else None) != normalized_recommended_answer_length
+        or list(passport_row["selection_tags"] or []) != normalized_selection_tags
+        or (passport_row["role_personalization_rules"] if passport_row["role_personalization_rules"] is not None else None) != normalized_role_personalization_rules
+        or (passport_row["format_control_rules"] if passport_row["format_control_rules"] is not None else None) != normalized_format_control_rules
+        or (passport_row["scoring_aggregation_rules"] if passport_row["scoring_aggregation_rules"] is not None else None) != normalized_scoring_aggregation_rules
+        or (passport_row["bad_case_risks"] if passport_row["bad_case_risks"] is not None else None) != normalized_bad_case_risks
+        or (passport_row["generation_notes"] if passport_row["generation_notes"] is not None else None) != normalized_generation_notes
+    )
 
     connection.execute(
         """
@@ -2458,6 +2583,7 @@ def _upsert_admin_methodology_case(
             difficulty_level = %s,
             estimated_time_min = %s,
             trigger_event = %s,
+            stakeholders_text = %s,
             status = %s,
             version = CASE WHEN %s THEN version + 1 ELSE version END,
             updated_at = NOW()
@@ -2468,6 +2594,7 @@ def _upsert_admin_methodology_case(
             normalized_difficulty,
             normalized_estimated_time,
             normalized_trigger_event,
+            normalized_stakeholders_text,
             normalized_case_status,
             registry_changed,
             case_registry_id,
@@ -2479,12 +2606,28 @@ def _upsert_admin_methodology_case(
             UPDATE case_type_passports
             SET
                 status = %s,
+                interactivity_mode = %s,
+                recommended_answer_length = %s,
+                selection_tags = %s::jsonb,
+                role_personalization_rules = %s,
+                format_control_rules = %s,
+                scoring_aggregation_rules = %s,
+                bad_case_risks = %s,
+                generation_notes = %s,
                 version = CASE WHEN %s THEN version + 1 ELSE version END,
                 updated_at = NOW()
             WHERE id = %s
             """,
             (
                 normalized_passport_status,
+                normalized_interactivity_mode,
+                normalized_recommended_answer_length,
+                json.dumps(normalized_selection_tags, ensure_ascii=False),
+                normalized_role_personalization_rules,
+                normalized_format_control_rules,
+                normalized_scoring_aggregation_rules,
+                normalized_bad_case_risks,
+                normalized_generation_notes,
                 passport_changed,
                 passport_row["id"],
             ),
@@ -2492,7 +2635,26 @@ def _upsert_admin_methodology_case(
 
     existing_text_row = connection.execute(
         """
-        SELECT id, intro_context, facts_data, trigger_details, task_for_user, constraints_text, stakes_text, personalization_variables, status
+        SELECT
+            id,
+            intro_context,
+            facts_data,
+            participants_roles,
+            trigger_details,
+            task_for_user,
+            expected_artifact,
+            answer_structure_hint,
+            constraints_text,
+            dialog_turns_hint,
+            stakes_text,
+            personalization_variables,
+            personalization_options,
+            difficulty_toggles,
+            evaluation_notes,
+            author_name,
+            reviewer_name,
+            methodologist_comment,
+            status
         FROM case_texts
         WHERE cases_registry_id = %s
         LIMIT 1
@@ -2502,9 +2664,13 @@ def _upsert_admin_methodology_case(
     if existing_text_row is None:
         normalized_intro_context = (payload.intro_context or "").strip() or ""
         normalized_facts_data = (payload.facts_data or "").strip() or None
+        normalized_participants_roles = (payload.participants_roles or "").strip() or None
         normalized_trigger_details = (payload.trigger_details or "").strip() or None
         normalized_task_for_user = (payload.task_for_user or "").strip() or ""
+        normalized_expected_artifact = (payload.expected_artifact or "").strip() or None
+        normalized_answer_structure_hint = (payload.answer_structure_hint or "").strip() or None
         normalized_constraints_text = (payload.constraints_text or "").strip() or None
+        normalized_dialog_turns_hint = (payload.dialog_turns_hint or "").strip() or None
         normalized_stakes_text = (payload.stakes_text or "").strip() or None
         normalized_personalization_codes = _extract_admin_personalization_codes(
             normalized_intro_context,
@@ -2517,6 +2683,12 @@ def _upsert_admin_methodology_case(
             if normalized_personalization_codes
             else None
         )
+        normalized_personalization_options = (payload.personalization_options_text or "").strip() or None
+        normalized_difficulty_toggles = (payload.difficulty_toggles or "").strip() or None
+        normalized_evaluation_notes = (payload.evaluation_notes or "").strip() or None
+        normalized_author_name = (payload.author_name or "").strip() or None
+        normalized_reviewer_name = (payload.reviewer_name or "").strip() or None
+        normalized_methodologist_comment = (payload.methodologist_comment or "").strip() or None
         inserted_text_row = connection.execute(
             """
             INSERT INTO case_texts (
@@ -2524,15 +2696,25 @@ def _upsert_admin_methodology_case(
                 cases_registry_id,
                 intro_context,
                 facts_data,
+                participants_roles,
                 trigger_details,
                 task_for_user,
+                expected_artifact,
+                answer_structure_hint,
                 constraints_text,
+                dialog_turns_hint,
                 stakes_text,
                 personalization_variables,
+                personalization_options,
+                difficulty_toggles,
+                evaluation_notes,
+                author_name,
+                reviewer_name,
+                methodologist_comment,
                 status,
                 version
             )
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 1)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 1)
             RETURNING id
             """,
             (
@@ -2540,11 +2722,21 @@ def _upsert_admin_methodology_case(
                 case_registry_id,
                 normalized_intro_context,
                 normalized_facts_data,
+                normalized_participants_roles,
                 normalized_trigger_details,
                 normalized_task_for_user,
+                normalized_expected_artifact,
+                normalized_answer_structure_hint,
                 normalized_constraints_text,
+                normalized_dialog_turns_hint,
                 normalized_stakes_text,
                 normalized_personalization_variables,
+                normalized_personalization_options,
+                normalized_difficulty_toggles,
+                normalized_evaluation_notes,
+                normalized_author_name,
+                normalized_reviewer_name,
+                normalized_methodologist_comment,
                 normalized_text_status,
             ),
         ).fetchone()
@@ -2554,9 +2746,13 @@ def _upsert_admin_methodology_case(
         case_text_id = int(existing_text_row["id"])
         normalized_intro_context = (payload.intro_context or "").strip() or ""
         normalized_facts_data = (payload.facts_data or "").strip() or None
+        normalized_participants_roles = (payload.participants_roles or "").strip() or None
         normalized_trigger_details = (payload.trigger_details or "").strip() or None
         normalized_task_for_user = (payload.task_for_user or "").strip() or ""
+        normalized_expected_artifact = (payload.expected_artifact or "").strip() or None
+        normalized_answer_structure_hint = (payload.answer_structure_hint or "").strip() or None
         normalized_constraints_text = (payload.constraints_text or "").strip() or None
+        normalized_dialog_turns_hint = (payload.dialog_turns_hint or "").strip() or None
         normalized_stakes_text = (payload.stakes_text or "").strip() or None
         normalized_personalization_codes = _extract_admin_personalization_codes(
             normalized_intro_context,
@@ -2569,14 +2765,30 @@ def _upsert_admin_methodology_case(
             if normalized_personalization_codes
             else None
         )
+        normalized_personalization_options = (payload.personalization_options_text or "").strip() or None
+        normalized_difficulty_toggles = (payload.difficulty_toggles or "").strip() or None
+        normalized_evaluation_notes = (payload.evaluation_notes or "").strip() or None
+        normalized_author_name = (payload.author_name or "").strip() or None
+        normalized_reviewer_name = (payload.reviewer_name or "").strip() or None
+        normalized_methodologist_comment = (payload.methodologist_comment or "").strip() or None
         text_changed = (
             (existing_text_row["intro_context"] or "") != normalized_intro_context
             or (existing_text_row["facts_data"] if existing_text_row["facts_data"] is not None else None) != normalized_facts_data
+            or (existing_text_row["participants_roles"] if existing_text_row["participants_roles"] is not None else None) != normalized_participants_roles
             or (existing_text_row["trigger_details"] if existing_text_row["trigger_details"] is not None else None) != normalized_trigger_details
             or (existing_text_row["task_for_user"] or "") != normalized_task_for_user
+            or (existing_text_row["expected_artifact"] if existing_text_row["expected_artifact"] is not None else None) != normalized_expected_artifact
+            or (existing_text_row["answer_structure_hint"] if existing_text_row["answer_structure_hint"] is not None else None) != normalized_answer_structure_hint
             or (existing_text_row["constraints_text"] if existing_text_row["constraints_text"] is not None else None) != normalized_constraints_text
+            or (existing_text_row["dialog_turns_hint"] if existing_text_row["dialog_turns_hint"] is not None else None) != normalized_dialog_turns_hint
             or (existing_text_row["stakes_text"] if existing_text_row["stakes_text"] is not None else None) != normalized_stakes_text
             or (existing_text_row["personalization_variables"] if existing_text_row["personalization_variables"] is not None else None) != normalized_personalization_variables
+            or (existing_text_row["personalization_options"] if existing_text_row["personalization_options"] is not None else None) != normalized_personalization_options
+            or (existing_text_row["difficulty_toggles"] if existing_text_row["difficulty_toggles"] is not None else None) != normalized_difficulty_toggles
+            or (existing_text_row["evaluation_notes"] if existing_text_row["evaluation_notes"] is not None else None) != normalized_evaluation_notes
+            or (existing_text_row["author_name"] if existing_text_row["author_name"] is not None else None) != normalized_author_name
+            or (existing_text_row["reviewer_name"] if existing_text_row["reviewer_name"] is not None else None) != normalized_reviewer_name
+            or (existing_text_row["methodologist_comment"] if existing_text_row["methodologist_comment"] is not None else None) != normalized_methodologist_comment
             or (existing_text_row["status"] or "draft") != normalized_text_status
         )
         connection.execute(
@@ -2585,11 +2797,21 @@ def _upsert_admin_methodology_case(
             SET
                 intro_context = %s,
                 facts_data = %s,
+                participants_roles = %s,
                 trigger_details = %s,
                 task_for_user = %s,
+                expected_artifact = %s,
+                answer_structure_hint = %s,
                 constraints_text = %s,
+                dialog_turns_hint = %s,
                 stakes_text = %s,
                 personalization_variables = %s,
+                personalization_options = %s,
+                difficulty_toggles = %s,
+                evaluation_notes = %s,
+                author_name = %s,
+                reviewer_name = %s,
+                methodologist_comment = %s,
                 status = %s,
                 version = CASE WHEN %s THEN version + 1 ELSE version END,
                 updated_at = NOW()
@@ -2598,11 +2820,21 @@ def _upsert_admin_methodology_case(
             (
                 normalized_intro_context,
                 normalized_facts_data,
+                normalized_participants_roles,
                 normalized_trigger_details,
                 normalized_task_for_user,
+                normalized_expected_artifact,
+                normalized_answer_structure_hint,
                 normalized_constraints_text,
+                normalized_dialog_turns_hint,
                 normalized_stakes_text,
                 normalized_personalization_variables,
+                normalized_personalization_options,
+                normalized_difficulty_toggles,
+                normalized_evaluation_notes,
+                normalized_author_name,
+                normalized_reviewer_name,
+                normalized_methodologist_comment,
                 normalized_text_status,
                 text_changed,
                 case_registry_id,
@@ -2678,14 +2910,16 @@ def _upsert_admin_methodology_case(
 
 
 def _build_prompt_lab_dashboard(connection) -> PromptLabDashboard:
-    prompt_rows = connection.execute(
+    production_instruction_row = connection.execute(
         """
-        SELECT id, name, prompt_text, created_by, created_at
-        FROM prompt_lab_case_prompts
-        ORDER BY created_at DESC, id DESC
-        LIMIT 20
+        SELECT instruction_code, instruction_name, instruction_text, version
+        FROM case_text_build_instructions
+        WHERE is_active = TRUE
+          AND applies_to_type_code IS NULL
+        ORDER BY priority ASC, version DESC, id DESC
+        LIMIT 1
         """
-    ).fetchall()
+    ).fetchone()
     user_rows = connection.execute(
         """
         SELECT
@@ -2696,18 +2930,7 @@ def _build_prompt_lab_dashboard(connection) -> PromptLabDashboard:
             COALESCE(p.raw_position, u.job_description) AS position,
             COALESCE(p.normalized_duties, p.raw_duties) AS duties,
             u.company_industry,
-            jsonb_build_object(
-                'user_domain', p.user_domain,
-                'user_processes', p.user_processes,
-                'user_tasks', p.user_tasks,
-                'user_stakeholders', p.user_stakeholders,
-                'user_risks', p.user_risks,
-                'user_constraints', p.user_constraints,
-                'user_context_vars', p.user_context_vars,
-                'role_limits', p.role_limits,
-                'role_vocabulary', p.role_vocabulary,
-                'role_skill_profile', p.role_skill_profile
-            ) AS user_profile,
+            to_jsonb(p) AS user_profile,
             r.name AS role_name
         FROM users u
         LEFT JOIN roles r ON r.id = u.role_id
@@ -2744,32 +2967,16 @@ def _build_prompt_lab_dashboard(connection) -> PromptLabDashboard:
         """,
         (ADMIN_ROLE_CODE,),
     ).fetchall()
-    run_rows = connection.execute(
-        """
-        SELECT
-            r.id,
-            r.prompt_id,
-            p.name AS prompt_name,
-            r.user_id,
-            u.full_name AS user_name,
-            cr.case_id_code,
-            cr.title AS case_title,
-            r.created_by,
-            r.created_at
-        FROM prompt_lab_case_runs r
-        JOIN users u ON u.id = r.user_id
-        JOIN cases_registry cr ON cr.id = r.case_registry_id
-        LEFT JOIN prompt_lab_case_prompts p ON p.id = r.prompt_id
-        ORDER BY r.created_at DESC, r.id DESC
-        LIMIT 20
-        """
-    ).fetchall()
     return PromptLabDashboard(
-        prompts=[PromptLabPromptVersion(**dict(row)) for row in prompt_rows],
+        prompts=[],
         users=[PromptLabUserOption(**dict(row)) for row in user_rows],
         cases=[PromptLabCaseOption(**dict(row)) for row in case_rows],
         role_options=[dict(row) for row in role_rows],
-        recent_runs=[PromptLabCaseRunSummary(**dict(row)) for row in run_rows],
+        recent_runs=[],
+        production_prompt_text=(production_instruction_row["instruction_text"] if production_instruction_row else None),
+        production_prompt_name=(production_instruction_row["instruction_name"] if production_instruction_row else None),
+        production_instruction_code=(production_instruction_row["instruction_code"] if production_instruction_row else None),
+        production_instruction_version=(production_instruction_row["version"] if production_instruction_row else None),
     )
 
 
@@ -2825,37 +3032,85 @@ def create_prompt_lab_prompt(payload: PromptLabPromptCreateRequest, request: Req
 def create_prompt_lab_case_run(payload: PromptLabCaseRunRequest, request: Request) -> PromptLabCaseRunResponse:
     token = request.cookies.get(SESSION_COOKIE_NAME)
     current_user = web_session_service.get_user_by_token(token) if token else None
+    operation_id = request.headers.get("X-Agent4K-Operation-Id")
     prompt_source = str(payload.prompt_source or "custom").strip().lower()
     use_file_prompt = prompt_source in {"file", "files", "default", "production"}
-    prompt_row = None
     prompt_text = None
     with get_connection() as connection:
         if not _is_admin_user(connection, current_user):
             raise HTTPException(status_code=403, detail="Admin access required")
+        if use_file_prompt:
+            production_prompt_row = connection.execute(
+                """
+                SELECT instruction_text
+                FROM case_text_build_instructions
+                WHERE is_active = TRUE
+                  AND applies_to_type_code IS NULL
+                ORDER BY priority ASC, version DESC, id DESC
+                LIMIT 1
+                """
+            ).fetchone()
+            prompt_text = str((production_prompt_row or {}).get("instruction_text") or "").strip()
+            if not prompt_text:
+                raise HTTPException(status_code=400, detail="Production system prompt is not configured")
         if not use_file_prompt:
-            prompt_row = _get_prompt_lab_prompt(connection, payload.prompt_id)
             prompt_text = str(payload.prompt_text or "").strip()
-            prompt_name = str(payload.prompt_name or "").strip() or "Ad-hoc prompt"
-            if prompt_row is not None:
-                prompt_text = str(prompt_row["prompt_text"] or "")
-                prompt_name = str(prompt_row["name"] or prompt_name)
             if not prompt_text:
                 raise HTTPException(status_code=400, detail="Prompt text is required")
-            if prompt_row is None:
-                prompt_row = connection.execute(
-                    """
-                    INSERT INTO prompt_lab_case_prompts (name, prompt_text, created_by)
-                    VALUES (%s, %s, %s)
-                    RETURNING id, name, prompt_text, created_by, created_at
-                    """,
-                    (prompt_name, prompt_text, current_user.full_name if current_user else None),
-                ).fetchone()
-                connection.commit()
+
+    selected_case_codes: list[str] = []
+    seen_case_codes: set[str] = set()
+    for raw_code in [payload.case_id_code, *(payload.case_id_codes or [])]:
+        case_code = str(raw_code or "").strip()
+        if not case_code or case_code in seen_case_codes:
+            continue
+        selected_case_codes.append(case_code)
+        seen_case_codes.add(case_code)
+    if not selected_case_codes:
+        raise HTTPException(status_code=400, detail="At least one case must be selected")
 
     try:
-        if payload.case_id_code == "__all__":
-            artifacts = assessment_service.preview_personalized_case_set(
+        progress_cases: list[tuple[str, str]] = []
+        if "__all__" in selected_case_codes:
+            with get_connection() as connection:
+                all_case_rows = connection.execute(
+                    """
+                    SELECT case_id_code, title
+                    FROM cases_registry
+                    WHERE status = 'ready'
+                    ORDER BY case_id_code ASC
+                    """
+                ).fetchall()
+            all_case_codes = [
+                str((row or {}).get("case_id_code") or "").strip()
+                for row in all_case_rows
+                if str((row or {}).get("case_id_code") or "").strip()
+            ]
+            progress_cases = [
+                (
+                    str((row or {}).get("case_id_code") or "").strip(),
+                    str((row or {}).get("title") or "").strip(),
+                )
+                for row in all_case_rows
+                if str((row or {}).get("case_id_code") or "").strip()
+            ]
+            if not all_case_codes:
+                raise HTTPException(status_code=400, detail="No cases available in the system")
+            operation_progress_service.begin(
+                operation_id,
+                title="Формируем кейсы",
+                message=f"Подготавливаем генерацию {len(all_case_codes)} кейсов.",
+                steps=[{"label": "Подготовка", "description": "Готовим набор шаблонов для генерации."}] + [
+                    {
+                        "label": f"Кейс {index} из {len(progress_cases)}",
+                        "description": f"{code} · {title}" if title else code,
+                    }
+                    for index, (code, title) in enumerate(progress_cases, start=1)
+                ],
+            )
+            artifacts = assessment_service.preview_personalized_case_batch(
                 user_id=payload.user_id,
+                case_id_codes=all_case_codes,
                 case_generation_system_prompt=prompt_text,
                 full_name=payload.full_name,
                 role_id=payload.role_id,
@@ -2863,11 +3118,70 @@ def create_prompt_lab_case_run(payload: PromptLabCaseRunRequest, request: Reques
                 duties=payload.duties,
                 company_industry=payload.company_industry,
                 user_profile_override=payload.user_profile,
+                progress_operation_id=operation_id,
+            )
+        elif len(selected_case_codes) > 1:
+            with get_connection() as connection:
+                selected_rows = connection.execute(
+                    """
+                    SELECT case_id_code, title
+                    FROM cases_registry
+                    WHERE case_id_code = ANY(%s)
+                    ORDER BY case_id_code ASC
+                    """,
+                    (selected_case_codes,),
+                ).fetchall()
+            progress_cases = [
+                (
+                    str((row or {}).get("case_id_code") or "").strip(),
+                    str((row or {}).get("title") or "").strip(),
+                )
+                for row in selected_rows
+                if str((row or {}).get("case_id_code") or "").strip()
+            ]
+            operation_progress_service.begin(
+                operation_id,
+                title="Формируем кейсы",
+                message=f"Подготавливаем генерацию {len(selected_case_codes)} кейсов.",
+                steps=[{"label": "Подготовка", "description": "Готовим выбранные шаблоны кейсов."}] + [
+                    {
+                        "label": f"Кейс {index} из {len(progress_cases)}",
+                        "description": f"{code} · {title}" if title else code,
+                    }
+                    for index, (code, title) in enumerate(progress_cases, start=1)
+                ],
+            )
+            artifacts = assessment_service.preview_personalized_case_batch(
+                user_id=payload.user_id,
+                case_id_codes=selected_case_codes,
+                case_generation_system_prompt=prompt_text,
+                full_name=payload.full_name,
+                role_id=payload.role_id,
+                position=payload.position,
+                duties=payload.duties,
+                company_industry=payload.company_industry,
+                user_profile_override=payload.user_profile,
+                progress_operation_id=operation_id,
             )
         else:
+            operation_progress_service.begin(
+                operation_id,
+                title="Формируем кейс",
+                message="Подготавливаем генерацию кейса.",
+                steps=[
+                    {"label": "Подготовка", "description": "Готовим выбранный шаблон кейса."},
+                    {"label": "Генерация", "description": selected_case_codes[0]},
+                ],
+            )
+            operation_progress_service.advance(
+                operation_id,
+                1,
+                title="Формируем кейс",
+                message=f"Генерируем кейс {selected_case_codes[0]}",
+            )
             artifacts = assessment_service.preview_personalized_case(
                 user_id=payload.user_id,
-                case_id_code=payload.case_id_code,
+                case_id_code=selected_case_codes[0],
                 case_generation_system_prompt=prompt_text,
                 full_name=payload.full_name,
                 role_id=payload.role_id,
@@ -2877,39 +3191,57 @@ def create_prompt_lab_case_run(payload: PromptLabCaseRunRequest, request: Reques
                 user_profile_override=payload.user_profile,
             )
     except ValueError as exc:
+        operation_progress_service.fail(operation_id, message=str(exc))
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except HTTPException as exc:
+        operation_progress_service.fail(operation_id, message=str(exc.detail))
+        raise
+    except Exception as exc:
+        operation_progress_service.fail(operation_id, message=str(exc))
+        raise
 
-    with get_connection() as connection:
-        stored_case_code = artifacts.get("case", {}).get("case_id_code") or payload.case_id_code
-        case_row = connection.execute(
-            "SELECT id FROM cases_registry WHERE case_id_code = %s",
-            (stored_case_code,),
-        ).fetchone()
-        if case_row is None:
-            raise HTTPException(status_code=400, detail="Case not found")
-        run_row = connection.execute(
-            """
-            INSERT INTO prompt_lab_case_runs (
-                prompt_id, user_id, case_registry_id, created_by, artifacts_json
-            )
-            VALUES (%s, %s, %s, %s, %s::jsonb)
-            RETURNING id, created_at
-            """,
-            (
-                prompt_row["id"] if prompt_row is not None else None,
-                payload.user_id,
-                case_row["id"],
-                current_user.full_name if current_user else None,
-                json.dumps(artifacts, ensure_ascii=False),
-            ),
-        ).fetchone()
-        connection.commit()
+    operation_progress_service.complete(
+        operation_id,
+        title="Кейсы готовы",
+        message="Генерация кейсов завершена.",
+    )
+
+    generated_at = datetime.utcnow()
+    generated_run_id = int(generated_at.timestamp() * 1000)
 
     return PromptLabCaseRunResponse(
-        id=int(run_row["id"]),
-        prompt=PromptLabPromptVersion(**dict(prompt_row)) if prompt_row is not None else None,
-        created_at=run_row["created_at"],
+        id=generated_run_id,
+        prompt=None,
+        created_at=generated_at,
         **artifacts,
+    )
+
+
+@router.get("/admin/prompt-lab/system-case-preview", response_model=PromptLabSystemCasePreviewResponse)
+def get_prompt_lab_system_case_preview(
+    request: Request,
+    user_id: int,
+    case_id_code: str,
+) -> PromptLabSystemCasePreviewResponse:
+    token = request.cookies.get(SESSION_COOKIE_NAME)
+    current_user = web_session_service.get_user_by_token(token) if token else None
+    with get_connection() as connection:
+        if not _is_admin_user(connection, current_user):
+            raise HTTPException(status_code=403, detail="Admin access required")
+    try:
+        artifacts = assessment_service.preview_personalized_case(
+            user_id=user_id,
+            case_id_code=case_id_code,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return PromptLabSystemCasePreviewResponse(
+        user=artifacts["user"],
+        case=artifacts["case"],
+        base_context=artifacts["base_context"],
+        base_task=artifacts["base_task"],
+        system_personalized_context=artifacts.get("system_personalized_context"),
+        system_personalized_task=artifacts.get("system_personalized_task"),
     )
 
 
@@ -3194,6 +3526,15 @@ def process_assessment_message(payload: AssessmentMessageRequest) -> AssessmentM
             session_code=payload.session_code,
             message=payload.message,
         )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/assessment/pause")
+def pause_assessment_timer(payload: AssessmentTimerControlRequest) -> dict:
+    try:
+        assessment_service.pause_assessment_dialogue(payload.session_code)
+        return {"ok": True}
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 

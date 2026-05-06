@@ -180,6 +180,10 @@ class PromptLabDashboard(BaseModel):
     cases: list[PromptLabCaseOption]
     role_options: list[dict[str, str | int]]
     recent_runs: list[PromptLabCaseRunSummary]
+    production_prompt_text: str | None = None
+    production_prompt_name: str | None = None
+    production_instruction_code: str | None = None
+    production_instruction_version: int | None = None
 
 
 class PromptLabPromptCreateRequest(BaseModel):
@@ -189,7 +193,8 @@ class PromptLabPromptCreateRequest(BaseModel):
 
 class PromptLabCaseRunRequest(BaseModel):
     user_id: int
-    case_id_code: str
+    case_id_code: str | None = None
+    case_id_codes: list[str] = Field(default_factory=list)
     prompt_source: str = "custom"
     prompt_id: int | None = None
     prompt_name: str | None = None
@@ -215,10 +220,21 @@ class PromptLabCaseRunResponse(BaseModel):
     personalization_map: dict
     personalized_context: str
     personalized_task: str
+    system_personalized_context: str | None = None
+    system_personalized_task: str | None = None
     opening_message: str
     system_prompt: str
     methodical_context: dict
     created_at: datetime
+
+
+class PromptLabSystemCasePreviewResponse(BaseModel):
+    user: dict
+    case: dict
+    base_context: str
+    base_task: str
+    system_personalized_context: str | None = None
+    system_personalized_task: str | None = None
 
 
 class AdminMethodologyBranchItem(BaseModel):
@@ -273,6 +289,9 @@ class AdminMethodologyPassportItem(BaseModel):
     required_blocks_count: int
     red_flags_count: int
     roles: list[str]
+    interactivity_mode: str | None = None
+    recommended_answer_length: str | None = None
+    selection_tags: list[str] = []
 
 
 class AdminMethodologyCaseItem(BaseModel):
@@ -284,6 +303,11 @@ class AdminMethodologyCaseItem(BaseModel):
     estimated_time_min: int | None = None
     roles: list[str]
     skills: list[str]
+    stakeholders_text: str | None = None
+    interactivity_mode: str | None = None
+    recommended_answer_length: str | None = None
+    expected_artifact: str | None = None
+    selection_tags: list[str] = []
     qa_ready: bool
     passed_checks: int
     total_checks: int
@@ -358,6 +382,15 @@ class AdminMethodologyCaseDetailResponse(BaseModel):
     type_name: str
     artifact_name: str
     artifact_description: str | None = None
+    stakeholders_text: str | None = None
+    interactivity_mode: str | None = None
+    recommended_answer_length: str | None = None
+    selection_tags: list[str] = []
+    role_personalization_rules: str | None = None
+    format_control_rules: str | None = None
+    scoring_aggregation_rules: str | None = None
+    bad_case_risks: str | None = None
+    generation_notes: str | None = None
     passport_status: str
     case_status: str
     case_text_status: str
@@ -368,12 +401,22 @@ class AdminMethodologyCaseDetailResponse(BaseModel):
     skills: list[str]
     intro_context: str | None = None
     facts_data: str | None = None
+    participants_roles: str | None = None
     trigger_event: str | None = None
     trigger_details: str | None = None
     task_for_user: str | None = None
+    expected_artifact: str | None = None
+    answer_structure_hint: str | None = None
     constraints_text: str | None = None
+    dialog_turns_hint: str | None = None
     stakes_text: str | None = None
     personalization_variables: str | None = None
+    personalization_options_text: str | None = None
+    difficulty_toggles: str | None = None
+    evaluation_notes: str | None = None
+    author_name: str | None = None
+    reviewer_name: str | None = None
+    methodologist_comment: str | None = None
     personalization_fields: list[str]
     required_blocks: list[str]
     red_flags: list[str]
@@ -396,13 +439,32 @@ class AdminMethodologyCaseUpdateRequest(BaseModel):
     case_status: str = "draft"
     case_text_status: str = "draft"
     estimated_time_min: int | None = None
+    stakeholders_text: str | None = None
+    interactivity_mode: str | None = None
+    recommended_answer_length: str | None = None
+    selection_tags: list[str] = []
+    role_personalization_rules: str | None = None
+    format_control_rules: str | None = None
+    scoring_aggregation_rules: str | None = None
+    bad_case_risks: str | None = None
+    generation_notes: str | None = None
     intro_context: str | None = None
     facts_data: str | None = None
+    participants_roles: str | None = None
     trigger_event: str | None = None
     trigger_details: str | None = None
     task_for_user: str | None = None
+    expected_artifact: str | None = None
+    answer_structure_hint: str | None = None
     constraints_text: str | None = None
+    dialog_turns_hint: str | None = None
     stakes_text: str | None = None
+    personalization_options_text: str | None = None
+    difficulty_toggles: str | None = None
+    evaluation_notes: str | None = None
+    author_name: str | None = None
+    reviewer_name: str | None = None
+    methodologist_comment: str | None = None
     role_ids: list[int]
     skill_ids: list[int]
 
@@ -619,6 +681,10 @@ class AssessmentSessionLookupResponse(BaseModel):
 class AssessmentMessageRequest(BaseModel):
     session_code: str
     message: str
+
+
+class AssessmentTimerControlRequest(BaseModel):
+    session_code: str
 
 
 class AssessmentMessageResponse(BaseModel):

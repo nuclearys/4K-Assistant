@@ -30,6 +30,14 @@ const state = {
   adminReportDetailSessionId: null,
   adminReportDetailSkillAssessments: [],
   adminReportDetailSkillAssessmentsLoading: false,
+  adminReportDetailExpertCommentEditing: false,
+  adminReportDetailExpertCommentOriginal: '',
+  adminReportDetailExpertCommentDirty: false,
+  adminReportDetailExpertMetaOriginal: {
+    expert_name: '',
+    expert_contacts: '',
+    expert_assessed_at: '',
+  },
   adminReportsSearch: '',
   adminReportsPage: 1,
   adminPeriodKey: '30d',
@@ -419,6 +427,7 @@ const adminReportsNextButton = document.getElementById('admin-reports-next-butto
 const ADMIN_REPORTS_PAGE_SIZE = 10;
 const adminReportDetailBackButton = document.getElementById('admin-report-detail-back-button');
 const adminReportDetailPdfButton = document.getElementById('admin-report-detail-pdf-button');
+const adminReportDetailDialoguesPdfButton = document.getElementById('admin-report-detail-dialogues-pdf-button');
 const adminReportDetailDate = document.getElementById('admin-report-detail-date');
 const adminReportDetailScore = document.getElementById('admin-report-detail-score');
 const adminReportDetailAvatar = document.getElementById('admin-report-detail-avatar');
@@ -446,6 +455,14 @@ const adminReportDetailStrengths = document.getElementById('admin-report-detail-
 const adminReportDetailGrowth = document.getElementById('admin-report-detail-growth');
 const adminReportDetailQuotes = document.getElementById('admin-report-detail-quotes');
 const adminReportDetailCases = document.getElementById('admin-report-detail-cases');
+const adminReportDetailExpertName = document.getElementById('admin-report-detail-expert-name');
+const adminReportDetailExpertContacts = document.getElementById('admin-report-detail-expert-contacts');
+const adminReportDetailExpertAssessedAt = document.getElementById('admin-report-detail-expert-assessed-at');
+const adminReportDetailExpertComment = document.getElementById('admin-report-detail-expert-comment');
+const adminReportDetailExpertCommentEdit = document.getElementById('admin-report-detail-expert-comment-edit');
+const adminReportDetailExpertCommentCancel = document.getElementById('admin-report-detail-expert-comment-cancel');
+const adminReportDetailExpertCommentSave = document.getElementById('admin-report-detail-expert-comment-save');
+const adminReportDetailExpertCommentStatus = document.getElementById('admin-report-detail-expert-comment-status');
 const welcomeProfileButton = document.getElementById('welcome-profile-button');
 const startFirstAssessmentButton = document.getElementById('start-first-assessment');
 const libraryStartButton = document.getElementById('library-start-button');
@@ -460,6 +477,11 @@ const libraryAssessmentPercent = document.getElementById('library-assessment-per
 const aiHeroDescription = document.getElementById('ai-hero-description');
 const newUserExitButton = document.getElementById('new-user-exit-button');
 const prechatStartButton = document.getElementById('prechat-start-button');
+const prechatAssessmentPreparing = document.getElementById('prechat-assessment-preparing');
+const prechatAssessmentRing = document.getElementById('prechat-assessment-ring');
+const prechatAssessmentPercent = document.getElementById('prechat-assessment-percent');
+const prechatAssessmentTitle = document.getElementById('prechat-assessment-title');
+const prechatAssessmentText = document.getElementById('prechat-assessment-text');
 const prechatError = document.getElementById('prechat-error');
 const interviewCaseBadge = document.getElementById('interview-case-badge');
 const interviewCaseTitle = document.getElementById('interview-case-title');
@@ -552,6 +574,38 @@ const buildInitials = (fullName) => {
     .slice(0, 2)
     .map((part) => part[0].toUpperCase())
     .join('');
+};
+
+const formatDateTimeLocalValue = (value) => {
+  if (!value) {
+    return '';
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return '';
+  }
+  const pad = (num) => String(num).padStart(2, '0');
+  return date.getFullYear() + '-' + pad(date.getMonth() + 1) + '-' + pad(date.getDate()) + 'T' + pad(date.getHours()) + ':' + pad(date.getMinutes());
+};
+
+const formatDateInputValue = (value) => {
+  if (!value) {
+    return '';
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return '';
+  }
+  const pad = (num) => String(num).padStart(2, '0');
+  return date.getFullYear() + '-' + pad(date.getMonth() + 1) + '-' + pad(date.getDate());
+};
+
+const normalizeExpertAssessmentDateForApi = (value) => {
+  const normalized = String(value || '').trim();
+  if (!normalized) {
+    return null;
+  }
+  return normalized + 'T00:00:00';
 };
 
 const getSignupFirstName = (fullName, fallback = 'Пользователь') => {
@@ -796,10 +850,10 @@ const startLoaderProgressPolling = (operationId) => {
 };
 
 const showLoader = (title, text, steps = null) => {
-  appLoaderTitle.textContent = title;
-  appLoaderText.textContent = text;
-  startLoaderFlow(steps);
-  appLoader.classList.remove('hidden');
+  void title;
+  void text;
+  void steps;
+  appLoader.classList.add('hidden');
 };
 
 const hideLoader = () => {
@@ -848,32 +902,35 @@ const renderAssessmentPreparationState = () => {
   const title = state.assessmentPreparationTitle || 'Подготавливаем кейсы';
   const message = state.assessmentPreparationMessage || 'Система собирает персонализированный набор кейсов.';
   const ready = canReusePreparedAssessment();
-  const preparing = status === 'preparing' && !ready;
   const failed = status === 'failed';
+  const preparing = status === 'preparing';
 
   if (assessmentPreparing) {
     assessmentPreparing.classList.toggle('hidden', !preparing);
   }
-  if (preparing) {
-    assessmentStatusLabel.textContent = title;
-    assessmentCasesLabel.textContent = 'Подготовка персонализированных кейсов';
-    assessmentProgressBar.style.width = progressPercent + '%';
-  }
   if (assessmentActionButton) {
     assessmentActionButton.classList.toggle('hidden', preparing);
+    assessmentActionButton.disabled = preparing;
     if (failed) {
-      assessmentActionButton.textContent = 'Подготовить кейсы';
+      assessmentActionButton.textContent = 'Попробовать снова';
     }
   }
-  updatePreparingRing(assessmentPreparingRing, assessmentPreparingPercent, progressPercent);
+  if (ready && assessmentStatusLabel) {
+    assessmentStatusLabel.textContent = title;
+  }
+  if (ready && assessmentProgressBar) {
+    assessmentProgressBar.style.width = progressPercent + '%';
+  }
+  updatePreparingRing(assessmentPreparingRing, assessmentPreparingPercent, preparing ? progressPercent : 0);
 
   if (welcomeAssessmentPreparing) {
     welcomeAssessmentPreparing.classList.toggle('hidden', !preparing);
   }
   if (startFirstAssessmentButton) {
     startFirstAssessmentButton.classList.toggle('hidden', preparing);
+    startFirstAssessmentButton.disabled = preparing;
     if (failed) {
-      startFirstAssessmentButton.textContent = 'Подготовить кейсы';
+      startFirstAssessmentButton.textContent = 'Попробовать снова';
     }
   }
   if (welcomeAssessmentTitle) {
@@ -882,28 +939,35 @@ const renderAssessmentPreparationState = () => {
   if (welcomeAssessmentText) {
     welcomeAssessmentText.textContent = message;
   }
-  updatePreparingRing(welcomeAssessmentRing, welcomeAssessmentPercent, progressPercent);
+  updatePreparingRing(welcomeAssessmentRing, welcomeAssessmentPercent, preparing ? progressPercent : 0);
 
   if (libraryAssessmentPreparing) {
     libraryAssessmentPreparing.classList.toggle('hidden', !preparing);
   }
   if (libraryStartButton) {
     libraryStartButton.classList.toggle('hidden', preparing);
+    libraryStartButton.disabled = preparing;
     if (failed) {
-      libraryStartButton.textContent = 'Подготовить';
+      libraryStartButton.textContent = 'Попробовать снова';
     }
   }
-  updatePreparingRing(libraryAssessmentRing, libraryAssessmentPercent, progressPercent);
+  updatePreparingRing(libraryAssessmentRing, libraryAssessmentPercent, preparing ? progressPercent : 0);
 
   if (prechatStartButton) {
-    if (preparing) {
-      prechatStartButton.disabled = true;
-      prechatStartButton.textContent = 'Подготавливаем кейсы...';
-    } else {
-      prechatStartButton.disabled = false;
-      prechatStartButton.textContent = ready ? 'Начать' : (failed ? 'Подготовить кейсы' : 'Начать');
-    }
+    prechatStartButton.classList.toggle('hidden', preparing);
+    prechatStartButton.disabled = preparing;
+    prechatStartButton.textContent = ready ? 'Начать' : (failed ? 'Попробовать снова' : 'Начать');
   }
+  if (prechatAssessmentPreparing) {
+    prechatAssessmentPreparing.classList.toggle('hidden', !preparing);
+  }
+  if (prechatAssessmentTitle) {
+    prechatAssessmentTitle.textContent = title;
+  }
+  if (prechatAssessmentText) {
+    prechatAssessmentText.textContent = message;
+  }
+  updatePreparingRing(prechatAssessmentRing, prechatAssessmentPercent, preparing ? progressPercent : 0);
 };
 
 const startAssessmentPreparationPolling = (operationId) => {
@@ -1254,6 +1318,25 @@ const clearAssessmentContext = () => {
   state.reportInterpretation = null;
 };
 
+const isMissingUserError = (error) => {
+  const message = String(error?.message || '').toLowerCase();
+  return message.includes('user not found') || message.includes('пользователь не найден');
+};
+
+const resetStaleUserState = async () => {
+  try {
+    await fetch('/users/session/logout', {
+      method: 'POST',
+      credentials: 'same-origin',
+    });
+  } catch (_error) {
+    // ignore cleanup network issues
+  }
+  clearAssessmentContext();
+  resetChat();
+  window.history.replaceState({}, '', '/?ui=' + Date.now());
+};
+
 const restoreAssessmentContextFromParams = (params) => {
   const userId = params.get('user_id');
   const sessionId = params.get('session_id');
@@ -1319,25 +1402,33 @@ const restoreLocalUserSession = async () => {
     return false;
   }
 
-  const response = await fetch('/users/' + state.pendingUser.id + '/session-bootstrap', {
-    credentials: 'same-origin',
-  });
-  const data = await readApiResponse(response, 'Не удалось восстановить локальную пользовательскую сессию.');
-  state.pendingUser = data.user;
-  state.dashboard = data.dashboard;
-  state.isAdmin = isAdminUserPayload(data.user, Boolean(data.is_admin));
-  state.adminDashboard = data.admin_dashboard || null;
-  if (state.isAdmin) {
-    state.sessionId = null;
-    state.pendingAgentMessage = null;
-    state.pendingRoleOptions = [];
-    state.pendingNoChangesQuickReply = false;
-    state.currentScreen = 'admin';
-  } else if (!state.currentScreen || state.currentScreen === 'auth') {
-    state.currentScreen = 'dashboard';
+  try {
+    const response = await fetch('/users/' + state.pendingUser.id + '/session-bootstrap', {
+      credentials: 'same-origin',
+    });
+    const data = await readApiResponse(response, 'Не удалось восстановить локальную пользовательскую сессию.');
+    state.pendingUser = data.user;
+    state.dashboard = data.dashboard;
+    state.isAdmin = isAdminUserPayload(data.user, Boolean(data.is_admin));
+    state.adminDashboard = data.admin_dashboard || null;
+    if (state.isAdmin) {
+      state.sessionId = null;
+      state.pendingAgentMessage = null;
+      state.pendingRoleOptions = [];
+      state.pendingNoChangesQuickReply = false;
+      state.currentScreen = 'admin';
+    } else if (!state.currentScreen || state.currentScreen === 'auth') {
+      state.currentScreen = 'dashboard';
+    }
+    persistAssessmentContext();
+    return true;
+  } catch (error) {
+    if (isMissingUserError(error)) {
+      await resetStaleUserState();
+      return false;
+    }
+    throw error;
   }
-  persistAssessmentContext();
-  return true;
 };
 
 const logoutAndReturnToStart = async () => {
@@ -3714,12 +3805,12 @@ const sendChatMessage = async (text, displayText = null) => {
       chatForm.querySelector('button').disabled = true;
 
       window.setTimeout(() => {
-        if (state.isNewUserFlow && !state.onboardingShown) {
-          openOnboarding();
+        if (state.isNewUserFlow) {
+          openAiWelcome();
           return;
         }
 
-        if (!state.isNewUserFlow && state.dashboard) {
+        if (state.dashboard) {
           openDashboard();
         }
       }, 900);
@@ -4428,6 +4519,14 @@ const loadAdminReportDetail = async (sessionId) => {
   const data = await readApiResponse(response, 'Не удалось загрузить отчет по оценке.');
   state.adminReportDetail = data;
   state.adminReportDetailSessionId = sessionId;
+  state.adminReportDetailExpertCommentEditing = false;
+  state.adminReportDetailExpertCommentOriginal = data?.expert_comment || '';
+  state.adminReportDetailExpertCommentDirty = false;
+  state.adminReportDetailExpertMetaOriginal = {
+    expert_name: data?.expert_name || '',
+    expert_contacts: data?.expert_contacts || '',
+    expert_assessed_at: formatDateInputValue(data?.expert_assessed_at),
+  };
   persistAssessmentContext();
 };
 
@@ -4482,6 +4581,39 @@ const renderAdminReportDetail = () => {
     if (adminReportDetailCases) {
       adminReportDetailCases.innerHTML = '';
     }
+    if (adminReportDetailExpertName) {
+      adminReportDetailExpertName.value = '';
+      adminReportDetailExpertName.disabled = true;
+    }
+    if (adminReportDetailExpertContacts) {
+      adminReportDetailExpertContacts.value = '';
+      adminReportDetailExpertContacts.disabled = true;
+    }
+    if (adminReportDetailExpertAssessedAt) {
+      adminReportDetailExpertAssessedAt.value = '';
+      adminReportDetailExpertAssessedAt.disabled = true;
+    }
+    if (adminReportDetailExpertComment) {
+      adminReportDetailExpertComment.value = '';
+      adminReportDetailExpertComment.disabled = true;
+      adminReportDetailExpertComment.placeholder = 'Комментарий эксперта появится после завершения ассессмента.';
+    }
+    if (adminReportDetailExpertCommentEdit) {
+      adminReportDetailExpertCommentEdit.hidden = true;
+      adminReportDetailExpertCommentEdit.disabled = true;
+    }
+    if (adminReportDetailExpertCommentCancel) {
+      adminReportDetailExpertCommentCancel.hidden = true;
+      adminReportDetailExpertCommentCancel.disabled = true;
+    }
+    if (adminReportDetailExpertCommentSave) {
+      adminReportDetailExpertCommentSave.hidden = false;
+      adminReportDetailExpertCommentSave.disabled = true;
+      adminReportDetailExpertCommentSave.textContent = 'Сохранить комментарий';
+    }
+    if (adminReportDetailExpertCommentStatus) {
+      adminReportDetailExpertCommentStatus.textContent = '';
+    }
     return;
   }
 
@@ -4517,6 +4649,97 @@ const renderAdminReportDetail = () => {
   adminReportDetailInsightText.innerHTML = highlightAdminInsightFigures(
     detail.insight_text || 'Для этой записи пока не удалось построить интерпретацию результатов.',
   );
+  if (adminReportDetailExpertComment) {
+    const canEditExpertComment = Boolean(detail.can_edit_expert_comment);
+    const hasExpertRecord = Boolean(
+      (detail.expert_comment || '').trim()
+      || (detail.expert_name || '').trim()
+      || (detail.expert_contacts || '').trim()
+      || detail.expert_assessed_at
+    );
+    const isEditingExpertComment = canEditExpertComment && (!hasExpertRecord || state.adminReportDetailExpertCommentEditing);
+    adminReportDetailExpertComment.value = detail.expert_comment || '';
+    adminReportDetailExpertComment.disabled = !isEditingExpertComment;
+    adminReportDetailExpertComment.placeholder = canEditExpertComment
+      ? 'Добавьте вывод эксперта по результатам прохождения ассессмента.'
+      : 'Комментарий эксперта доступен после полного завершения ассессмента.';
+  }
+  if (adminReportDetailExpertName) {
+    const canEditExpertComment = Boolean(detail.can_edit_expert_comment);
+    const hasExpertRecord = Boolean(
+      (detail.expert_comment || '').trim()
+      || (detail.expert_name || '').trim()
+      || (detail.expert_contacts || '').trim()
+      || detail.expert_assessed_at
+    );
+    const isEditingExpertComment = canEditExpertComment && (!hasExpertRecord || state.adminReportDetailExpertCommentEditing);
+    adminReportDetailExpertName.value = detail.expert_name || '';
+    adminReportDetailExpertName.disabled = !isEditingExpertComment;
+  }
+  if (adminReportDetailExpertContacts) {
+    const canEditExpertComment = Boolean(detail.can_edit_expert_comment);
+    const hasExpertRecord = Boolean(
+      (detail.expert_comment || '').trim()
+      || (detail.expert_name || '').trim()
+      || (detail.expert_contacts || '').trim()
+      || detail.expert_assessed_at
+    );
+    const isEditingExpertComment = canEditExpertComment && (!hasExpertRecord || state.adminReportDetailExpertCommentEditing);
+    adminReportDetailExpertContacts.value = detail.expert_contacts || '';
+    adminReportDetailExpertContacts.disabled = !isEditingExpertComment;
+  }
+  if (adminReportDetailExpertAssessedAt) {
+    const canEditExpertComment = Boolean(detail.can_edit_expert_comment);
+    const hasExpertRecord = Boolean(
+      (detail.expert_comment || '').trim()
+      || (detail.expert_name || '').trim()
+      || (detail.expert_contacts || '').trim()
+      || detail.expert_assessed_at
+    );
+    const isEditingExpertComment = canEditExpertComment && (!hasExpertRecord || state.adminReportDetailExpertCommentEditing);
+    adminReportDetailExpertAssessedAt.value = formatDateInputValue(detail.expert_assessed_at);
+    adminReportDetailExpertAssessedAt.disabled = !isEditingExpertComment;
+  }
+  if (adminReportDetailExpertCommentEdit) {
+    const canEditExpertComment = Boolean(detail.can_edit_expert_comment);
+    const hasExpertRecord = Boolean(
+      (detail.expert_comment || '').trim()
+      || (detail.expert_name || '').trim()
+      || (detail.expert_contacts || '').trim()
+      || detail.expert_assessed_at
+    );
+    const isEditingExpertComment = canEditExpertComment && (!hasExpertRecord || state.adminReportDetailExpertCommentEditing);
+    adminReportDetailExpertCommentEdit.hidden = !canEditExpertComment || !hasExpertRecord || isEditingExpertComment;
+    adminReportDetailExpertCommentEdit.disabled = !canEditExpertComment || !hasExpertRecord;
+  }
+  if (adminReportDetailExpertCommentCancel) {
+    const canEditExpertComment = Boolean(detail.can_edit_expert_comment);
+    const hasExpertRecord = Boolean(
+      (detail.expert_comment || '').trim()
+      || (detail.expert_name || '').trim()
+      || (detail.expert_contacts || '').trim()
+      || detail.expert_assessed_at
+    );
+    const isEditingExpertComment = canEditExpertComment && (!hasExpertRecord || state.adminReportDetailExpertCommentEditing);
+    adminReportDetailExpertCommentCancel.hidden = !isEditingExpertComment;
+    adminReportDetailExpertCommentCancel.disabled = !isEditingExpertComment || !hasExpertRecord;
+  }
+  if (adminReportDetailExpertCommentSave) {
+    const canEditExpertComment = Boolean(detail.can_edit_expert_comment);
+    const hasExpertRecord = Boolean(
+      (detail.expert_comment || '').trim()
+      || (detail.expert_name || '').trim()
+      || (detail.expert_contacts || '').trim()
+      || detail.expert_assessed_at
+    );
+    const isEditingExpertComment = canEditExpertComment && (!hasExpertRecord || state.adminReportDetailExpertCommentEditing);
+    adminReportDetailExpertCommentSave.hidden = canEditExpertComment && hasExpertRecord && !isEditingExpertComment;
+    adminReportDetailExpertCommentSave.disabled = !isEditingExpertComment;
+    adminReportDetailExpertCommentSave.textContent = 'Сохранить комментарий';
+  }
+  if (adminReportDetailExpertCommentStatus) {
+    adminReportDetailExpertCommentStatus.textContent = state.adminReportDetailExpertCommentDirty ? 'Изменения не сохранены.' : '';
+  }
 
   const profileSummary = detail.profile_summary || {};
   if (adminReportDetailProfilePosition) {
@@ -4713,6 +4936,118 @@ const renderAdminReportDetail = () => {
 
   if (adminReportDetailPdfButton) {
     adminReportDetailPdfButton.disabled = !(detail.user_id && detail.session_id);
+  }
+  if (adminReportDetailDialoguesPdfButton) {
+    adminReportDetailDialoguesPdfButton.disabled = !detail.session_id;
+  }
+};
+
+const saveAdminReportExpertComment = async () => {
+  const detail = state.adminReportDetail;
+  if (!detail?.session_id || !adminReportDetailExpertComment) {
+    return;
+  }
+  if (!detail.can_edit_expert_comment) {
+    if (adminReportDetailExpertCommentStatus) {
+      adminReportDetailExpertCommentStatus.textContent = 'Комментарий доступен только для завершенного ассессмента.';
+    }
+    return;
+  }
+  const previousText = adminReportDetailExpertCommentSave ? adminReportDetailExpertCommentSave.textContent : '';
+  if (adminReportDetailExpertCommentSave) {
+    adminReportDetailExpertCommentSave.disabled = true;
+    adminReportDetailExpertCommentSave.textContent = 'Сохраняем...';
+  }
+  if (adminReportDetailExpertCommentStatus) {
+    adminReportDetailExpertCommentStatus.textContent = '';
+  }
+  try {
+    const response = await fetch('/users/admin/reports/' + detail.session_id + '/expert-comment', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        expert_comment: adminReportDetailExpertComment.value.trim() || null,
+        expert_name: adminReportDetailExpertName?.value.trim() || null,
+        expert_contacts: adminReportDetailExpertContacts?.value.trim() || null,
+        expert_assessed_at: normalizeExpertAssessmentDateForApi(adminReportDetailExpertAssessedAt?.value),
+      }),
+    });
+    const data = await readApiResponse(response, 'Не удалось сохранить комментарий эксперта.');
+    state.adminReportDetail = data;
+    state.adminReportDetailExpertCommentEditing = false;
+    state.adminReportDetailExpertCommentOriginal = data?.expert_comment || '';
+    state.adminReportDetailExpertCommentDirty = false;
+    state.adminReportDetailExpertMetaOriginal = {
+      expert_name: data?.expert_name || '',
+      expert_contacts: data?.expert_contacts || '',
+      expert_assessed_at: formatDateInputValue(data?.expert_assessed_at),
+    };
+    renderAdminReportDetail();
+    if (adminReportDetailExpertCommentStatus) {
+      adminReportDetailExpertCommentStatus.textContent = 'Комментарий сохранен.';
+    }
+  } catch (error) {
+    if (adminReportDetailExpertCommentStatus) {
+      adminReportDetailExpertCommentStatus.textContent = error.message;
+    }
+  } finally {
+    if (adminReportDetailExpertCommentSave) {
+      const detailState = state.adminReportDetail;
+      const canEditExpertComment = Boolean(detailState?.can_edit_expert_comment);
+      const hasExpertRecord = Boolean(
+        (detailState?.expert_comment || '').trim()
+        || (detailState?.expert_name || '').trim()
+        || (detailState?.expert_contacts || '').trim()
+        || detailState?.expert_assessed_at
+      );
+      const isEditingExpertComment = canEditExpertComment && (!hasExpertRecord || state.adminReportDetailExpertCommentEditing);
+      adminReportDetailExpertCommentSave.hidden = canEditExpertComment && hasExpertRecord && !isEditingExpertComment;
+      adminReportDetailExpertCommentSave.disabled = !isEditingExpertComment;
+      adminReportDetailExpertCommentSave.textContent = previousText || 'Сохранить комментарий';
+    }
+  }
+};
+
+const enableAdminReportExpertCommentEditing = () => {
+  const detail = state.adminReportDetail;
+  if (!detail?.can_edit_expert_comment) {
+    return;
+  }
+  state.adminReportDetailExpertCommentEditing = true;
+  state.adminReportDetailExpertCommentDirty = false;
+  renderAdminReportDetail();
+  if (adminReportDetailExpertComment) {
+    adminReportDetailExpertComment.focus();
+    const length = adminReportDetailExpertComment.value.length;
+    adminReportDetailExpertComment.setSelectionRange(length, length);
+  }
+  if (adminReportDetailExpertCommentStatus) {
+    adminReportDetailExpertCommentStatus.textContent = '';
+  }
+};
+
+const cancelAdminReportExpertCommentEditing = () => {
+  const detail = state.adminReportDetail;
+  if (!detail?.can_edit_expert_comment) {
+    return;
+  }
+  state.adminReportDetailExpertCommentEditing = false;
+  state.adminReportDetailExpertCommentDirty = false;
+  if (adminReportDetailExpertName) {
+    adminReportDetailExpertName.value = state.adminReportDetailExpertMetaOriginal.expert_name || '';
+  }
+  if (adminReportDetailExpertContacts) {
+    adminReportDetailExpertContacts.value = state.adminReportDetailExpertMetaOriginal.expert_contacts || '';
+  }
+  if (adminReportDetailExpertAssessedAt) {
+    adminReportDetailExpertAssessedAt.value = state.adminReportDetailExpertMetaOriginal.expert_assessed_at || '';
+  }
+  if (adminReportDetailExpertComment) {
+    adminReportDetailExpertComment.value = state.adminReportDetailExpertCommentOriginal || '';
+  }
+  renderAdminReportDetail();
+  if (adminReportDetailExpertCommentStatus) {
+    adminReportDetailExpertCommentStatus.textContent = '';
   }
 };
 
@@ -5300,6 +5635,9 @@ const renderReportsPage = () => {
             '</div>' +
           '</div>' +
           '<div class="profile-history-panel-body">' +
+            (item.expert_comment
+              ? '<div class="profile-history-expert-comment"><span>Комментарий эксперта</span><p>' + escapeHtml(item.expert_comment) + '</p></div>'
+              : '') +
             (expanded ? buildProfileSkillsMarkup(skills) : '') +
           '</div>' +
         '</div>';
@@ -6200,6 +6538,37 @@ const openReport = (options = {}) => {
   clearAssessmentStorage();
 };
 
+const openReportAfterAssessment = async (options = {}) => {
+  try {
+    await loadSkillAssessments();
+    openReport(options);
+  } catch (error) {
+    showError(interviewError, error.message);
+  }
+};
+
+const resolveAssessmentSessionIdByCode = async () => {
+  if (!state.pendingUser?.id || !state.assessmentSessionCode) {
+    return null;
+  }
+
+  const response = await fetch(
+    '/users/' + state.pendingUser.id + '/assessment/by-code/' + encodeURIComponent(state.assessmentSessionCode),
+  );
+  const data = await readApiResponse(response, 'Не удалось восстановить assessment-сессию.');
+  const resolvedSessionId = Number(data?.session_id);
+  if (!resolvedSessionId) {
+    return null;
+  }
+
+  state.assessmentSessionId = resolvedSessionId;
+  if (data?.session_code) {
+    state.assessmentSessionCode = data.session_code;
+  }
+  persistAssessmentContext();
+  return resolvedSessionId;
+};
+
 const handleReportBack = () => {
   if (state.reportReturnTarget === 'reports') {
     void openReports();
@@ -6210,15 +6579,39 @@ const handleReportBack = () => {
 };
 
 const loadSkillAssessments = async () => {
-  if (!state.pendingUser?.id || !state.assessmentSessionId) {
+  if (!state.pendingUser?.id) {
     state.reportInterpretation = null;
     return;
   }
 
-  const [skillsResponse, interpretationResponse] = await Promise.all([
+  if (!state.assessmentSessionId && state.assessmentSessionCode) {
+    await resolveAssessmentSessionIdByCode();
+  }
+
+  if (!state.assessmentSessionId) {
+    state.reportInterpretation = null;
+    return;
+  }
+
+  let [skillsResponse, interpretationResponse] = await Promise.all([
     fetch('/users/' + state.pendingUser.id + '/assessment/' + state.assessmentSessionId + '/skill-assessments'),
     fetch('/users/' + state.pendingUser.id + '/assessment/' + state.assessmentSessionId + '/report-interpretation'),
   ]);
+
+  if (
+    (skillsResponse.status === 404 || interpretationResponse.status === 404)
+    && state.assessmentSessionCode
+  ) {
+    const previousSessionId = state.assessmentSessionId;
+    const resolvedSessionId = await resolveAssessmentSessionIdByCode();
+    if (resolvedSessionId && resolvedSessionId !== previousSessionId) {
+      [skillsResponse, interpretationResponse] = await Promise.all([
+        fetch('/users/' + state.pendingUser.id + '/assessment/' + state.assessmentSessionId + '/skill-assessments'),
+        fetch('/users/' + state.pendingUser.id + '/assessment/' + state.assessmentSessionId + '/report-interpretation'),
+      ]);
+    }
+  }
+
   const data = await readApiResponse(skillsResponse, 'Не удалось загрузить профиль компетенций.');
   const interpretation = await readApiResponse(interpretationResponse, 'Не удалось загрузить интерпретацию результатов.');
   state.skillAssessments = data;
@@ -6350,19 +6743,17 @@ const runProcessingStep = (stepIndex = 0) => {
 };
 
 const openProcessing = () => {
-  safeStorage.removeItem(STORAGE_KEYS.completionPending);
-  state.newUserSequenceStep = 'processing';
   setCurrentScreen('processing');
-  persistAssessmentContext();
   syncUrlState('processing');
+  hideAllPanels();
+  processingPanel.classList.remove('hidden');
+  clearProcessingTimer();
   state.processingStepIndex = 0;
   state.processingAgents = buildProcessingAgentsState();
   state.processingAnimationDone = false;
   state.processingDataLoaded = false;
   state.processingAutoTransitionStarted = false;
-  ensureDashboardAfterAssessment();
-  hideAllPanels();
-  processingPanel.classList.remove('hidden');
+  processingStatusText.textContent = 'Подтягиваем итоговые оценки и формируем профиль компетенций.';
   renderProcessingProgress();
   runProcessingStep(0);
   void completeProcessingAndOpenReport();
@@ -6384,6 +6775,15 @@ const parseInterviewAssistantMessage = (text) => {
   const normalized = String(text || '').trim();
   if (!normalized) {
     return null;
+  }
+
+  const explicitTaskMatch = normalized.match(/([\s\S]*?)\n{1,}\s*Что нужно сделать:\s*([\s\S]+)$/i);
+  if (explicitTaskMatch) {
+    const context = explicitTaskMatch[1].trim();
+    const task = normalizeInterviewTaskText(explicitTaskMatch[2]);
+    if (context && task) {
+      return { context, task };
+    }
   }
 
   const parts = normalized.split(/\n\s*\n/).map((part) => part.trim()).filter(Boolean);
@@ -6408,7 +6808,7 @@ const parseInterviewAssistantMessage = (text) => {
 };
 
 const looksLikeInterviewTask = (text) => {
-  const normalized = String(text || '').trim().toLowerCase();
+  const normalized = normalizeInterviewTaskText(text).toLowerCase();
   if (!normalized) {
     return false;
   }
@@ -6424,6 +6824,178 @@ const looksLikeInterviewTask = (text) => {
     'сформируйте',
     'выберите',
   ].some((prefix) => normalized.startsWith(prefix));
+};
+
+const normalizeInterviewTaskText = (text) => {
+  return String(text || '')
+    .trim()
+    .replace(/^что нужно сделать:\s*/i, '')
+    .trim();
+};
+
+const normalizeInterviewSituationText = (text) => {
+  return String(text || '')
+    .replace(/\r\n/g, '\n')
+    .trim()
+    .replace(/^Ситуация:\s*\*\*[^*]+\*\*[.:]?\s*/i, '')
+    .replace(/^\*\*Ситуация\*\*[.:]?\s*/i, '')
+    .replace(/^Ситуация[.:]?\s*/i, '')
+    .trim();
+};
+
+const extractInterviewIncidentTitle = (text) => {
+  const normalized = String(text || '').replace(/\r\n/g, '\n').trim();
+  if (!normalized) {
+    return '';
+  }
+  const match = normalized.match(/Ситуация:\s*\*\*([^*]+)\*\*/i);
+  return match ? match[1].trim() : '';
+};
+
+const normalizeStructuredInterviewHeading = (text) => {
+  const value = String(text || '').trim();
+  return value
+    .replace(/^\*\*/, '')
+    .replace(/\*\*[.:]?$/, '')
+    .replace(/[.:]$/, '')
+    .trim();
+};
+
+const parseInterviewStructuredSections = (text) => {
+  const normalized = String(text || '')
+    .replace(/\r\n/g, '\n')
+    .replace(/\s+(Ситуация:\s*\*\*[^*]+\*\*)/g, '\n\n$1')
+    .replace(/\s+(\*\*(?:Что известно|Что ограничивает)\*\*[.:]?)/g, '\n\n$1')
+    .replace(/(\*\*(?:Что известно|Что ограничивает)\*\*[.:]?)\s*-\s*/g, '$1\n- ')
+    .replace(/([.!?])\s+(-\s+)/g, '$1\n$2')
+    .trim();
+  if (!normalized) {
+    return { situation: '', known: [], limiting: [], other: [] };
+  }
+
+  const sections = {
+    situation: '',
+    known: [],
+    limiting: [],
+    other: [],
+  };
+
+  const taskBoundary = normalized.search(/\n\s*Что нужно сделать:\s*/i);
+  const contentBoundary = taskBoundary >= 0 ? taskBoundary : normalized.length;
+  const contentOnly = normalized.slice(0, contentBoundary).trim();
+
+  const situationMatch = contentOnly.match(/Ситуация:\s*\*\*[^*]+\*\*[.:]?\s*([\s\S]*?)(?=\n\s*\*\*Что известно\*\*[.:]?|\n\s*\*\*Что ограничивает\*\*[.:]?|$)/i);
+  if (situationMatch) {
+    sections.situation = situationMatch[1].trim();
+  } else {
+    const markdownSituationMatch = contentOnly.match(/\*\*Ситуация\*\*[.:]?\s*([\s\S]*?)(?=\n\s*\*\*Что известно\*\*[.:]?|\n\s*\*\*Что ограничивает\*\*[.:]?|$)/i);
+    if (markdownSituationMatch) {
+      sections.situation = markdownSituationMatch[1].trim();
+    }
+  }
+
+  const extractListItems = (rawText) => {
+    const unique = new Set();
+    return String(rawText || '')
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .map((line) => line.replace(/^[-*]\s+/, '').replace(/^\d+[.)]\s+/, '').trim())
+      .filter((line) => !/^\*\*(?:Что известно|Что ограничивает)\*\*[.:]?$/i.test(line))
+      .filter(Boolean)
+      .filter((line) => {
+        const key = line.toLowerCase();
+        if (unique.has(key)) {
+          return false;
+        }
+        unique.add(key);
+        return true;
+      });
+  };
+
+  const splitIntoStructuredBlocks = (rawText) => {
+    return String(rawText || '')
+      .split(/\n\s*\n/)
+      .map((block) => block.trim())
+      .filter(Boolean)
+      .filter((block) => !/^\*\*(?:Ситуация|Что известно|Что ограничивает)\*\*[.:]?$/i.test(block));
+  };
+
+  const knownHeaderRegex = /\*\*Что известно\*\*[.:]?/i;
+  const limitingHeaderRegex = /\*\*Что ограничивает\*\*[.:]?/i;
+  const knownHeaderMatch = knownHeaderRegex.exec(contentOnly);
+  const limitingHeaderMatch = limitingHeaderRegex.exec(contentOnly);
+
+  if (knownHeaderMatch) {
+    const knownStart = knownHeaderMatch.index + knownHeaderMatch[0].length;
+    const knownEnd = limitingHeaderMatch && limitingHeaderMatch.index > knownHeaderMatch.index
+      ? limitingHeaderMatch.index
+      : contentOnly.length;
+    sections.known = extractListItems(contentOnly.slice(knownStart, knownEnd));
+  }
+
+  if (limitingHeaderMatch) {
+    const limitingStart = limitingHeaderMatch.index + limitingHeaderMatch[0].length;
+    sections.limiting = extractListItems(contentOnly.slice(limitingStart));
+  }
+
+  if (!sections.situation) {
+    const blocks = contentOnly.split(/\n\s*\n/).map((part) => part.trim()).filter(Boolean);
+    const firstBlock = blocks[0] || '';
+    const isTitleOnlySituation = /^Ситуация:\s*\*\*[^*]+\*\*[.:]?$/i.test(firstBlock)
+      || /^\*\*Ситуация\*\*[.:]?$/i.test(firstBlock);
+    if (isTitleOnlySituation) {
+      sections.situation = blocks[1] || '';
+      if (!knownHeaderMatch && !limitingHeaderMatch) {
+        sections.known = extractListItems(blocks.slice(2).join('\n\n'));
+      }
+    } else if (blocks.length > 1 && !knownHeaderMatch && !limitingHeaderMatch) {
+      sections.situation = firstBlock;
+      sections.known = extractListItems(blocks.slice(1).join('\n\n'));
+    } else {
+      sections.situation = firstBlock;
+    }
+  }
+
+  if (sections.situation && !sections.known.length && !knownHeaderMatch && !limitingHeaderMatch) {
+    const fallbackBlocks = splitIntoStructuredBlocks(contentOnly);
+    if (fallbackBlocks.length > 1) {
+      sections.situation = fallbackBlocks[0];
+      sections.known = extractListItems(fallbackBlocks.slice(1).join('\n\n'));
+    }
+  }
+
+  return sections;
+};
+
+const renderInterviewStructuredBlock = ({ label, body = '', items = [] }) => {
+  const section = document.createElement('section');
+  section.className = 'interview-structured-block';
+
+  const labelNode = document.createElement('div');
+  labelNode.className = 'interview-structured-block-label';
+  labelNode.textContent = label;
+  section.appendChild(labelNode);
+
+  if (body) {
+    const bodyNode = document.createElement('div');
+    bodyNode.className = 'interview-structured-block-body';
+    bodyNode.textContent = body;
+    section.appendChild(bodyNode);
+  }
+
+  if (items.length) {
+    const list = document.createElement('ul');
+    list.className = 'interview-structured-block-list';
+    items.forEach((item) => {
+      const li = document.createElement('li');
+      li.textContent = item;
+      list.appendChild(li);
+    });
+    section.appendChild(list);
+  }
+
+  return section;
 };
 
 const addInterviewMessage = (role, text) => {
@@ -6444,13 +7016,17 @@ const addInterviewMessage = (role, text) => {
     if (parsed) {
       bubble.classList.add('structured');
 
-      const contextSection = document.createElement('div');
-      contextSection.className = 'interview-bubble-section';
-      contextSection.innerHTML =
+      const contextLeadSection = document.createElement('div');
+      contextLeadSection.className = 'interview-bubble-section lead';
+      contextLeadSection.innerHTML =
         '<div class="interview-bubble-label">Вводные данные</div>' +
         '<div class="interview-bubble-text"></div>';
-      contextSection.querySelector('.interview-bubble-text').textContent = parsed.context;
-      bubble.appendChild(contextSection);
+      const leadTarget = contextLeadSection.querySelector('.interview-bubble-text');
+      leadTarget.appendChild(renderInterviewStructuredBlock({
+        label: 'Ситуация',
+        body: normalizeInterviewSituationText(parsed.context) || parsed.context,
+      }));
+      bubble.appendChild(contextLeadSection);
 
       const taskSection = document.createElement('div');
       taskSection.className = 'interview-bubble-section task';
@@ -6612,10 +7188,6 @@ const handleAssessmentResponse = (data) => {
     : null;
   state.activeInterviewCaseKey = nextCaseKey;
 
-  renderInterviewMeta();
-  renderCaseProgress(Boolean(data.assessment_completed));
-  clearInterviewTimer();
-
   if (caseChanged) {
     interviewMessages.innerHTML = '';
   }
@@ -6624,6 +7196,15 @@ const handleAssessmentResponse = (data) => {
   if (caseChanged && assistantMessage.includes('\n\nСледующий кейс:\n')) {
     assistantMessage = assistantMessage.split('\n\nСледующий кейс:\n')[1];
   }
+  const incidentTitle = extractInterviewIncidentTitle(assistantMessage);
+  if (incidentTitle) {
+    state.assessmentCaseTitle = incidentTitle;
+  }
+
+  renderInterviewMeta();
+  renderCaseProgress(Boolean(data.assessment_completed));
+  clearInterviewTimer();
+
   addInterviewMessage('assistant', assistantMessage);
 
   interviewSummary.classList.add('hidden');
@@ -6640,12 +7221,7 @@ const handleAssessmentResponse = (data) => {
     interviewPanel.classList.add('completed');
     interviewCompleteActions.classList.remove('hidden');
     safeStorage.setItem(STORAGE_KEYS.completionPending, '1');
-    navigateToScreen('processing');
-    window.setTimeout(() => {
-      if (!document.hidden && processingPanel.classList.contains('hidden')) {
-        openProcessing();
-      }
-    }, 120);
+    openProcessing();
     return;
   }
 
@@ -7079,6 +7655,98 @@ if (adminReportDetailPdfButton) {
   });
 }
 
+if (adminReportDetailDialoguesPdfButton) {
+  adminReportDetailDialoguesPdfButton.addEventListener('click', () => {
+    if (!state.adminReportDetail?.session_id) {
+      return;
+    }
+    window.location.href = '/users/admin/reports/' + state.adminReportDetail.session_id + '/dialogue.pdf';
+  });
+}
+
+if (adminReportDetailExpertCommentSave) {
+  adminReportDetailExpertCommentSave.addEventListener('click', () => {
+    void saveAdminReportExpertComment();
+  });
+}
+
+if (adminReportDetailExpertCommentEdit) {
+  adminReportDetailExpertCommentEdit.addEventListener('click', () => {
+    enableAdminReportExpertCommentEditing();
+  });
+}
+
+if (adminReportDetailExpertCommentCancel) {
+  adminReportDetailExpertCommentCancel.addEventListener('click', () => {
+    cancelAdminReportExpertCommentEditing();
+  });
+}
+
+if (adminReportDetailExpertComment) {
+  adminReportDetailExpertComment.addEventListener('input', () => {
+    if (!state.adminReportDetailExpertCommentEditing) {
+      return;
+    }
+    updateAdminExpertCommentDirtyState();
+    if (adminReportDetailExpertCommentStatus) {
+      adminReportDetailExpertCommentStatus.textContent = state.adminReportDetailExpertCommentDirty ? 'Изменения не сохранены.' : '';
+    }
+  });
+}
+
+const updateAdminExpertCommentDirtyState = () => {
+  const currentComment = adminReportDetailExpertComment?.value.trim() || '';
+  const originalComment = String(state.adminReportDetailExpertCommentOriginal || '').trim();
+  const currentMeta = {
+    expert_name: adminReportDetailExpertName?.value.trim() || '',
+    expert_contacts: adminReportDetailExpertContacts?.value.trim() || '',
+    expert_assessed_at: adminReportDetailExpertAssessedAt?.value || '',
+  };
+  const originalMeta = state.adminReportDetailExpertMetaOriginal || {};
+  state.adminReportDetailExpertCommentDirty = (
+    currentComment !== originalComment
+    || currentMeta.expert_name !== String(originalMeta.expert_name || '').trim()
+    || currentMeta.expert_contacts !== String(originalMeta.expert_contacts || '').trim()
+    || currentMeta.expert_assessed_at !== String(originalMeta.expert_assessed_at || '')
+  );
+};
+
+if (adminReportDetailExpertName) {
+  adminReportDetailExpertName.addEventListener('input', () => {
+    if (!state.adminReportDetailExpertCommentEditing) {
+      return;
+    }
+    updateAdminExpertCommentDirtyState();
+    if (adminReportDetailExpertCommentStatus) {
+      adminReportDetailExpertCommentStatus.textContent = state.adminReportDetailExpertCommentDirty ? 'Изменения не сохранены.' : '';
+    }
+  });
+}
+
+if (adminReportDetailExpertContacts) {
+  adminReportDetailExpertContacts.addEventListener('input', () => {
+    if (!state.adminReportDetailExpertCommentEditing) {
+      return;
+    }
+    updateAdminExpertCommentDirtyState();
+    if (adminReportDetailExpertCommentStatus) {
+      adminReportDetailExpertCommentStatus.textContent = state.adminReportDetailExpertCommentDirty ? 'Изменения не сохранены.' : '';
+    }
+  });
+}
+
+if (adminReportDetailExpertAssessedAt) {
+  adminReportDetailExpertAssessedAt.addEventListener('input', () => {
+    if (!state.adminReportDetailExpertCommentEditing) {
+      return;
+    }
+    updateAdminExpertCommentDirtyState();
+    if (adminReportDetailExpertCommentStatus) {
+      adminReportDetailExpertCommentStatus.textContent = state.adminReportDetailExpertCommentDirty ? 'Изменения не сохранены.' : '';
+    }
+  });
+}
+
 dashboardProfileButton.addEventListener('click', () => {
   void openProfile();
 });
@@ -7195,7 +7863,7 @@ interviewFinishButton.addEventListener('click', async () => {
 
 interviewGoProcessingButton.addEventListener('click', () => {
   safeStorage.setItem(STORAGE_KEYS.completionPending, '1');
-  navigateToScreen('processing');
+  openProcessing();
 });
 
 if (interviewBackButton) {
@@ -7315,6 +7983,8 @@ const bootApp = async () => {
   const screen = params.get('screen') || (safeStorage.getItem(STORAGE_KEYS.completionPending) ? 'processing' : null);
   restoreAssessmentContext();
   restoreAssessmentContextFromParams(params);
+  const hadStoredPendingUser = Boolean(state.pendingUser?.id);
+  let restoredServerSession = false;
 
   if (screen === 'processing') {
     if (state.pendingUser?.id && state.assessmentSessionId) {
@@ -7340,13 +8010,13 @@ const bootApp = async () => {
 
   if (!state.pendingUser?.id) {
     try {
-      await restoreServerSession();
+      restoredServerSession = await restoreServerSession();
     } catch (error) {
       console.error('Failed to restore server session', error);
     }
   }
 
-  if (!state.dashboard && state.pendingUser?.id) {
+  if ((hadStoredPendingUser || !restoredServerSession) && state.pendingUser?.id) {
     try {
       await restoreLocalUserSession();
     } catch (error) {

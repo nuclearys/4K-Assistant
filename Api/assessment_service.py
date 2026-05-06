@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import json
 import re
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from uuid import uuid4
 
+from Api.case_context_builder import build_case_context
 from Api.communication_agent import competency_assessment_agents
 from Api.database import get_case_methodology_versions, get_connection
 from Api.deepseek_client import DeepSeekTurnResult, deepseek_client
@@ -80,6 +82,19 @@ class AssessmentService:
         dialogue_rows,
         case_skills: list[str],
     ) -> str:
+        previous_assistant_messages = [
+            str(row["message_text"] or "").strip()
+            for row in dialogue_rows
+            if row["role"] == "assistant" and str(row["message_text"] or "").strip()
+        ]
+        previous_normalized = {
+            self._normalize_message_for_repeat_check(item)
+            for item in previous_assistant_messages
+        }
+        previous_topics = [
+            deepseek_client._infer_follow_up_topics_from_text(item)
+            for item in previous_assistant_messages[-3:]
+        ]
         candidates = [
             deepseek_client._build_follow_up_question(
                 user_message=user_message,
@@ -93,9 +108,42 @@ class AssessmentService:
         ]
         repeated_normalized = self._normalize_message_for_repeat_check(repeated_message)
         for candidate in candidates:
-            if self._normalize_message_for_repeat_check(candidate) != repeated_normalized:
-                return candidate
+            candidate_normalized = self._normalize_message_for_repeat_check(candidate)
+            candidate_topics = deepseek_client._infer_follow_up_topics_from_text(candidate)
+            if candidate_normalized == repeated_normalized:
+                continue
+            if candidate_normalized in previous_normalized:
+                continue
+            if candidate_topics and any(candidate_topics & topic_set for topic_set in previous_topics if topic_set):
+                continue
+            return candidate
         return "Уточните, пожалуйста, какие контрольные точки и критерии пересмотра решения вы бы зафиксировали."
+
+    def _has_same_follow_up_topic(self, current_message: str | None, previous_message: str | None) -> bool:
+        current_topics = deepseek_client._infer_follow_up_topics_from_text(current_message)
+        previous_topics = deepseek_client._infer_follow_up_topics_from_text(previous_message)
+        if not current_topics or not previous_topics:
+            return False
+        return bool(current_topics & previous_topics)
+
+    def _needs_non_repeating_follow_up(self, current_message: str | None, dialogue_rows) -> bool:
+        assistant_rows = [
+            row for row in dialogue_rows
+            if row["role"] == "assistant" and str(row["message_text"] or "").strip()
+        ]
+        if not assistant_rows:
+            return False
+        current_normalized = self._normalize_message_for_repeat_check(current_message)
+        current_topics = deepseek_client._infer_follow_up_topics_from_text(current_message)
+        recent_assistant_rows = assistant_rows[-3:]
+        for row in recent_assistant_rows:
+            previous_text = str(row["message_text"] or "")
+            if current_normalized == self._normalize_message_for_repeat_check(previous_text):
+                return True
+            previous_topics = deepseek_client._infer_follow_up_topics_from_text(previous_text)
+            if current_topics and previous_topics and (current_topics & previous_topics):
+                return True
+        return False
 
     def ensure_assessment_session(self, user: UserResponse, progress_operation_id: str | None = None) -> AssessmentSessionPlan | None:
         if not user.id or not user.role_id:
@@ -230,9 +278,7 @@ class AssessmentService:
             role_name = role_row["name"] if role_row else None
             profile_row = connection.execute(
                 """
-                SELECT user_domain, user_processes, user_tasks, user_stakeholders,
-                       user_risks, user_constraints, user_context_vars, role_limits,
-                       role_vocabulary, role_skill_profile
+                SELECT *
                 FROM user_role_profiles
                 WHERE id = %s
                 """,
@@ -243,9 +289,10 @@ class AssessmentService:
             operation_progress_service.advance(
                 progress_operation_id,
                 2,
-                title="Персонализируем материалы",
-                message="Готовим персонализированный контекст и задания по выбранным кейсам.",
+                title="Собираем черновик сессии",
+                message="Создаем assessment-сессию и фиксируем выбранные кейсы в базе данных.",
             )
+            prepared_session_cases: list[tuple[int, dict]] = []
             for index, case_row in enumerate(selected_cases, start=1):
                 methodology_versions = get_case_methodology_versions(connection, int(case_row["id"]))
                 session_case = connection.execute(
@@ -320,9 +367,9 @@ class AssessmentService:
                         INSERT INTO session_case_skills (session_case_id, skill_id, coverage_status)
                         VALUES (%s, %s, 'planned')
                         ON CONFLICT (session_case_id, skill_id) DO NOTHING
-                        """,
-                        (session_case_id, skill_id),
-                    )
+                    """,
+                    (session_case_id, skill_id),
+                )
                     connection.execute(
                         """
                         INSERT INTO user_skill_coverage (
@@ -334,25 +381,7 @@ class AssessmentService:
                         (user.id, user.role_id, skill_id, case_row["id"]),
                     )
 
-                self._upsert_session_case_prompt(
-                    connection=connection,
-                    user=user,
-                    session_id=session_id,
-                    session_case_id=session_case_id,
-                    case_row=case_row,
-                    role_name=role_name,
-                    user_profile=user_profile,
-                    skill_names=[name for name in case_row["skill_names"] if name],
-                    progress_operation_id=progress_operation_id,
-                )
-                connection.execute(
-                    """
-                    UPDATE session_cases
-                    SET status = 'personalized'
-                    WHERE id = %s
-                    """,
-                    (session_case_id,),
-                )
+                prepared_session_cases.append((session_case_id, dict(case_row)))
 
             connection.execute(
                 """
@@ -370,6 +399,95 @@ class AssessmentService:
                 """,
                 (session_id,),
             )
+            connection.commit()
+
+            operation_progress_service.advance(
+                progress_operation_id,
+                3,
+                title="Персонализируем материалы",
+                message="Готовим персонализированный контекст и промты для каждого кейса.",
+            )
+            used_case_signatures: list[dict[str, str]] = []
+            for session_case_id, case_row in prepared_session_cases:
+                try:
+                    connection.execute(
+                        """
+                        UPDATE session_cases
+                        SET status = 'sent_to_personalization'
+                        WHERE id = %s
+                        """,
+                        (session_case_id,),
+                    )
+                    self._upsert_session_case_prompt(
+                        connection=connection,
+                        user=user,
+                        session_id=session_id,
+                        session_case_id=session_case_id,
+                        case_row=case_row,
+                        role_name=role_name,
+                        user_profile=user_profile,
+                        skill_names=[name for name in case_row["skill_names"] if name],
+                        progress_operation_id=progress_operation_id,
+                        used_case_signatures=used_case_signatures,
+                    )
+                    if user_profile:
+                        case_specificity = deepseek_client.generate_case_specificity(
+                            position=user.raw_position or user.job_description,
+                            duties=user.normalized_duties or user.raw_duties,
+                            company_industry=user.company_industry,
+                            role_name=role_name,
+                            user_profile=user_profile,
+                            case_type_code=case_row["type_code"],
+                            case_title=case_row["title"],
+                            case_context=case_row["intro_context"] or case_row["domain_context"] or "",
+                            case_task=case_row["task_for_user"] or "",
+                        )
+                        case_specificity = dict(case_specificity or {})
+                        case_specificity["_used_case_signatures"] = [dict(item) for item in used_case_signatures]
+                        preview_frame = build_case_context(
+                            domain_family=str(
+                                (user_profile.get("user_context_vars") or {}).get("domain_family")
+                                or (user_profile.get("user_context_vars") or {}).get("domain_code")
+                                or user_profile.get("user_domain")
+                                or ""
+                            ),
+                            case_type_code=case_row["type_code"],
+                            profile_processes=user_profile.get("user_processes"),
+                            profile_tasks=user_profile.get("user_tasks"),
+                            profile_stakeholders=user_profile.get("user_stakeholders"),
+                            profile_risks=user_profile.get("user_risks"),
+                            profile_constraints=user_profile.get("user_constraints"),
+                            profile_systems=user_profile.get("user_systems"),
+                            profile_artifacts=user_profile.get("user_artifacts"),
+                            case_specificity=case_specificity,
+                        )
+                        used_case_signatures.append(
+                            {
+                                "case_type_code": str(case_row["type_code"] or ""),
+                                "situation_code": str(preview_frame.get("situation_code") or ""),
+                                "scene_theme": str(preview_frame.get("scene_theme") or ""),
+                                "incident_title": str(preview_frame.get("incident_title") or ""),
+                                "problem_event": str(preview_frame.get("problem_event") or ""),
+                            }
+                        )
+                    connection.execute(
+                        """
+                        UPDATE session_cases
+                        SET status = 'personalized'
+                        WHERE id = %s
+                        """,
+                        (session_case_id,),
+                    )
+                    connection.commit()
+                except Exception as exc:
+                    self._archive_broken_session(
+                        connection=connection,
+                        session_id=session_id,
+                        reason=f"prepare: prompt generation failed for session_case_id={session_case_id}: {exc.__class__.__name__}",
+                    )
+                    connection.commit()
+                    raise
+
             connection.execute(
                 "UPDATE user_sessions SET status = 'active' WHERE id = %s",
                 (session_id,),
@@ -397,6 +515,12 @@ class AssessmentService:
                 cr.title,
                 txt.intro_context,
                 txt.task_for_user,
+                txt.facts_data,
+                txt.trigger_details,
+                txt.constraints_text,
+                txt.stakes_text,
+                txt.base_variant_text,
+                txt.hard_variant_text,
                 cr.context_domain AS domain_context,
                 txt.personalization_variables,
                 cr.estimated_time_min AS estimated_minutes,
@@ -427,6 +551,12 @@ class AssessmentService:
                 cr.title,
                 txt.intro_context,
                 txt.task_for_user,
+                txt.facts_data,
+                txt.trigger_details,
+                txt.constraints_text,
+                txt.stakes_text,
+                txt.base_variant_text,
+                txt.hard_variant_text,
                 cr.context_domain,
                 txt.personalization_variables,
                 cr.estimated_time_min
@@ -456,6 +586,12 @@ class AssessmentService:
                 p.type_code,
                 txt.intro_context,
                 txt.task_for_user,
+                txt.facts_data,
+                txt.trigger_details,
+                txt.constraints_text,
+                txt.stakes_text,
+                txt.base_variant_text,
+                txt.hard_variant_text,
                 cr.context_domain AS domain_context,
                 txt.personalization_variables,
                 cr.estimated_time_min AS estimated_minutes,
@@ -508,9 +644,7 @@ class AssessmentService:
         role_name = role_row["name"] if role_row else None
         profile_row = connection.execute(
             """
-            SELECT user_domain, user_processes, user_tasks, user_stakeholders,
-                   user_risks, user_constraints, user_context_vars, role_limits,
-                   role_vocabulary, role_skill_profile
+            SELECT *
             FROM user_role_profiles
             WHERE id = %s
             """,
@@ -612,6 +746,7 @@ class AssessmentService:
         user_profile: dict | None,
         skill_names: list[str],
         progress_operation_id: str | None = None,
+        used_case_signatures: list[dict[str, str]] | None = None,
     ) -> None:
         methodical_context = self._get_case_methodical_context(connection, case_row)
         planned_total_duration_min = case_row["planned_duration_minutes"] or case_row["estimated_minutes"]
@@ -620,39 +755,106 @@ class AssessmentService:
             session_id=session_id,
             session_case_id=session_case_id,
         )
-        case_specificity = deepseek_client.generate_case_specificity(
-            position=user.raw_position or user.job_description,
-            duties=user.normalized_duties or user.raw_duties,
-            company_industry=user.company_industry,
-            role_name=role_name,
-            user_profile=user_profile,
-            case_type_code=case_row["type_code"],
-            case_title=case_row["title"],
-            case_context=case_row["intro_context"] or case_row["domain_context"] or "",
-            case_task=case_row["task_for_user"] or "",
+        use_direct_deepseek_output = (
+            deepseek_client.enabled
+            and deepseek_client._should_use_llm_user_case_rewrite(case_type_code=case_row["type_code"])
         )
-        personalization_map, personalized_context, personalized_task = deepseek_client.build_personalized_case_materials(
-            full_name=user.full_name,
-            position=user.raw_position or user.job_description,
-            duties=user.normalized_duties or user.raw_duties,
-            company_industry=user.company_industry,
-            role_name=role_name,
+        if use_direct_deepseek_output:
+            case_specificity = {}
+        else:
+            case_specificity = deepseek_client.generate_case_specificity(
+                position=user.raw_position or user.job_description,
+                duties=user.normalized_duties or user.raw_duties,
+                company_industry=user.company_industry,
+                role_name=role_name,
+                user_profile=user_profile,
+                case_type_code=case_row["type_code"],
+                case_title=case_row["title"],
+                case_context=case_row["intro_context"] or case_row["domain_context"] or "",
+                case_task=case_row["task_for_user"] or "",
+            )
+            case_specificity = dict(case_specificity or {})
+        case_specificity["_case_id_code"] = case_row.get("case_code")
+        case_specificity["_facts_data"] = case_row.get("facts_data")
+        case_specificity["_trigger_details"] = case_row.get("trigger_details")
+        case_specificity["_constraints_text"] = case_row.get("constraints_text")
+        case_specificity["_stakes_text"] = case_row.get("stakes_text")
+        case_specificity["_base_variant_text"] = case_row.get("base_variant_text")
+        case_specificity["_hard_variant_text"] = case_row.get("hard_variant_text")
+        case_specificity["_used_case_signatures"] = [dict(item) for item in (used_case_signatures or [])]
+        if use_direct_deepseek_output:
+            personalization_map = {}
+            personalized_context, personalized_task = deepseek_client._rewrite_user_case_materials_with_llm(
+                case_id_code=case_row.get("case_code"),
+                case_title=case_row["title"],
+                case_type_code=case_row["type_code"],
+                case_context=case_row["intro_context"] or case_row["domain_context"] or "",
+                case_task=case_row["task_for_user"] or "",
+                role_name=role_name,
+                full_name=user.full_name,
+                position=user.raw_position or user.job_description,
+                duties=user.normalized_duties or user.raw_duties,
+                company_industry=user.company_industry,
+                user_profile=user_profile,
+                facts_data=case_row.get("facts_data"),
+                trigger_details=case_row.get("trigger_details"),
+                constraints_text=case_row.get("constraints_text"),
+                stakes_text=case_row.get("stakes_text"),
+                base_variant_text=case_row.get("base_variant_text"),
+                hard_variant_text=case_row.get("hard_variant_text"),
+                personalization_variables=case_row.get("personalization_variables"),
+            )
+        else:
+            personalization_map, personalized_context, personalized_task = deepseek_client.build_personalized_case_materials(
+                full_name=user.full_name,
+                position=user.raw_position or user.job_description,
+                duties=user.normalized_duties or user.raw_duties,
+                company_industry=user.company_industry,
+                role_name=role_name,
+                user_profile=user_profile,
+                case_type_code=case_row["type_code"],
+                case_title=case_row["title"],
+                case_context=case_row["intro_context"] or case_row["domain_context"] or "",
+                case_task=case_row["task_for_user"] or "",
+                planned_total_duration_min=planned_total_duration_min,
+                personalization_variables=case_row["personalization_variables"],
+                case_specificity=case_specificity,
+            )
+        if not use_direct_deepseek_output:
+            personalized_context, personalized_task = deepseek_client.enforce_user_case_quality(
+                case_type_code=case_row["type_code"],
+                case_title=case_row["title"],
+                case_context=personalized_context,
+                case_task=personalized_task,
+                role_name=role_name,
+                company_industry=user.company_industry,
+                case_specificity=case_specificity,
+                existing_contexts=existing_case_contexts,
+            )
+            personalized_context = personalized_context.replace(
+                "В доступе сейчас только В распоряжении команды сейчас ",
+                "В распоряжении команды сейчас ",
+            )
+            personalized_context = re.sub(
+                r"\bВ доступе сейчас только\s+В распоряжении команды сейчас\s+",
+                "В распоряжении команды сейчас ",
+                personalized_context,
+                flags=re.IGNORECASE,
+            )
+            personalized_context = re.sub(
+                r"В распоряжении команды сейчас\s+(?:2 специалиста\s+){2,}клиентской поддержки",
+                "В распоряжении команды сейчас 2 специалиста клиентской поддержки",
+                personalized_context,
+                flags=re.IGNORECASE,
+            )
+            personalized_task = re.sub(r"\b1:\s+1\b", "1:1", personalized_task, flags=re.IGNORECASE)
+        case_quality = deepseek_client._score_case_text_quality(
+            case_type_code=case_row["type_code"],
+            template_context=case_row["intro_context"] or case_row["domain_context"] or "",
+            template_task=case_row["task_for_user"] or "",
+            generated_context=personalized_context,
+            generated_task=personalized_task,
             user_profile=user_profile,
-            case_type_code=case_row["type_code"],
-            case_title=case_row["title"],
-            case_context=case_row["intro_context"] or case_row["domain_context"] or "",
-            case_task=case_row["task_for_user"] or "",
-            planned_total_duration_min=planned_total_duration_min,
-            personalization_variables=case_row["personalization_variables"],
-            case_specificity=case_specificity,
-        )
-        personalized_context, personalized_task = deepseek_client.enforce_user_case_quality(
-            case_type_code=case_row["type_code"],
-            case_title=case_row["title"],
-            case_context=personalized_context,
-            case_task=personalized_task,
-            role_name=role_name,
-            company_industry=user.company_industry,
             case_specificity=case_specificity,
             existing_contexts=existing_case_contexts,
         )
@@ -696,9 +898,11 @@ class AssessmentService:
         connection.execute(
             """
             INSERT INTO session_prompts (
-                session_id, session_case_id, prompt_type, model_name, system_prompt, user_prompt, final_prompt_text
+                session_id, session_case_id, prompt_type, model_name, system_prompt, user_prompt, final_prompt_text,
+                case_text_quality_score, template_fidelity_score, personalization_score, concreteness_score,
+                readability_score, diversity_score, quality_issues, quality_strengths, quality_verdict, case_text_quality_json
             )
-            VALUES (%s, %s, 'case_dialog', %s, %s, %s, %s)
+            VALUES (%s, %s, 'case_dialog', %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """,
             (
                 session_id,
@@ -711,6 +915,16 @@ class AssessmentService:
                     case_task=personalized_task,
                 ),
                 prompt_text,
+                case_quality["case_text_quality_score"],
+                case_quality["template_fidelity_score"],
+                case_quality["personalization_score"],
+                case_quality["concreteness_score"],
+                case_quality["readability_score"],
+                case_quality["diversity_score"],
+                json.dumps(case_quality["quality_issues"], ensure_ascii=False),
+                json.dumps(case_quality["quality_strengths"], ensure_ascii=False),
+                case_quality["quality_verdict"],
+                json.dumps(case_quality, ensure_ascii=False),
             ),
         )
 
@@ -1173,11 +1387,7 @@ class AssessmentService:
                 fallback_user_message=message,
             )
 
-            last_assistant_row = next(
-                (row for row in reversed(dialogue_rows) if row["role"] == "assistant"),
-                None,
-            )
-            if last_assistant_row and self._normalize_message_for_repeat_check(turn.assistant_message) == self._normalize_message_for_repeat_check(last_assistant_row["message_text"]):
+            if self._needs_non_repeating_follow_up(turn.assistant_message, dialogue_rows):
                 turn.assistant_message = self._build_non_repeating_follow_up(
                     repeated_message=turn.assistant_message,
                     user_message=message,
@@ -1454,6 +1664,12 @@ class AssessmentService:
                 p.type_code,
                 txt.intro_context,
                 txt.task_for_user,
+                txt.facts_data,
+                txt.trigger_details,
+                txt.constraints_text,
+                txt.stakes_text,
+                txt.base_variant_text,
+                txt.hard_variant_text,
                 cr.context_domain AS domain_context,
                 txt.personalization_variables,
                 cr.estimated_time_min AS estimated_minutes,
@@ -1480,16 +1696,8 @@ class AssessmentService:
             (session_case_id,),
         ).fetchone()
         if prompt_row and prompt_row["user_prompt"]:
-            text = prompt_row["user_prompt"]
-            marker = "Personalized task:"
-            if marker in text:
-                return text.split(marker, 1)[0].replace("Personalized case context:", "", 1).strip()
-            marker = "Что нужно сделать:"
-            if marker in text:
-                return text.split(marker, 1)[0].strip()
-            if "\n\n" in text:
-                return text.rsplit("\n\n", 1)[0].strip()
-            return text.strip()
+            context_text, _task_text = deepseek_client.split_user_case_message(prompt_row["user_prompt"])
+            return context_text or str(prompt_row["user_prompt"]).strip()
         return case_row["intro_context"] or case_row["domain_context"] or ""
 
     def _get_personalized_case_task(self, connection, session_case_id: int, case_row) -> str:
@@ -1505,15 +1713,9 @@ class AssessmentService:
             (session_case_id,),
         ).fetchone()
         if prompt_row and prompt_row["user_prompt"]:
-            text = prompt_row["user_prompt"]
-            marker = "Personalized task:"
-            if marker in text:
-                return text.split(marker, 1)[1].strip()
-            marker = "Что нужно сделать:"
-            if marker in text:
-                return text.split(marker, 1)[1].strip()
-            if "\n\n" in text:
-                return text.rsplit("\n\n", 1)[1].strip()
+            _context_text, task_text = deepseek_client.split_user_case_message(prompt_row["user_prompt"])
+            if task_text:
+                return task_text
         return case_row["task_for_user"] or ""
 
     def _get_case_skill_names(self, connection, session_case_id: int) -> list[str]:
@@ -1800,12 +2002,21 @@ class AssessmentService:
             row = dict(raw_row)
             row_mask = row["skill_mask"]
             row_duration = row.get("planned_duration_minutes") or row.get("estimated_minutes") or 0
-            row_penalty = flag_priority(row) * 10 + int(row.get("use_count", 0))
             snapshot = list(dp.items())
             for (_state_mask, _state_duration), current_solution in snapshot:
                 current_mask = _state_mask
                 new_mask = current_mask | row_mask
                 new_duration = current_solution["total_duration"] + row_duration
+                duplicate_type_penalty = 0
+                current_type_codes = [
+                    str(item.get("type_code") or "").strip().upper()
+                    for item in current_solution["rows"]
+                    if str(item.get("type_code") or "").strip()
+                ]
+                row_type_code = str(row.get("type_code") or "").strip().upper()
+                if row_type_code and row_type_code in current_type_codes:
+                    duplicate_type_penalty = 35
+                row_penalty = flag_priority(row) * 10 + int(row.get("use_count", 0)) + duplicate_type_penalty
                 new_solution = {
                     "rows": current_solution["rows"] + [row],
                     "total_duration": new_duration,

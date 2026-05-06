@@ -45,12 +45,14 @@ from Api.schemas import (
     AdminMethodologySkillSignalItem,
     AdminReportDetailResponse,
     AdminDetailedReportsResponse,
+    AdminExpertCommentUpdateRequest,
     AdminInsightCard,
     AdminMetricCard,
     AgentMessageRequest,
     AgentReply,
     AssessmentMessageRequest,
     AssessmentMessageResponse,
+    AssessmentSessionLookupResponse,
     AssessmentCard,
     AssessmentReportInterpretationResponse,
     AssessmentReport,
@@ -317,8 +319,39 @@ USER_SELECT_SQL = """
         p.raw_position,
         p.raw_duties,
         p.normalized_duties,
+        p.role_selected,
+        p.role_selected_code,
         p.role_confidence,
         p.role_rationale,
+        p.role_consistency_status,
+        p.role_consistency_comment,
+        p.company_context,
+        p.profile_metadata,
+        p.raw_input,
+        p.normalized_input,
+        p.role_interpretation,
+        p.user_work_context,
+        p.role_limits,
+        p.role_vocabulary,
+        p.domain_profile,
+        p.role_skill_profile,
+        p.adaptation_rules_for_cases,
+        p.user_domain,
+        p.user_processes,
+        p.user_tasks,
+        p.user_stakeholders,
+        p.user_risks,
+        p.user_constraints,
+        p.user_artifacts,
+        p.user_systems,
+        p.user_success_metrics,
+        p.data_quality_notes,
+        p.domain_resolution_status,
+        p.domain_confidence,
+        p.profile_quality,
+        p.profile_build_instruction_code,
+        p.profile_build_summary,
+        p.profile_build_trace,
         u.active_profile_id,
         u.phone,
         u.company_industry,
@@ -377,6 +410,7 @@ def _build_dashboard(connection, user: UserResponse) -> UserDashboard:
                 us.status,
                 us.started_at,
                 us.finished_at,
+                us.expert_comment,
                 ROW_NUMBER() OVER (
                     PARTITION BY us.user_id
                     ORDER BY COALESCE(us.finished_at, us.started_at) ASC NULLS LAST, us.id ASC
@@ -390,6 +424,7 @@ def _build_dashboard(connection, user: UserResponse) -> UserDashboard:
             rs.status,
             rs.started_at,
             rs.finished_at,
+            rs.expert_comment,
             rs.sequence_number,
             COALESCE(case_stats.total_cases, 0)::int AS total_cases,
             COALESCE(case_stats.completed_cases, 0)::int AS completed_cases,
@@ -455,6 +490,7 @@ def _build_dashboard(connection, user: UserResponse) -> UserDashboard:
             format_label="PDF",
             sequence_number=int(row["sequence_number"]) if row["sequence_number"] is not None else None,
             report_at=row["finished_at"] or row["started_at"],
+            expert_comment=(str(row["expert_comment"]).strip() if row["status"] == "completed" and row["expert_comment"] else None),
         )
         for row in report_rows
     ]
@@ -846,6 +882,7 @@ def _build_admin_reports(connection) -> AdminDetailedReportsResponse:
             COALESCE(NULLIF(TRIM(u.company_industry), ''), 'Не указана') AS group_name,
             COALESCE(NULLIF(TRIM(u.job_description), ''), 'Не указана') AS role_name,
             us.status,
+            us.expert_comment,
             score_stats.overall_score_percent,
             us.started_at,
             us.finished_at
@@ -902,6 +939,10 @@ def _build_admin_report_detail(connection, session_id: int) -> AdminReportDetail
             us.status,
             us.started_at,
             us.finished_at,
+            us.expert_comment,
+            us.expert_name,
+            us.expert_contacts,
+            us.expert_assessed_at,
             u.full_name,
             COALESCE(NULLIF(TRIM(u.company_industry), ''), 'Не указана') AS group_name,
             COALESCE(NULLIF(TRIM(u.job_description), ''), 'Не указана') AS role_name,
@@ -1213,6 +1254,11 @@ def _build_admin_report_detail(connection, session_id: int) -> AdminReportDetail
         insight_text=interpretation["insight_text"],
         basis_items=interpretation["basis_items"],
         response_pattern=interpretation["response_pattern"],
+        expert_comment=(str(session_row["expert_comment"]).strip() if session_row["status"] == "completed" and session_row["expert_comment"] else None),
+        expert_name=(str(session_row["expert_name"]).strip() if session_row["status"] == "completed" and session_row["expert_name"] else None),
+        expert_contacts=(str(session_row["expert_contacts"]).strip() if session_row["status"] == "completed" and session_row["expert_contacts"] else None),
+        expert_assessed_at=(session_row["expert_assessed_at"] if session_row["status"] == "completed" else None),
+        can_edit_expert_comment=session_row["status"] == "completed",
         strengths=strengths,
         growth_areas=growth_areas,
         quotes=quotes,
@@ -2158,6 +2204,56 @@ def get_admin_report_detail(session_id: int, request: Request) -> AdminReportDet
         return _build_admin_report_detail(connection, session_id)
 
 
+@router.patch("/admin/reports/{session_id}/expert-comment", response_model=AdminReportDetailResponse)
+def update_admin_report_expert_comment(session_id: int, payload: AdminExpertCommentUpdateRequest, request: Request) -> AdminReportDetailResponse:
+    token = request.cookies.get(SESSION_COOKIE_NAME)
+    user = web_session_service.get_user_by_token(token)
+    if user is None:
+        raise HTTPException(status_code=401, detail="Admin session not found")
+    normalized_comment = str(payload.expert_comment or "").strip() or None
+    normalized_expert_name = str(payload.expert_name or "").strip() or None
+    normalized_expert_contacts = str(payload.expert_contacts or "").strip() or None
+    with get_connection() as connection:
+        if not _is_admin_user(connection, user):
+            raise HTTPException(status_code=403, detail="Admin access required")
+        session_row = connection.execute(
+            """
+            SELECT id, status
+            FROM user_sessions
+            WHERE id = %s
+              AND assessment_code = 'competencies_4k'
+            LIMIT 1
+            """,
+            (session_id,),
+        ).fetchone()
+        if session_row is None:
+            raise HTTPException(status_code=404, detail="Assessment report not found")
+        if session_row["status"] != "completed":
+            raise HTTPException(status_code=409, detail="Expert comment is available only for completed assessments")
+
+        connection.execute(
+            """
+            UPDATE user_sessions
+            SET expert_comment = %s,
+                expert_name = %s,
+                expert_contacts = %s,
+                expert_assessed_at = %s,
+                expert_comment_updated_at = %s
+            WHERE id = %s
+            """,
+            (
+                normalized_comment,
+                normalized_expert_name,
+                normalized_expert_contacts,
+                payload.expert_assessed_at,
+                datetime.utcnow(),
+                session_id,
+            ),
+        )
+        connection.commit()
+        return _build_admin_report_detail(connection, session_id)
+
+
 @router.get("/admin/reports/{session_id}/dialogue.pdf")
 def download_admin_report_dialogue_pdf(session_id: int, request: Request) -> Response:
     token = request.cookies.get(SESSION_COOKIE_NAME)
@@ -2672,6 +2768,7 @@ def get_user_profile_summary(user_id: int) -> UserProfileSummaryResponse:
                 us.status,
                 us.started_at,
                 us.finished_at,
+                us.expert_comment,
                 COALESCE(case_stats.total_cases, 0)::int AS total_cases,
                 COALESCE(case_stats.completed_cases, 0)::int AS completed_cases,
                 score_stats.overall_score_percent
@@ -2720,6 +2817,7 @@ def get_user_profile_summary(user_id: int) -> UserProfileSummaryResponse:
                     total_cases=total_cases,
                     progress_percent=progress_percent,
                     overall_score_percent=overall_score,
+                    expert_comment=(str(row["expert_comment"]).strip() if row["status"] == "completed" and row["expert_comment"] else None),
                 )
             )
 
@@ -2911,6 +3009,38 @@ def get_skill_assessments(user_id: int, session_id: int) -> list[SkillAssessment
         ).fetchall()
 
     return [SkillAssessmentResponse(**dict(row)) for row in rows]
+
+
+@router.get(
+    "/{user_id}/assessment/by-code/{session_code}",
+    response_model=AssessmentSessionLookupResponse,
+)
+def get_assessment_session_by_code(user_id: int, session_code: str) -> AssessmentSessionLookupResponse:
+    with get_connection() as connection:
+        user_row = connection.execute(
+            "SELECT id FROM users WHERE id = %s",
+            (user_id,),
+        ).fetchone()
+        if user_row is None:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        session_row = connection.execute(
+            """
+            SELECT id, session_code
+            FROM user_sessions
+            WHERE user_id = %s
+              AND session_code = %s
+            """,
+            (user_id, session_code),
+        ).fetchone()
+        if session_row is None:
+            raise HTTPException(status_code=404, detail="Assessment session not found")
+
+    return AssessmentSessionLookupResponse(
+        user_id=user_id,
+        session_id=int(session_row["id"]),
+        session_code=str(session_row["session_code"]),
+    )
 
 
 @router.get(

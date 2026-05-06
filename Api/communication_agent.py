@@ -54,8 +54,9 @@ class SkillEvaluation:
 
 
 class BaseCompetencyAgent:
-    def __init__(self, competency_name: str) -> None:
+    def __init__(self, competency_name: str, agent_code: str) -> None:
         self.competency_name = competency_name
+        self.agent_code = agent_code
 
     def normalize_text(self, value: str | None) -> str:
         if not value:
@@ -73,10 +74,38 @@ class BaseCompetencyAgent:
             tokens.add(token)
         return tokens
 
+    def _load_agent_prompt_profile(self, connection) -> dict[str, Any]:
+        profile_row = connection.execute(
+            """
+            SELECT agent_code, agent_name, competency_name, purpose_prompt, rationale_prompt,
+                   evidence_prompt, red_flag_prompt, prompt_version
+            FROM assessment_agent_prompt_profiles
+            WHERE agent_code = %s
+              AND is_active = TRUE
+            LIMIT 1
+            """,
+            (self.agent_code,),
+        ).fetchone()
+        rules_rows = connection.execute(
+            """
+            SELECT rule_code, rule_scope, rule_text, display_order
+            FROM assessment_agent_prompt_rules
+            WHERE agent_code = %s
+              AND is_active = TRUE
+            ORDER BY display_order ASC, id ASC
+            """,
+            (self.agent_code,),
+        ).fetchall()
+        return {
+            "profile": dict(profile_row) if profile_row else {},
+            "rules": [dict(row) for row in rules_rows],
+        }
+
     def evaluate_session(self, *, connection, session_id: int, user_id: int) -> list[SkillEvaluation]:
         skills = self._load_session_skills(connection, session_id)
         if not skills:
             return []
+        agent_prompt_config = self._load_agent_prompt_profile(connection)
 
         evaluations: list[SkillEvaluation] = []
         for skill in skills:
@@ -153,6 +182,7 @@ class BaseCompetencyAgent:
                 rationale=self._build_rationale(
                     skill_name=skill["skill_name"],
                     level_code=level_code,
+                    agent_prompt_config=agent_prompt_config,
                     structural_elements=structural_elements,
                     rubric_match_scores=rubric_match_scores,
                     red_flags=red_flags,
@@ -768,6 +798,7 @@ class BaseCompetencyAgent:
         *,
         skill_name: str,
         level_code: str,
+        agent_prompt_config: dict[str, Any] | None,
         structural_elements: dict[str, bool],
         rubric_match_scores: dict[str, int],
         red_flags: list[str],
@@ -779,6 +810,8 @@ class BaseCompetencyAgent:
         artifact_missing_parts: list[str] | None = None,
         artifact_compliance_percent: int | None = None,
     ) -> str:
+        prompt_profile = dict((agent_prompt_config or {}).get("profile") or {})
+        prompt_rules = list((agent_prompt_config or {}).get("rules") or [])
         evidence = []
         if structural_elements["has_alternatives"]:
             evidence.append("альтернативы")
@@ -796,9 +829,16 @@ class BaseCompetencyAgent:
             evidence.append("предиктивность")
         if structural_elements["has_balance"]:
             evidence.append("баланс интересов")
+        intro = str(prompt_profile.get("rationale_prompt") or "").strip()
         parts = [f"Навык «{skill_name}» отнесен к уровню {level_code}."]
+        if intro:
+            parts.append(intro)
         if evidence:
             parts.append(f"Выявленные признаки: {', '.join(evidence)}.")
+        if prompt_rules:
+            selected_rules = [str(item.get("rule_text") or "").strip() for item in prompt_rules[:2] if str(item.get("rule_text") or "").strip()]
+            if selected_rules:
+                parts.append(f"Фокус агента при оценке: {' '.join(selected_rules)}")
         if block_coverage_percent is not None:
             parts.append(f"Покрытие обязательных блоков ответа: {block_coverage_percent}%.")
         if artifact_compliance_percent is not None:
@@ -1013,7 +1053,7 @@ class BaseCompetencyAgent:
 
 class CommunicationAgent(BaseCompetencyAgent):
     def __init__(self) -> None:
-        super().__init__("Коммуникация")
+        super().__init__("Коммуникация", "communication")
 
     def _extract_structural_elements(self, user_text: str, case_payload: list[dict[str, Any]]) -> dict[str, bool]:
         elements = super()._extract_structural_elements(user_text, case_payload)
@@ -1105,7 +1145,7 @@ class CommunicationAgent(BaseCompetencyAgent):
 
 class TeamworkAgent(BaseCompetencyAgent):
     def __init__(self) -> None:
-        super().__init__("Командная работа")
+        super().__init__("Командная работа", "teamwork")
 
     def _extract_structural_elements(self, user_text: str, case_payload: list[dict[str, Any]]) -> dict[str, bool]:
         elements = super()._extract_structural_elements(user_text, case_payload)
@@ -1199,7 +1239,7 @@ class TeamworkAgent(BaseCompetencyAgent):
 
 class CreativityAgent(BaseCompetencyAgent):
     def __init__(self) -> None:
-        super().__init__("Креативность")
+        super().__init__("Креативность", "creativity")
 
     def _extract_structural_elements(self, user_text: str, case_payload: list[dict[str, Any]]) -> dict[str, bool]:
         elements = super()._extract_structural_elements(user_text, case_payload)
@@ -1292,7 +1332,7 @@ class CreativityAgent(BaseCompetencyAgent):
 
 class CriticalThinkingAgent(BaseCompetencyAgent):
     def __init__(self) -> None:
-        super().__init__("Критическое мышление")
+        super().__init__("Критическое мышление", "critical_thinking")
 
     def _extract_structural_elements(self, user_text: str, case_payload: list[dict[str, Any]]) -> dict[str, bool]:
         elements = super()._extract_structural_elements(user_text, case_payload)

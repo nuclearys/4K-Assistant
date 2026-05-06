@@ -15,11 +15,42 @@ class UserResponse(BaseModel):
     raw_position: str | None = None
     raw_duties: str | None
     normalized_duties: str | None = None
+    role_selected: str | None = None
+    role_selected_code: str | None = None
     role_confidence: float | None = None
     role_rationale: str | None = None
+    role_consistency_status: str | None = None
+    role_consistency_comment: str | None = None
     active_profile_id: int | None = None
     phone: str | None = None
     company_industry: str | None = None
+    company_context: str | None = None
+    profile_metadata: dict | None = None
+    raw_input: dict | None = None
+    normalized_input: dict | None = None
+    role_interpretation: dict | None = None
+    user_work_context: dict | None = None
+    role_limits: dict | None = None
+    role_vocabulary: dict | None = None
+    domain_profile: dict | None = None
+    role_skill_profile: dict | None = None
+    adaptation_rules_for_cases: dict | None = None
+    user_domain: str | None = None
+    user_processes: list[str] | None = None
+    user_tasks: list[str] | None = None
+    user_stakeholders: list[str] | None = None
+    user_risks: list[str] | None = None
+    user_constraints: list[str] | None = None
+    user_artifacts: list[str] | None = None
+    user_systems: list[str] | None = None
+    user_success_metrics: list[str] | None = None
+    data_quality_notes: list[str] | None = None
+    domain_resolution_status: str | None = None
+    domain_confidence: float | None = None
+    profile_quality: dict | None = None
+    profile_build_instruction_code: str | None = None
+    profile_build_summary: str | None = None
+    profile_build_trace: dict | None = None
     avatar_data_url: str | None = None
 
 
@@ -90,6 +121,7 @@ class AssessmentReport(BaseModel):
     format_label: str
     sequence_number: int | None = None
     report_at: datetime | None = None
+    expert_comment: str | None = None
 
 
 class AdminMetricCard(BaseModel):
@@ -397,6 +429,11 @@ class AdminReportDetailResponse(BaseModel):
     insight_text: str | None = None
     basis_items: list[str] = []
     response_pattern: str | None = None
+    expert_comment: str | None = None
+    expert_name: str | None = None
+    expert_contacts: str | None = None
+    expert_assessed_at: datetime | None = None
+    can_edit_expert_comment: bool = False
     strengths: list[str]
     growth_areas: list[str]
     quotes: list[str]
@@ -487,6 +524,12 @@ class AssessmentStartResponse(BaseModel):
     history_is_new: bool = False
 
 
+class AssessmentSessionLookupResponse(BaseModel):
+    user_id: int
+    session_id: int
+    session_code: str
+
+
 class AssessmentMessageRequest(BaseModel):
     session_code: str
     message: str
@@ -566,6 +609,14 @@ class UserAssessmentHistoryItem(BaseModel):
     total_cases: int
     progress_percent: int
     overall_score_percent: int | None = None
+    expert_comment: str | None = None
+
+
+class AdminExpertCommentUpdateRequest(BaseModel):
+    expert_comment: str | None = None
+    expert_name: str | None = None
+    expert_contacts: str | None = None
+    expert_assessed_at: datetime | None = None
 
 
 class UserProfileSummaryResponse(BaseModel):

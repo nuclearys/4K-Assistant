@@ -19,5 +19,9 @@ class Settings:
     deepseek_api_key: str = os.getenv("DEEPSEEK_API_KEY", "")
     deepseek_base_url: str = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
     deepseek_model: str = os.getenv("DEEPSEEK_MODEL", "deepseek-chat")
+    esco_api_enabled: bool = os.getenv("ESCO_API_ENABLED", "false").strip().lower() in {"1", "true", "yes", "on"}
+    esco_api_base_url: str = os.getenv("ESCO_API_BASE_URL", "https://ec.europa.eu/esco/api")
+    esco_api_version: str = os.getenv("ESCO_API_VERSION", "v1.2.0")
+    esco_api_language: str = os.getenv("ESCO_API_LANGUAGE", "en")
 
 settings = Settings()

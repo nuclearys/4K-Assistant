@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Manrope:wght@600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/web/app.css?v=20260424-merged">
+  <link rel="stylesheet" href="/web/app.css?v=20260506-registration-flow-fix">
       <!--Favicons-->
   <link rel="icon" href="/favicons/favicon.ico" sizes="any">
   <link rel="icon" type="image/png" sizes="32x32" href="/favicons/favicon-32x32.png">
@@ -787,6 +787,7 @@
         <div class="brand dashboard-brand">Отчет по оценке</div>
         <div class="dashboard-topbar-actions">
           <button id="admin-report-detail-pdf-button" class="ghost-button compact-ghost" type="button">Скачать PDF</button>
+          <button id="admin-report-detail-dialogues-pdf-button" class="ghost-button compact-ghost" type="button">Скачать все диалоги</button>
           <button id="admin-report-detail-back-button" class="ghost-button compact-ghost" type="button">Назад</button>
         </div>
       </div>
@@ -819,6 +820,43 @@
             <div class="report-hero-score admin-detail-user-score">
               <strong id="admin-report-detail-score">0%</strong>
               <span>Интегральный показатель</span>
+            </div>
+          </div>
+        </section>
+
+        <section class="admin-detail-expert-comment-card">
+          <div class="report-card-head">
+            <div>
+              <p class="section-label accent-label">Комментарий эксперта</p>
+              <h3>Вывод по результатам ассессмента</h3>
+            </div>
+          </div>
+          <div class="admin-detail-expert-comment-body">
+            <div class="admin-detail-expert-meta-grid">
+              <label class="field">
+                <span>ФИО эксперта</span>
+                <input id="admin-report-detail-expert-name" type="text" placeholder="Введите ФИО эксперта">
+              </label>
+              <label class="field">
+                <span>Контактные данные</span>
+                <input id="admin-report-detail-expert-contacts" type="text" placeholder="Телефон, email или иной контакт">
+              </label>
+              <label class="field">
+                <span>Дата оценки</span>
+                <input id="admin-report-detail-expert-assessed-at" type="date">
+              </label>
+            </div>
+            <textarea
+              id="admin-report-detail-expert-comment"
+              class="admin-detail-expert-comment-input"
+              rows="5"
+              placeholder="Комментарий эксперта появится после завершения ассессмента."
+            ></textarea>
+            <div class="admin-detail-expert-comment-actions">
+              <span id="admin-report-detail-expert-comment-status" class="admin-inline-status"></span>
+              <button id="admin-report-detail-expert-comment-edit" class="ghost-button compact-ghost" type="button">Редактировать</button>
+              <button id="admin-report-detail-expert-comment-cancel" class="ghost-button compact-ghost" type="button">Отмена</button>
+              <button id="admin-report-detail-expert-comment-save" class="primary-button" type="button">Сохранить комментарий</button>
             </div>
           </div>
         </section>
@@ -963,6 +1001,15 @@
           </article>
         </div>
         <button id="prechat-start-button" type="button" class="primary-button prechat-start">Начать</button>
+        <div id="prechat-assessment-preparing" class="hero-preparing hidden" aria-live="polite">
+          <div id="prechat-assessment-ring" class="preparing-ring hero" style="--progress: 0%;">
+            <span id="prechat-assessment-percent" class="preparing-ring-value">0%</span>
+          </div>
+          <div class="preparing-copy">
+            <strong id="prechat-assessment-title">Подготавливаем кейсы</strong>
+            <span id="prechat-assessment-text">Система собирает персонализированный набор кейсов.</span>
+          </div>
+        </div>
         <p id="prechat-error" class="error" hidden></p>
         <p class="prechat-duration">Ориентировочное время: 45 минут</p>
         <div class="prechat-social-proof">Система запущена недавно — вы проходите один из первых ассессментов</div>
@@ -1289,6 +1336,6 @@
   </main>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js" defer></script>
-  <script src="/web/app.js?v=20260424-merged" defer></script>
+  <script src="/web/app.js?v=20260506-registration-flow-fix" defer></script>
 </body>
 </html>

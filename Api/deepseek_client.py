@@ -439,6 +439,7 @@ class DeepSeekClient:
         personalization_variables: str | None = None,
         personalization_map: dict[str, str] | None = None,
         case_specificity: dict[str, Any] | None = None,
+        case_generation_system_prompt: str | None = None,
     ) -> str:
         position = self._normalize_profile_text(position, fallback=role_name or "Не указана")
         duties = self._normalize_profile_text(duties, fallback="Не указаны")
@@ -489,6 +490,13 @@ class DeepSeekClient:
             personalization_map=personalization_map,
             case_specificity=case_specificity,
         )
+        extra_instruction = str(case_generation_system_prompt or "").strip()
+        if extra_instruction:
+            fallback = (
+                "Additional case generation system prompt:\n"
+                f"{extra_instruction}\n\n"
+                f"{fallback}"
+            )
         # Prompt generation is the most expensive stage of the pipeline, while the
         # local fallback already contains all required methodical context. Use the
         # local version by default to keep package generation responsive.

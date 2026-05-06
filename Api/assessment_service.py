@@ -928,6 +928,307 @@ class AssessmentService:
             ),
         )
 
+    def preview_personalized_case(
+        self,
+        *,
+        user_id: int,
+        case_id_code: str,
+        case_generation_system_prompt: str | None = None,
+        full_name: str | None = None,
+        role_id: int | None = None,
+        position: str | None = None,
+        duties: str | None = None,
+        company_industry: str | None = None,
+        user_profile_override: dict | None = None,
+    ) -> dict:
+        with get_connection() as connection:
+            user_row = connection.execute(
+                """
+                SELECT
+                    u.id,
+                    u.full_name,
+                    u.email,
+                    u.created_at,
+                    u.role_id,
+                    u.job_description,
+                    p.raw_position,
+                    p.raw_duties,
+                    p.normalized_duties,
+                    p.role_confidence,
+                    p.role_rationale,
+                    u.active_profile_id,
+                    u.phone,
+                    u.company_industry,
+                    NULL AS avatar_data_url
+                FROM users u
+                LEFT JOIN user_role_profiles p ON p.id = u.active_profile_id
+                WHERE u.id = %s
+                """,
+                (user_id,),
+            ).fetchone()
+            if user_row is None:
+                raise ValueError("User not found")
+            user = UserResponse(**dict(user_row))
+
+            effective_role_id = role_id or user.role_id
+            if not effective_role_id:
+                raise ValueError("User role is not defined")
+            effective_full_name = str(full_name or user.full_name or "").strip() or user.full_name
+            effective_position = str(position or user.raw_position or user.job_description or "").strip()
+            effective_duties = str(duties or user.normalized_duties or user.raw_duties or "").strip()
+            effective_company_industry = str(company_industry or user.company_industry or "").strip()
+
+            case_row = connection.execute(
+                """
+                SELECT
+                    cr.id,
+                    cr.case_id_code AS case_code,
+                    COALESCE(txt.case_text_code, 'TXT-' || cr.case_id_code) AS text_code,
+                    p.type_code,
+                    cr.version AS case_registry_version,
+                    COALESCE(txt.version, 1) AS case_text_version,
+                    COALESCE(p.version, 1) AS case_type_passport_version,
+                    cr.title,
+                    txt.intro_context,
+                    txt.task_for_user,
+                    cr.context_domain AS domain_context,
+                    txt.personalization_variables,
+                    cr.estimated_time_min AS estimated_minutes,
+                    cr.estimated_time_min AS planned_duration_minutes,
+                    array_agg(crs.skill_id ORDER BY crs.display_order) AS skill_ids,
+                    array_agg(s.skill_name ORDER BY crs.display_order) AS skill_names
+                FROM cases_registry cr
+                JOIN case_type_passports p ON p.id = cr.case_type_passport_id
+                JOIN case_registry_skills crs ON crs.cases_registry_id = cr.id
+                JOIN skills s ON s.id = crs.skill_id
+                LEFT JOIN case_texts txt ON txt.cases_registry_id = cr.id
+                WHERE cr.case_id_code = %s
+                GROUP BY
+                    cr.id,
+                    cr.case_id_code,
+                    txt.case_text_code,
+                    p.type_code,
+                    cr.version,
+                    txt.version,
+                    p.version,
+                    cr.title,
+                    txt.intro_context,
+                    txt.task_for_user,
+                    cr.context_domain,
+                    txt.personalization_variables,
+                    cr.estimated_time_min
+                LIMIT 1
+                """,
+                (case_id_code,),
+            ).fetchone()
+            if case_row is None:
+                raise ValueError("Case not found")
+
+            role_row = connection.execute(
+                "SELECT name FROM roles WHERE id = %s",
+                (effective_role_id,),
+            ).fetchone()
+            role_name = role_row["name"] if role_row else None
+            profile_row = connection.execute(
+                """
+                SELECT user_domain, user_processes, user_tasks, user_stakeholders,
+                       user_risks, user_constraints, user_context_vars, role_limits,
+                       role_vocabulary, role_skill_profile
+                FROM user_role_profiles
+                WHERE id = %s
+                """,
+                (user.active_profile_id,),
+            ).fetchone() if user.active_profile_id else None
+            user_profile = dict(profile_row) if profile_row else None
+            if user_profile_override:
+                user_profile = {
+                    **(user_profile or {}),
+                    **user_profile_override,
+                }
+            if effective_company_industry:
+                user_profile = {
+                    **(user_profile or {}),
+                    "company_industry": effective_company_industry,
+                }
+
+            methodical_context = self._get_case_methodical_context(connection, case_row)
+            planned_total_duration_min = case_row["planned_duration_minutes"] or case_row["estimated_minutes"]
+            base_context = case_row["intro_context"] or case_row["domain_context"] or ""
+            base_task = case_row["task_for_user"] or ""
+
+            case_specificity = deepseek_client.generate_case_specificity(
+                position=effective_position,
+                duties=effective_duties,
+                company_industry=effective_company_industry,
+                role_name=role_name,
+                user_profile=user_profile,
+                case_type_code=case_row["type_code"],
+                case_title=case_row["title"],
+                case_context=base_context,
+                case_task=base_task,
+            )
+            personalization_map, personalized_context, personalized_task = deepseek_client.build_personalized_case_materials(
+                full_name=effective_full_name,
+                position=effective_position,
+                duties=effective_duties,
+                company_industry=effective_company_industry,
+                role_name=role_name,
+                user_profile=user_profile,
+                case_type_code=case_row["type_code"],
+                case_title=case_row["title"],
+                case_context=base_context,
+                case_task=base_task,
+                planned_total_duration_min=planned_total_duration_min,
+                personalization_variables=case_row["personalization_variables"],
+                case_specificity=case_specificity,
+            )
+            personalized_context, personalized_task = deepseek_client.enforce_user_case_quality(
+                case_type_code=case_row["type_code"],
+                case_title=case_row["title"],
+                case_context=personalized_context,
+                case_task=personalized_task,
+                role_name=role_name,
+                company_industry=effective_company_industry,
+                case_specificity=case_specificity,
+                existing_contexts=[],
+            )
+            skill_names = [name for name in (case_row["skill_names"] or []) if name]
+            prompt_text = deepseek_client.generate_case_prompt(
+                full_name=effective_full_name,
+                position=effective_position,
+                duties=effective_duties,
+                company_industry=effective_company_industry,
+                role_name=role_name,
+                user_profile=user_profile,
+                case_type_code=case_row["type_code"],
+                case_title=case_row["title"],
+                case_context=personalized_context,
+                case_task=personalized_task,
+                case_skills=skill_names,
+                case_artifact_name=methodical_context["artifact_name"],
+                case_artifact_description=methodical_context["artifact_description"],
+                case_required_response_blocks=methodical_context["required_response_blocks"],
+                case_skill_evidence=methodical_context["skill_evidence"],
+                case_difficulty_modifiers=methodical_context["difficulty_modifiers"],
+                planned_total_duration_min=planned_total_duration_min,
+                personalization_variables=case_row["personalization_variables"],
+                personalization_map=personalization_map,
+                case_specificity=case_specificity,
+                case_generation_system_prompt=case_generation_system_prompt,
+            )
+            opening_message = deepseek_client.build_opening_message(
+                case_title=case_row["title"] or "",
+                case_context=personalized_context,
+                case_task=personalized_task,
+            )
+
+        return {
+            "user": {
+                "id": user.id,
+                "full_name": effective_full_name,
+                "role_id": effective_role_id,
+                "role_name": role_name,
+                "position": effective_position,
+                "duties": effective_duties,
+                "company_industry": effective_company_industry,
+                "user_profile": user_profile,
+            },
+            "case": {
+                "id": int(case_row["id"]),
+                "case_id_code": case_row["case_code"],
+                "title": case_row["title"],
+                "type_code": case_row["type_code"],
+                "skills": skill_names,
+            },
+            "base_context": base_context,
+            "base_task": base_task,
+            "case_specificity": case_specificity,
+            "personalization_map": personalization_map,
+            "personalized_context": personalized_context,
+            "personalized_task": personalized_task,
+            "opening_message": opening_message,
+            "system_prompt": prompt_text,
+            "methodical_context": methodical_context,
+        }
+
+    def preview_personalized_case_set(
+        self,
+        *,
+        user_id: int,
+        case_generation_system_prompt: str | None = None,
+        full_name: str | None = None,
+        role_id: int | None = None,
+        position: str | None = None,
+        duties: str | None = None,
+        company_industry: str | None = None,
+        user_profile_override: dict | None = None,
+    ) -> dict:
+        with get_connection() as connection:
+            user_row = connection.execute(
+                """
+                SELECT role_id
+                FROM users
+                WHERE id = %s
+                """,
+                (user_id,),
+            ).fetchone()
+            if user_row is None:
+                raise ValueError("User not found")
+            effective_role_id = role_id or user_row["role_id"]
+            if not effective_role_id:
+                raise ValueError("User role is not defined")
+
+            required_rows = connection.execute(
+                """
+                SELECT skill_id
+                FROM role_skills
+                WHERE role_id = %s
+                  AND is_required = TRUE
+                ORDER BY skill_id ASC
+                """,
+                (effective_role_id,),
+            ).fetchall()
+            required_skill_ids = [row["skill_id"] for row in required_rows]
+            if not required_skill_ids:
+                raise ValueError("No required skills configured for selected role")
+
+            candidate_rows = self._load_candidate_case_rows(
+                connection=connection,
+                role_id=effective_role_id,
+                required_skill_ids=required_skill_ids,
+                excluded_case_ids=[],
+            )
+            selected_cases = self._select_minimum_cases(candidate_rows, required_skill_ids)
+            if not selected_cases:
+                raise ValueError("No cases found for selected role and required skills")
+
+        case_items = []
+        for index, case_row in enumerate(selected_cases, start=1):
+            item = self.preview_personalized_case(
+                user_id=user_id,
+                case_id_code=case_row["case_code"],
+                case_generation_system_prompt=case_generation_system_prompt,
+                full_name=full_name,
+                role_id=effective_role_id,
+                position=position,
+                duties=duties,
+                company_industry=company_industry,
+                user_profile_override=user_profile_override,
+            )
+            item["case_number"] = index
+            case_items.append(item)
+
+        first_item = case_items[0]
+        return {
+            **first_item,
+            "case": {
+                **first_item["case"],
+                "total_cases": len(case_items),
+            },
+            "case_items": case_items,
+            "total_cases": len(case_items),
+        }
+
     def _get_existing_session_case_contexts(
         self,
         connection,

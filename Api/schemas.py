@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class UserResponse(BaseModel):
@@ -133,6 +133,92 @@ class AdminMetricCard(BaseModel):
 class AdminInsightCard(BaseModel):
     title: str
     description: str
+
+
+class PromptLabPromptVersion(BaseModel):
+    id: int
+    name: str
+    prompt_text: str
+    created_by: str | None = None
+    created_at: datetime
+
+
+class PromptLabUserOption(BaseModel):
+    id: int
+    full_name: str | None = None
+    phone: str | None = None
+    role_id: int | None = None
+    role_name: str | None = None
+    position: str | None = None
+    duties: str | None = None
+    company_industry: str | None = None
+    user_profile: dict | None = None
+
+
+class PromptLabCaseOption(BaseModel):
+    case_id_code: str
+    title: str
+    type_code: str | None = None
+    role_names: list[str] = []
+
+
+class PromptLabCaseRunSummary(BaseModel):
+    id: int
+    prompt_id: int | None = None
+    prompt_name: str | None = None
+    user_id: int
+    user_name: str | None = None
+    case_id_code: str
+    case_title: str
+    created_by: str | None = None
+    created_at: datetime
+
+
+class PromptLabDashboard(BaseModel):
+    prompts: list[PromptLabPromptVersion]
+    users: list[PromptLabUserOption]
+    cases: list[PromptLabCaseOption]
+    role_options: list[dict[str, str | int]]
+    recent_runs: list[PromptLabCaseRunSummary]
+
+
+class PromptLabPromptCreateRequest(BaseModel):
+    name: str
+    prompt_text: str
+
+
+class PromptLabCaseRunRequest(BaseModel):
+    user_id: int
+    case_id_code: str
+    prompt_source: str = "custom"
+    prompt_id: int | None = None
+    prompt_name: str | None = None
+    prompt_text: str | None = None
+    full_name: str | None = None
+    role_id: int | None = None
+    position: str | None = None
+    duties: str | None = None
+    company_industry: str | None = None
+    user_profile: dict | None = None
+
+
+class PromptLabCaseRunResponse(BaseModel):
+    id: int
+    prompt: PromptLabPromptVersion | None = None
+    user: dict
+    case: dict
+    total_cases: int | None = None
+    case_items: list[dict] = Field(default_factory=list)
+    base_context: str
+    base_task: str
+    case_specificity: dict
+    personalization_map: dict
+    personalized_context: str
+    personalized_task: str
+    opening_message: str
+    system_prompt: str
+    methodical_context: dict
+    created_at: datetime
 
 
 class AdminMethodologyBranchItem(BaseModel):

@@ -10,6 +10,9 @@ const state = {
   dashboard: null,
   isAdmin: false,
   adminDashboard: null,
+  adminPromptLab: null,
+  adminPromptLabResult: null,
+  adminPromptLabRunning: false,
   adminMethodology: null,
   adminMethodologyDetail: null,
   adminMethodologyDetailCode: null,
@@ -274,6 +277,7 @@ const authPanel = document.getElementById('auth-panel');
 const onboardingPanel = document.getElementById('onboarding-panel');
 const dashboardPanel = document.getElementById('dashboard-panel');
 const adminPanel = document.getElementById('admin-panel');
+const adminPromptLabPanel = document.getElementById('admin-prompt-lab-panel');
 const adminMethodologyPanel = document.getElementById('admin-methodology-panel');
 const adminReportsPanel = document.getElementById('admin-reports-panel');
 const adminReportDetailPanel = document.getElementById('admin-report-detail-panel');
@@ -329,7 +333,25 @@ const adminLogoutButton = document.getElementById('admin-logout-button');
 const adminTitle = document.getElementById('admin-title');
 const adminSubtitle = document.getElementById('admin-subtitle');
 const adminOpenMethodologyButton = document.getElementById('admin-open-methodology-button');
+const adminOpenPromptLabButton = document.getElementById('admin-open-prompt-lab-button');
 const adminOpenReportsButton = document.getElementById('admin-open-reports-button');
+const adminPromptLabBackButton = document.getElementById('admin-prompt-lab-back-button');
+const adminPromptLabSourceSelect = document.getElementById('admin-prompt-lab-source-select');
+const adminPromptLabPromptSelect = document.getElementById('admin-prompt-lab-prompt-select');
+const adminPromptLabPromptName = document.getElementById('admin-prompt-lab-prompt-name');
+const adminPromptLabPromptText = document.getElementById('admin-prompt-lab-prompt-text');
+const adminPromptLabUserSelect = document.getElementById('admin-prompt-lab-user-select');
+const adminPromptLabCaseSelect = document.getElementById('admin-prompt-lab-case-select');
+const adminPromptLabUserName = document.getElementById('admin-prompt-lab-user-name');
+const adminPromptLabRoleSelect = document.getElementById('admin-prompt-lab-role-select');
+const adminPromptLabPosition = document.getElementById('admin-prompt-lab-position');
+const adminPromptLabCompanyIndustry = document.getElementById('admin-prompt-lab-company-industry');
+const adminPromptLabDuties = document.getElementById('admin-prompt-lab-duties');
+const adminPromptLabProfileJson = document.getElementById('admin-prompt-lab-profile-json');
+const adminPromptLabRunButton = document.getElementById('admin-prompt-lab-run-button');
+const adminPromptLabStatus = document.getElementById('admin-prompt-lab-status');
+const adminPromptLabRuns = document.getElementById('admin-prompt-lab-runs');
+const adminPromptLabResult = document.getElementById('admin-prompt-lab-result');
 const adminMetricsGrid = document.getElementById('admin-metrics-grid');
 const adminCompetencyChart = document.getElementById('admin-competency-chart');
 const adminCompetencyBarChartCanvas = document.getElementById('admin-competency-bar-chart');
@@ -1552,6 +1574,9 @@ const hideAllPanels = () => {
   onboardingPanel.classList.add('hidden');
   dashboardPanel.classList.add('hidden');
   adminPanel.classList.add('hidden');
+  if (adminPromptLabPanel) {
+    adminPromptLabPanel.classList.add('hidden');
+  }
   adminMethodologyPanel.classList.add('hidden');
   adminReportsPanel.classList.add('hidden');
   adminReportDetailPanel.classList.add('hidden');
@@ -2388,6 +2413,262 @@ const loadAdminDashboard = async (periodKey = state.adminPeriodKey || '30d') => 
   state.adminDashboard = data;
   state.adminPeriodKey = data.activity_period_key || periodKey;
   persistAssessmentContext();
+};
+
+const defaultPromptLabPrompt = [
+  'Сформируй системный промт интервьюера так, чтобы персонализированный кейс оставался реалистичным для должности, обязанностей и отрасли пользователя.',
+  'Не меняй проверяемые навыки, тип кейса, обязательные блоки ответа и ожидаемый артефакт.',
+  'Добавляй конкретику только из профиля пользователя, методологии кейса и карты персонализации.',
+  'Не проси пользователя переходить во внешние сервисы, документы, мессенджеры или почту.',
+].join('\n');
+
+const loadAdminPromptLab = async () => {
+  const response = await fetch('/users/admin/prompt-lab', {
+    credentials: 'same-origin',
+  });
+  const data = await readApiResponse(response, 'Не удалось загрузить Prompt Lab.');
+  state.adminPromptLab = data;
+  persistAssessmentContext();
+};
+
+const setPromptLabStatus = (message, tone = 'muted') => {
+  if (!adminPromptLabStatus) {
+    return;
+  }
+  adminPromptLabStatus.textContent = message || '';
+  adminPromptLabStatus.classList.toggle('hidden', !message);
+  adminPromptLabStatus.dataset.tone = tone;
+};
+
+const getSelectedPromptLabPrompt = () => {
+  const promptId = Number(adminPromptLabPromptSelect?.value || 0);
+  const prompts = Array.isArray(state.adminPromptLab?.prompts) ? state.adminPromptLab.prompts : [];
+  return prompts.find((item) => Number(item.id) === promptId) || null;
+};
+
+const getSelectedPromptLabUser = () => {
+  const userId = Number(adminPromptLabUserSelect?.value || 0);
+  const users = Array.isArray(state.adminPromptLab?.users) ? state.adminPromptLab.users : [];
+  return users.find((item) => Number(item.id) === userId) || null;
+};
+
+const fillPromptLabProfileFromUser = (user) => {
+  if (!user) {
+    return;
+  }
+  if (adminPromptLabUserName) {
+    adminPromptLabUserName.value = user.full_name || '';
+  }
+  if (adminPromptLabRoleSelect) {
+    adminPromptLabRoleSelect.value = user.role_id ? String(user.role_id) : '';
+  }
+  if (adminPromptLabPosition) {
+    adminPromptLabPosition.value = user.position || '';
+  }
+  if (adminPromptLabCompanyIndustry) {
+    adminPromptLabCompanyIndustry.value = user.company_industry || '';
+  }
+  if (adminPromptLabDuties) {
+    adminPromptLabDuties.value = user.duties || '';
+  }
+  if (adminPromptLabProfileJson) {
+    adminPromptLabProfileJson.value = JSON.stringify(user.user_profile || {}, null, 2);
+  }
+};
+
+const syncPromptLabPromptSource = () => {
+  const useFilePrompt = (adminPromptLabSourceSelect?.value || 'file') === 'file';
+  [adminPromptLabPromptSelect, adminPromptLabPromptName, adminPromptLabPromptText].forEach((node) => {
+    if (!node) {
+      return;
+    }
+    node.disabled = useFilePrompt;
+    node.closest?.('.admin-prompt-lab-field')?.classList.toggle('muted', useFilePrompt);
+  });
+};
+
+const renderAdminPromptLab = () => {
+  const data = state.adminPromptLab || {};
+  const prompts = Array.isArray(data.prompts) ? data.prompts : [];
+  const users = Array.isArray(data.users) ? data.users : [];
+  const cases = Array.isArray(data.cases) ? data.cases : [];
+  const roles = Array.isArray(data.role_options) ? data.role_options : [];
+  const runs = Array.isArray(data.recent_runs) ? data.recent_runs : [];
+
+  if (adminPromptLabPromptSelect) {
+    const currentValue = adminPromptLabPromptSelect.value;
+    adminPromptLabPromptSelect.innerHTML =
+      '<option value="0">Новая версия</option>' +
+      prompts.map((item) => '<option value="' + escapeHtml(item.id) + '">' + escapeHtml(item.name) + '</option>').join('');
+    const hasCurrentValue = Array.from(adminPromptLabPromptSelect.options).some((option) => option.value === currentValue);
+    adminPromptLabPromptSelect.value = currentValue && hasCurrentValue
+      ? currentValue
+      : (prompts[0]?.id ? String(prompts[0].id) : '0');
+  }
+
+  const selectedPrompt = getSelectedPromptLabPrompt();
+  if (adminPromptLabPromptName && !adminPromptLabPromptName.value) {
+    adminPromptLabPromptName.value = selectedPrompt?.name || 'Case prompt experiment';
+  }
+  if (adminPromptLabPromptText && !adminPromptLabPromptText.value) {
+    adminPromptLabPromptText.value = selectedPrompt?.prompt_text || defaultPromptLabPrompt;
+  }
+
+  if (adminPromptLabUserSelect) {
+    const currentValue = adminPromptLabUserSelect.value;
+    adminPromptLabUserSelect.innerHTML = users.map((item) => {
+      const label = [item.full_name || ('User #' + item.id), item.role_name, item.position].filter(Boolean).join(' · ');
+      return '<option value="' + escapeHtml(item.id) + '">' + escapeHtml(label) + '</option>';
+    }).join('');
+    if (currentValue) {
+      adminPromptLabUserSelect.value = currentValue;
+    }
+  }
+
+  if (adminPromptLabRoleSelect) {
+    const currentValue = adminPromptLabRoleSelect.value;
+    adminPromptLabRoleSelect.innerHTML = roles.map((item) => (
+      '<option value="' + escapeHtml(item.id) + '">' + escapeHtml(item.name) + '</option>'
+    )).join('');
+    if (currentValue) {
+      adminPromptLabRoleSelect.value = currentValue;
+    }
+  }
+
+  const selectedUser = getSelectedPromptLabUser();
+  if (selectedUser && !adminPromptLabUserName?.value && !adminPromptLabPosition?.value && !adminPromptLabDuties?.value) {
+    fillPromptLabProfileFromUser(selectedUser);
+  }
+
+  if (adminPromptLabCaseSelect) {
+    const currentValue = adminPromptLabCaseSelect.value;
+    adminPromptLabCaseSelect.innerHTML = '<option value="__all__">Все задачи assessment</option>' + cases.map((item) => {
+      const label = [item.case_id_code, item.type_code, item.title].filter(Boolean).join(' · ');
+      return '<option value="' + escapeHtml(item.case_id_code) + '">' + escapeHtml(label) + '</option>';
+    }).join('');
+    if (currentValue) {
+      adminPromptLabCaseSelect.value = currentValue;
+    }
+  }
+
+  if (adminPromptLabRuns) {
+    adminPromptLabRuns.innerHTML = runs.length
+      ? runs.map((run) => (
+        '<div class="admin-prompt-lab-run">' +
+          '<strong>#' + escapeHtml(run.id) + ' · ' + escapeHtml(run.prompt_name || 'Prompt') + '</strong>' +
+          '<span>' + escapeHtml(run.user_name || ('User #' + run.user_id)) + '</span>' +
+          '<span>' + escapeHtml(run.case_id_code + ' · ' + run.case_title) + '</span>' +
+        '</div>'
+      )).join('')
+      : '<p class="report-empty-state">Запусков пока нет.</p>';
+  }
+
+  if (adminPromptLabRunButton) {
+    adminPromptLabRunButton.disabled = state.adminPromptLabRunning || !users.length || !cases.length;
+  }
+  syncPromptLabPromptSource();
+};
+
+const renderPromptLabTextBlock = (title, value) => (
+  '<section class="admin-prompt-lab-output-block">' +
+    '<h4>' + escapeHtml(title) + '</h4>' +
+    '<pre>' + escapeHtml(typeof value === 'string' ? value : JSON.stringify(value || {}, null, 2)) + '</pre>' +
+  '</section>'
+);
+
+const renderAdminPromptLabResult = () => {
+  const result = state.adminPromptLabResult;
+  if (!adminPromptLabResult || !result) {
+    return;
+  }
+  const caseItems = Array.isArray(result.case_items) && result.case_items.length ? result.case_items : [result];
+  const taskBlocks = caseItems.map((item, index) => (
+    '<article class="admin-prompt-lab-task-card">' +
+      '<div class="admin-prompt-lab-task-head">' +
+        '<span>Задача ' + escapeHtml(item.case_number || index + 1) + ' из ' + escapeHtml(result.total_cases || caseItems.length) + '</span>' +
+        '<strong>' + escapeHtml(item.case?.case_id_code || '') + ' · ' + escapeHtml(item.case?.title || '') + '</strong>' +
+      '</div>' +
+      renderPromptLabTextBlock('Сообщение пользователю', item.opening_message) +
+      renderPromptLabTextBlock('Контекст', item.personalized_context) +
+      renderPromptLabTextBlock('Задача', item.personalized_task) +
+      renderPromptLabTextBlock('Итоговый system prompt', item.system_prompt) +
+    '</article>'
+  )).join('');
+  adminPromptLabResult.innerHTML =
+    '<div class="admin-prompt-lab-result-summary">' +
+      '<span>Run #' + escapeHtml(result.id) + '</span>' +
+      '<strong>' + escapeHtml(result.total_cases || caseItems.length) + ' задач</strong>' +
+      '<span>' + escapeHtml(result.user?.full_name || 'Пользователь') + '</span>' +
+    '</div>' +
+    taskBlocks;
+};
+
+const runAdminPromptLabCase = async () => {
+  const userId = Number(adminPromptLabUserSelect?.value || 0);
+  const caseIdCode = adminPromptLabCaseSelect?.value || '';
+  const promptSource = adminPromptLabSourceSelect?.value || 'file';
+  const promptId = Number(adminPromptLabPromptSelect?.value || 0);
+  const promptName = adminPromptLabPromptName?.value?.trim() || 'Case prompt experiment';
+  const promptText = adminPromptLabPromptText?.value?.trim() || '';
+  const roleId = Number(adminPromptLabRoleSelect?.value || 0) || null;
+  let userProfile = null;
+  const rawProfileJson = adminPromptLabProfileJson?.value?.trim() || '';
+  if (rawProfileJson) {
+    try {
+      userProfile = JSON.parse(rawProfileJson);
+    } catch (_error) {
+      setPromptLabStatus('Расширенный профиль должен быть корректным JSON.', 'error');
+      return;
+    }
+  }
+  const selectedPrompt = getSelectedPromptLabPrompt();
+  const shouldReusePrompt = Boolean(
+    promptId &&
+    selectedPrompt &&
+    String(selectedPrompt.prompt_text || '').trim() === promptText &&
+    String(selectedPrompt.name || '').trim() === promptName
+  );
+  if (!userId || !caseIdCode || (promptSource === 'custom' && !promptText)) {
+    setPromptLabStatus('Выберите пользователя, кейс и заполните промт.', 'error');
+    return;
+  }
+  state.adminPromptLabRunning = true;
+  setPromptLabStatus('Формируем задачи...', 'muted');
+  renderAdminPromptLab();
+  try {
+    const response = await fetch('/users/admin/prompt-lab/case-runs', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        user_id: userId,
+        case_id_code: caseIdCode,
+        prompt_source: promptSource,
+        prompt_id: promptSource === 'custom' && shouldReusePrompt ? promptId : null,
+        prompt_name: promptName,
+        prompt_text: promptSource === 'custom' ? promptText : null,
+        full_name: adminPromptLabUserName?.value?.trim() || null,
+        role_id: roleId,
+        position: adminPromptLabPosition?.value?.trim() || null,
+        duties: adminPromptLabDuties?.value?.trim() || null,
+        company_industry: adminPromptLabCompanyIndustry?.value?.trim() || null,
+        user_profile: userProfile,
+      }),
+    });
+    const result = await readApiResponse(response, 'Не удалось сформировать задачи.');
+    state.adminPromptLabResult = result;
+    await loadAdminPromptLab();
+    setPromptLabStatus('Задачи сформированы.', 'success');
+    renderAdminPromptLab();
+    renderAdminPromptLabResult();
+  } catch (error) {
+    setPromptLabStatus(error.message, 'error');
+  } finally {
+    state.adminPromptLabRunning = false;
+    renderAdminPromptLab();
+  }
 };
 
 const loadAdminMethodology = async () => {
@@ -5060,6 +5341,32 @@ const openAdminDashboard = () => {
   adminPanel.classList.remove('hidden');
 };
 
+const openAdminPromptLab = async () => {
+  setCurrentScreen('admin-prompt-lab');
+  persistAssessmentContext();
+  syncUrlState('admin-prompt-lab');
+  hideAllPanels();
+  if (adminPromptLabPanel) {
+    adminPromptLabPanel.classList.remove('hidden');
+  }
+  if (adminPromptLabResult && !state.adminPromptLabResult) {
+    adminPromptLabResult.innerHTML = '<p class="report-empty-state">Загружаем Prompt Lab...</p>';
+  }
+  try {
+    await loadAdminPromptLab();
+    renderAdminPromptLab();
+    if (state.adminPromptLabResult) {
+      renderAdminPromptLabResult();
+    } else if (adminPromptLabResult) {
+      adminPromptLabResult.innerHTML = '<p class="report-empty-state">Сформируйте задачи, чтобы увидеть персонализированные кейсы.</p>';
+    }
+  } catch (error) {
+    if (adminPromptLabResult) {
+      adminPromptLabResult.innerHTML = '<p class="report-empty-state">' + escapeHtml(error.message) + '</p>';
+    }
+  }
+};
+
 const openAdminReports = async () => {
   setCurrentScreen('admin-reports');
   persistAssessmentContext();
@@ -7499,6 +7806,12 @@ if (adminOpenReportsButton) {
   });
 }
 
+if (adminOpenPromptLabButton) {
+  adminOpenPromptLabButton.addEventListener('click', () => {
+    void openAdminPromptLab();
+  });
+}
+
 if (adminOpenMethodologyButton) {
   adminOpenMethodologyButton.addEventListener('click', () => {
     void openAdminMethodology();
@@ -7523,6 +7836,42 @@ if (adminPeriodSelect) {
 if (adminReportsBackButton) {
   adminReportsBackButton.addEventListener('click', () => {
     openAdminDashboard();
+  });
+}
+
+if (adminPromptLabBackButton) {
+  adminPromptLabBackButton.addEventListener('click', () => {
+    openAdminDashboard();
+  });
+}
+
+if (adminPromptLabPromptSelect) {
+  adminPromptLabPromptSelect.addEventListener('change', () => {
+    const selectedPrompt = getSelectedPromptLabPrompt();
+    if (adminPromptLabPromptName) {
+      adminPromptLabPromptName.value = selectedPrompt?.name || 'Case prompt experiment';
+    }
+    if (adminPromptLabPromptText) {
+      adminPromptLabPromptText.value = selectedPrompt?.prompt_text || defaultPromptLabPrompt;
+    }
+  });
+}
+
+if (adminPromptLabSourceSelect) {
+  adminPromptLabSourceSelect.addEventListener('change', () => {
+    syncPromptLabPromptSource();
+  });
+}
+
+if (adminPromptLabUserSelect) {
+  adminPromptLabUserSelect.addEventListener('change', () => {
+    fillPromptLabProfileFromUser(getSelectedPromptLabUser());
+  });
+}
+
+if (adminPromptLabRunButton) {
+  adminPromptLabRunButton.addEventListener('click', () => {
+    void runAdminPromptLabCase();
   });
 }
 
@@ -8027,6 +8376,10 @@ const bootApp = async () => {
   if (state.pendingUser?.id) {
     if (state.currentScreen === 'onboarding') {
       openOnboarding();
+      return;
+    }
+    if (state.currentScreen === 'admin-prompt-lab' && state.isAdmin) {
+      void openAdminPromptLab();
       return;
     }
     if (state.currentScreen === 'admin-reports' && state.isAdmin) {

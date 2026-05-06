@@ -2693,6 +2693,31 @@ def ensure_core_schema() -> None:
             )
             """
         )
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS prompt_lab_case_prompts (
+                id SERIAL PRIMARY KEY,
+                name TEXT NOT NULL,
+                prompt_text TEXT NOT NULL,
+                created_by TEXT,
+                created_at TIMESTAMP NOT NULL DEFAULT NOW()
+            )
+            """
+        )
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS prompt_lab_case_runs (
+                id SERIAL PRIMARY KEY,
+                prompt_id INTEGER REFERENCES prompt_lab_case_prompts(id) ON DELETE SET NULL,
+                user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                case_registry_id INTEGER NOT NULL REFERENCES cases_registry(id) ON DELETE CASCADE,
+                created_by TEXT,
+                artifacts_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+                created_at TIMESTAMP NOT NULL DEFAULT NOW()
+            )
+            """
+        )
+        connection.execute("CREATE INDEX IF NOT EXISTS idx_prompt_lab_case_runs_created_at ON prompt_lab_case_runs(created_at DESC)")
         connection.execute("CREATE INDEX IF NOT EXISTS idx_case_type_passports_status ON case_type_passports(status)")
         connection.execute("CREATE INDEX IF NOT EXISTS idx_cases_registry_type ON cases_registry(case_type_passport_id)")
         connection.execute("CREATE INDEX IF NOT EXISTS idx_cases_registry_status ON cases_registry(status)")

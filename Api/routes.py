@@ -10,6 +10,7 @@ from fastapi.responses import Response
 
 from Api.admin_report_dialogue_pdf_service import admin_report_dialogue_pdf_service
 from Api.admin_reports_pdf_service import admin_reports_pdf_service
+from Api.assessment_service import assessment_service
 from Api.agent import interviewer_agent
 from Api.database import get_connection, get_level_percent_map, recompute_case_quality_checks
 from Api.database import get_case_methodology_versions
@@ -47,6 +48,14 @@ from Api.schemas import (
     AdminDetailedReportsResponse,
     AdminInsightCard,
     AdminMetricCard,
+    PromptLabCaseOption,
+    PromptLabCaseRunRequest,
+    PromptLabCaseRunResponse,
+    PromptLabCaseRunSummary,
+    PromptLabDashboard,
+    PromptLabPromptCreateRequest,
+    PromptLabPromptVersion,
+    PromptLabUserOption,
     AgentMessageRequest,
     AgentReply,
     AssessmentMessageRequest,
@@ -2570,6 +2579,242 @@ def _upsert_admin_methodology_case(
         )
     connection.commit()
     return _build_admin_methodology_case_detail(connection, case_id_code)
+
+
+def _build_prompt_lab_dashboard(connection) -> PromptLabDashboard:
+    prompt_rows = connection.execute(
+        """
+        SELECT id, name, prompt_text, created_by, created_at
+        FROM prompt_lab_case_prompts
+        ORDER BY created_at DESC, id DESC
+        LIMIT 20
+        """
+    ).fetchall()
+    user_rows = connection.execute(
+        """
+        SELECT
+            u.id,
+            u.full_name,
+            u.phone,
+            u.role_id,
+            COALESCE(p.raw_position, u.job_description) AS position,
+            COALESCE(p.normalized_duties, p.raw_duties) AS duties,
+            u.company_industry,
+            jsonb_build_object(
+                'user_domain', p.user_domain,
+                'user_processes', p.user_processes,
+                'user_tasks', p.user_tasks,
+                'user_stakeholders', p.user_stakeholders,
+                'user_risks', p.user_risks,
+                'user_constraints', p.user_constraints,
+                'user_context_vars', p.user_context_vars,
+                'role_limits', p.role_limits,
+                'role_vocabulary', p.role_vocabulary,
+                'role_skill_profile', p.role_skill_profile
+            ) AS user_profile,
+            r.name AS role_name
+        FROM users u
+        LEFT JOIN roles r ON r.id = u.role_id
+        LEFT JOIN user_role_profiles p ON p.id = u.active_profile_id
+        WHERE COALESCE(r.code, '') <> %s
+        ORDER BY u.created_at DESC, u.id DESC
+        LIMIT 100
+        """,
+        (ADMIN_ROLE_CODE,),
+    ).fetchall()
+    case_rows = connection.execute(
+        """
+        SELECT
+            cr.case_id_code,
+            cr.title,
+            p.type_code,
+            COALESCE(array_agg(DISTINCT r.name) FILTER (WHERE r.name IS NOT NULL), ARRAY[]::text[]) AS role_names
+        FROM cases_registry cr
+        JOIN case_type_passports p ON p.id = cr.case_type_passport_id
+        LEFT JOIN case_registry_roles crr ON crr.cases_registry_id = cr.id
+        LEFT JOIN roles r ON r.id = crr.role_id
+        WHERE cr.status = 'ready'
+        GROUP BY cr.case_id_code, cr.title, p.type_code
+        ORDER BY cr.case_id_code ASC
+        LIMIT 200
+        """
+    ).fetchall()
+    role_rows = connection.execute(
+        """
+        SELECT id, code, name
+        FROM roles
+        WHERE code <> %s
+        ORDER BY id ASC
+        """,
+        (ADMIN_ROLE_CODE,),
+    ).fetchall()
+    run_rows = connection.execute(
+        """
+        SELECT
+            r.id,
+            r.prompt_id,
+            p.name AS prompt_name,
+            r.user_id,
+            u.full_name AS user_name,
+            cr.case_id_code,
+            cr.title AS case_title,
+            r.created_by,
+            r.created_at
+        FROM prompt_lab_case_runs r
+        JOIN users u ON u.id = r.user_id
+        JOIN cases_registry cr ON cr.id = r.case_registry_id
+        LEFT JOIN prompt_lab_case_prompts p ON p.id = r.prompt_id
+        ORDER BY r.created_at DESC, r.id DESC
+        LIMIT 20
+        """
+    ).fetchall()
+    return PromptLabDashboard(
+        prompts=[PromptLabPromptVersion(**dict(row)) for row in prompt_rows],
+        users=[PromptLabUserOption(**dict(row)) for row in user_rows],
+        cases=[PromptLabCaseOption(**dict(row)) for row in case_rows],
+        role_options=[dict(row) for row in role_rows],
+        recent_runs=[PromptLabCaseRunSummary(**dict(row)) for row in run_rows],
+    )
+
+
+def _get_prompt_lab_prompt(connection, prompt_id: int | None):
+    if prompt_id is None:
+        return None
+    return connection.execute(
+        """
+        SELECT id, name, prompt_text, created_by, created_at
+        FROM prompt_lab_case_prompts
+        WHERE id = %s
+        """,
+        (prompt_id,),
+    ).fetchone()
+
+
+@router.get("/admin/prompt-lab", response_model=PromptLabDashboard)
+def get_prompt_lab_dashboard(request: Request) -> PromptLabDashboard:
+    token = request.cookies.get(SESSION_COOKIE_NAME)
+    current_user = web_session_service.get_user_by_token(token) if token else None
+    with get_connection() as connection:
+        if not _is_admin_user(connection, current_user):
+            raise HTTPException(status_code=403, detail="Admin access required")
+        return _build_prompt_lab_dashboard(connection)
+
+
+@router.post("/admin/prompt-lab/prompts", response_model=PromptLabPromptVersion)
+def create_prompt_lab_prompt(payload: PromptLabPromptCreateRequest, request: Request) -> PromptLabPromptVersion:
+    token = request.cookies.get(SESSION_COOKIE_NAME)
+    current_user = web_session_service.get_user_by_token(token) if token else None
+    name = str(payload.name or "").strip()
+    prompt_text = str(payload.prompt_text or "").strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="Prompt name is required")
+    if not prompt_text:
+        raise HTTPException(status_code=400, detail="Prompt text is required")
+    with get_connection() as connection:
+        if not _is_admin_user(connection, current_user):
+            raise HTTPException(status_code=403, detail="Admin access required")
+        row = connection.execute(
+            """
+            INSERT INTO prompt_lab_case_prompts (name, prompt_text, created_by)
+            VALUES (%s, %s, %s)
+            RETURNING id, name, prompt_text, created_by, created_at
+            """,
+            (name, prompt_text, current_user.full_name if current_user else None),
+        ).fetchone()
+        connection.commit()
+    return PromptLabPromptVersion(**dict(row))
+
+
+@router.post("/admin/prompt-lab/case-runs", response_model=PromptLabCaseRunResponse)
+def create_prompt_lab_case_run(payload: PromptLabCaseRunRequest, request: Request) -> PromptLabCaseRunResponse:
+    token = request.cookies.get(SESSION_COOKIE_NAME)
+    current_user = web_session_service.get_user_by_token(token) if token else None
+    prompt_source = str(payload.prompt_source or "custom").strip().lower()
+    use_file_prompt = prompt_source in {"file", "files", "default", "production"}
+    prompt_row = None
+    prompt_text = None
+    with get_connection() as connection:
+        if not _is_admin_user(connection, current_user):
+            raise HTTPException(status_code=403, detail="Admin access required")
+        if not use_file_prompt:
+            prompt_row = _get_prompt_lab_prompt(connection, payload.prompt_id)
+            prompt_text = str(payload.prompt_text or "").strip()
+            prompt_name = str(payload.prompt_name or "").strip() or "Ad-hoc prompt"
+            if prompt_row is not None:
+                prompt_text = str(prompt_row["prompt_text"] or "")
+                prompt_name = str(prompt_row["name"] or prompt_name)
+            if not prompt_text:
+                raise HTTPException(status_code=400, detail="Prompt text is required")
+            if prompt_row is None:
+                prompt_row = connection.execute(
+                    """
+                    INSERT INTO prompt_lab_case_prompts (name, prompt_text, created_by)
+                    VALUES (%s, %s, %s)
+                    RETURNING id, name, prompt_text, created_by, created_at
+                    """,
+                    (prompt_name, prompt_text, current_user.full_name if current_user else None),
+                ).fetchone()
+                connection.commit()
+
+    try:
+        if payload.case_id_code == "__all__":
+            artifacts = assessment_service.preview_personalized_case_set(
+                user_id=payload.user_id,
+                case_generation_system_prompt=prompt_text,
+                full_name=payload.full_name,
+                role_id=payload.role_id,
+                position=payload.position,
+                duties=payload.duties,
+                company_industry=payload.company_industry,
+                user_profile_override=payload.user_profile,
+            )
+        else:
+            artifacts = assessment_service.preview_personalized_case(
+                user_id=payload.user_id,
+                case_id_code=payload.case_id_code,
+                case_generation_system_prompt=prompt_text,
+                full_name=payload.full_name,
+                role_id=payload.role_id,
+                position=payload.position,
+                duties=payload.duties,
+                company_industry=payload.company_industry,
+                user_profile_override=payload.user_profile,
+            )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    with get_connection() as connection:
+        stored_case_code = artifacts.get("case", {}).get("case_id_code") or payload.case_id_code
+        case_row = connection.execute(
+            "SELECT id FROM cases_registry WHERE case_id_code = %s",
+            (stored_case_code,),
+        ).fetchone()
+        if case_row is None:
+            raise HTTPException(status_code=400, detail="Case not found")
+        run_row = connection.execute(
+            """
+            INSERT INTO prompt_lab_case_runs (
+                prompt_id, user_id, case_registry_id, created_by, artifacts_json
+            )
+            VALUES (%s, %s, %s, %s, %s::jsonb)
+            RETURNING id, created_at
+            """,
+            (
+                prompt_row["id"] if prompt_row is not None else None,
+                payload.user_id,
+                case_row["id"],
+                current_user.full_name if current_user else None,
+                json.dumps(artifacts, ensure_ascii=False),
+            ),
+        ).fetchone()
+        connection.commit()
+
+    return PromptLabCaseRunResponse(
+        id=int(run_row["id"]),
+        prompt=PromptLabPromptVersion(**dict(prompt_row)) if prompt_row is not None else None,
+        created_at=run_row["created_at"],
+        **artifacts,
+    )
 
 
 @router.get("/admin/methodology", response_model=AdminMethodologyResponse)

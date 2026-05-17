@@ -1,4 +1,5 @@
 import logging
+import os
 import traceback
 from time import perf_counter
 from pathlib import Path
@@ -6,7 +7,7 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.exceptions import HTTPException as FastAPIHTTPException
 from fastapi.requests import Request
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
 from Api.database import ensure_core_schema
@@ -20,6 +21,7 @@ logger = logging.getLogger("agent4k")
 
 BASE_DIR = Path(__file__).resolve().parent
 WEB_DIR = BASE_DIR / "web"
+DEV_PREVIEWS_DIR = BASE_DIR / "dev_previews"
 
 ensure_core_schema()
 web_session_service.ensure_schema()
@@ -28,6 +30,8 @@ logger.info("Agent_4K API startup complete")
 
 app.mount("/favicons", StaticFiles(directory=WEB_DIR / "favicons"), name="favicons")
 app.mount("/web", StaticFiles(directory=WEB_DIR), name="web")
+if os.getenv("AGENT4K_ENABLE_SCREEN_PREVIEWS") == "1":
+    app.mount("/__screen-previews", StaticFiles(directory=DEV_PREVIEWS_DIR), name="screen-previews")
 
 
 def _resolve_request_user(request: Request):
@@ -104,3 +108,23 @@ async def log_unhandled_exceptions(request: Request, call_next):
 @app.get("/")
 def read_root() -> FileResponse:
     return FileResponse(WEB_DIR / "index.html")
+
+
+@app.get("/__screens")
+def read_screen_gallery() -> FileResponse:
+    if os.getenv("AGENT4K_ENABLE_SCREEN_PREVIEWS") != "1":
+        raise FastAPIHTTPException(status_code=404, detail="Screen previews are disabled.")
+    return FileResponse(DEV_PREVIEWS_DIR / "screen-gallery.html")
+
+
+@app.get("/__screen-canvas")
+def read_screen_canvas() -> HTMLResponse:
+    if os.getenv("AGENT4K_ENABLE_SCREEN_PREVIEWS") != "1":
+        raise FastAPIHTTPException(status_code=404, detail="Screen previews are disabled.")
+    html = (WEB_DIR / "index.html").read_text(encoding="utf-8")
+    html = html.replace(
+        '<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js" defer></script>',
+        '<script src="/__screen-previews/preview-app-stub.js"></script>\n'
+        '  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js" defer></script>',
+    )
+    return HTMLResponse(html)

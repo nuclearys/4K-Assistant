@@ -7,7 +7,28 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Manrope:wght@600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/web/app.css?v=20260515-admin-expert-group-picker-modal">
+  <!-- CSS is modularized under /web/styles/. Load order: tokens → base → components → screens → utilities. -->
+  <link rel="stylesheet" href="/web/styles/tokens.css?v=20260516-merged">
+  <link rel="stylesheet" href="/web/styles/base.css?v=20260517-scrollbar">
+  <link rel="stylesheet" href="/web/styles/components.css?v=20260516-merged">
+  <link rel="stylesheet" href="/web/styles/screens/auth.css?v=20260516-merged">
+  <link rel="stylesheet" href="/web/styles/screens/onboarding.css?v=20260517-onboarding-progress-pad">
+  <link rel="stylesheet" href="/web/styles/screens/processing.css?v=20260516-merged">
+  <link rel="stylesheet" href="/web/styles/screens/profile.css?v=20260517-redesign-3">
+  <link rel="stylesheet" href="/web/styles/screens/report.css?v=20260516-merged">
+  <link rel="stylesheet" href="/web/styles/screens/ai-welcome.css?v=20260516-merged">
+  <link rel="stylesheet" href="/web/styles/screens/prechat.css?v=20260516-merged">
+  <link rel="stylesheet" href="/web/styles/screens/chat.css?v=20260517-scroll-fix">
+  <link rel="stylesheet" href="/web/styles/screens/interview.css?v=20260517-timer-pill">
+  <link rel="stylesheet" href="/web/styles/screens/dashboard.css?v=20260516-merged">
+  <link rel="stylesheet" href="/web/styles/screens/reports.css?v=20260516-merged">
+  <link rel="stylesheet" href="/web/styles/screens/app-loader.css?v=20260516-merged">
+  <link rel="stylesheet" href="/web/styles/screens/admin.css?v=20260516-merged">
+  <link rel="stylesheet" href="/web/styles/screens/admin-reports.css?v=20260516-merged">
+  <link rel="stylesheet" href="/web/styles/screens/admin-report-detail.css?v=20260516-merged">
+  <link rel="stylesheet" href="/web/styles/screens/admin-methodology.css?v=20260516-merged">
+  <link rel="stylesheet" href="/web/styles/screens/admin-prompt-lab.css?v=20260516-merged">
+  <link rel="stylesheet" href="/web/styles/utilities.css?v=20260516-merged">
       <!--Favicons-->
   <link rel="icon" href="/favicons/favicon.ico" sizes="any">
   <link rel="icon" type="image/png" sizes="32x32" href="/favicons/favicon-32x32.png">
@@ -17,7 +38,7 @@
 </head>
 <body>
   <div id="app-loader" class="app-loader hidden" aria-live="polite">
-    <div class="app-loader-card">
+    <div class="card app-loader-card">
       <div class="app-loader-spinner"></div>
       <strong id="app-loader-title">Подождите, пожалуйста</strong>
       <p id="app-loader-text">Система обрабатывает ваш запрос.</p>
@@ -57,16 +78,12 @@
       <div class="onboarding-shell">
         <div class="onboarding-topbar">
           <div class="brand dashboard-brand">4K Ассистент</div>
-          <div class="onboarding-topbar-actions">
-            <button id="onboarding-back-button" type="button" class="ghost-button compact-ghost">Назад</button>
-            <button id="onboarding-exit-button" type="button" class="topbar-exit-button">
-              <span class="topbar-user-icon" aria-hidden="true">✕</span>
-              <span>Выйти</span>
-            </button>
-          </div>
         </div>
         <div class="onboarding-copy">
-          <div class="step-badge" id="step-badge">Шаг 01</div>
+          <div class="step-badge" id="step-badge">
+            <button id="onboarding-step-back" type="button" class="step-badge-back" aria-label="Назад" hidden></button>
+            <span id="step-badge-label">Шаг 01</span>
+          </div>
           <h2 id="onboarding-title">Познакомьтесь с AI-ассистентом</h2>
           <p class="subtitle" id="onboarding-description"></p>
           <div class="feature-list" id="feature-list"></div>
@@ -100,15 +117,13 @@
       </div>
 
       <div class="dashboard-hero">
-        <div>
-          <h2 id="dashboard-greeting">Добро пожаловать</h2>
-          <p class="dashboard-subtitle">Ваш текущий прогресс развития компетенций за этот квартал</p>
-        </div>
+        <h2 id="dashboard-greeting">Добро пожаловать</h2>
+        <p class="dashboard-subtitle">Ваш текущий прогресс развития компетенций за этот квартал</p>
       </div>
 
       <section class="dashboard-section">
         <p class="section-label accent-label">Продолжить ассессмент</p>
-        <div class="assessment-card">
+        <div class="card card--lg assessment-card">
           <div class="assessment-icon">4K</div>
           <div class="assessment-copy">
             <h3 id="assessment-title">Компетенции 4К</h3>
@@ -123,8 +138,16 @@
           </div>
           <div class="assessment-actions">
             <button id="assessment-action-button" type="button" class="primary-button">Продолжить</button>
-            <div id="assessment-preparing" class="assessment-preparing preparing-ring hidden" style="--progress: 0%;" aria-live="polite">
-              <span id="assessment-preparing-percent" class="preparing-ring-value">0%</span>
+            <div id="assessment-preparing" class="preparing-hero hidden" style="--progress: 0%;" aria-live="polite">
+              <div class="preparing-hero-row">
+                <span class="preparing-hero-pulse" aria-hidden="true"></span>
+                <strong class="preparing-hero-label">Подготовка кейсов</strong>
+                <span id="assessment-preparing-percent" class="preparing-hero-value">0%</span>
+              </div>
+              <div class="preparing-hero-meter">
+                <div class="preparing-hero-meter-fill"></div>
+                <div class="preparing-hero-meter-shimmer" aria-hidden="true"></div>
+              </div>
             </div>
           </div>
         </div>
@@ -164,18 +187,20 @@
       </div>
 
       <div class="ai-welcome-shell">
-        <section class="ai-hero-card">
+        <section class="card card--lg ai-hero-card">
           <div class="ai-hero-copy">
             <h2>Добро пожаловать в систему AI-оценки</h2>
             <p id="ai-hero-description">Пройдите первый ассессмент, чтобы получить ваш профиль компетенций и персонализированные рекомендации от искусственного интеллекта.</p>
             <button id="start-first-assessment" type="button" class="primary-button">Начать первый ассессмент</button>
-            <div id="welcome-assessment-preparing" class="hero-preparing hidden" aria-live="polite">
-              <div id="welcome-assessment-ring" class="preparing-ring hero" style="--progress: 0%;">
-                <span id="welcome-assessment-percent" class="preparing-ring-value">0%</span>
+            <div id="welcome-assessment-preparing" class="preparing-hero hidden" aria-live="polite">
+              <div class="preparing-hero-row">
+                <span class="preparing-hero-pulse" aria-hidden="true"></span>
+                <strong id="welcome-assessment-title" class="preparing-hero-label">Подготовка кейсов</strong>
+                <span id="welcome-assessment-percent" class="preparing-hero-value">0%</span>
               </div>
-              <div class="preparing-copy">
-                <strong id="welcome-assessment-title">Подготавливаем кейсы</strong>
-                <span id="welcome-assessment-text">Система собирает персонализированный набор кейсов.</span>
+              <div id="welcome-assessment-ring" class="preparing-hero-meter" style="--progress: 0%;">
+                <div class="preparing-hero-meter-fill"></div>
+                <div class="preparing-hero-meter-shimmer" aria-hidden="true"></div>
               </div>
             </div>
           </div>
@@ -188,21 +213,22 @@
             <p class="library-subtitle">Выберите тест для начала анализа</p>
           </div>
           <div class="assessment-grid static-grid">
-            <article class="assessment-mini-card">
+            <article class="card card--lg assessment-mini-card">
               <div class="mini-card-icon">4K</div>
               <h3>Оценка 4К компетенций</h3>
               <p>Комплексный анализ ключевых навыков будущего: Креативность, Критическое мышление, Коммуникация и Кооперация.</p>
               <div class="mini-card-footer">
                 <span>20 минут</span>
                 <button id="library-start-button" type="button" class="mini-start-button">Начать</button>
-                <div id="library-assessment-preparing" class="mini-card-preparing hidden">
-                  <div id="library-assessment-ring" class="preparing-ring mini" style="--progress: 0%;">
-                    <span id="library-assessment-percent" class="preparing-ring-value">0%</span>
+                <div id="library-assessment-preparing" class="preparing-hero preparing-hero--mini hidden" aria-live="polite">
+                  <div id="library-assessment-ring" class="preparing-hero-row" style="--progress: 0%;">
+                    <span class="preparing-hero-pulse" aria-hidden="true"></span>
+                    <span id="library-assessment-percent" class="preparing-hero-value">0%</span>
                   </div>
                 </div>
               </div>
             </article>
-            <article class="assessment-mini-card muted-card warm">
+            <article class="card is-placeholder assessment-mini-card muted-card warm">
               <div class="mini-card-icon muted-icon">◌</div>
               <h3>Проверка профиля MBTI</h3>
               <p>AI-анализ типа личности для понимания паттернов поведения и наиболее подходящих форматов работы.</p>
@@ -211,7 +237,7 @@
           </div>
         </section>
 
-        <section class="importance-card">
+        <section class="card card--lg importance-card">
           <div>
             <p class="section-label accent-label">Почему это важно?</p>
             <h3>Постройте свой карьерный трек на данных</h3>
@@ -246,7 +272,7 @@
       </div>
 
       <div class="admin-shell">
-        <section class="admin-hero-card">
+        <section class="card card--lg admin-hero-card">
           <div>
             <p class="section-label accent-label">Административный раздел</p>
             <h2 id="admin-title">Сводный отчет</h2>
@@ -262,7 +288,7 @@
         <section class="admin-metrics-grid" id="admin-metrics-grid"></section>
 
         <section class="admin-analytics-grid">
-          <article class="admin-analytics-card">
+          <article class="card card--lg admin-analytics-card">
             <div class="report-card-head">
               <div>
                 <p class="section-label accent-label">Компетенции</p>
@@ -275,7 +301,7 @@
             </div>
           </article>
 
-          <article class="admin-analytics-card">
+          <article class="card card--lg admin-analytics-card">
             <div class="report-card-head">
               <div>
                 <p class="section-label accent-label">MBTI распределение</p>
@@ -289,7 +315,7 @@
           </article>
         </section>
 
-        <section class="admin-insights-card">
+        <section class="card card--lg admin-insights-card">
           <div class="report-card-head">
             <div>
               <p class="section-label accent-label">Инсайты</p>
@@ -299,7 +325,7 @@
           <div id="admin-insights-grid" class="admin-insights-grid"></div>
         </section>
 
-        <section class="admin-activity-card">
+        <section class="card card--lg admin-activity-card">
           <div class="report-card-head admin-activity-head">
             <div>
               <p class="section-label accent-label">Динамика</p>
@@ -338,7 +364,7 @@
       </div>
 
       <div class="admin-shell admin-methodology-shell">
-        <section class="admin-hero-card admin-methodology-hero">
+        <section class="card card--lg admin-hero-card admin-methodology-hero">
           <div>
             <p class="section-label accent-label">Управление кейсами</p>
             <h2 id="admin-methodology-title">Библиотека кейсов</h2>
@@ -346,7 +372,6 @@
           </div>
           <div class="admin-reports-actions">
             <label class="admin-search-field">
-              <span>Поиск по кейсам</span>
               <input id="admin-methodology-search" type="search" placeholder="Поиск по кейсам...">
             </label>
           </div>
@@ -362,7 +387,7 @@
           </div>
 
           <div id="admin-methodology-passports-view" class="admin-methodology-view">
-            <section class="admin-analytics-card admin-methodology-passports-card">
+            <section class="card card--lg admin-analytics-card admin-methodology-passports-card">
               <div class="report-card-head">
                 <div>
                   <p class="section-label accent-label">Паспорта типов</p>
@@ -374,15 +399,13 @@
           </div>
 
           <div id="admin-methodology-library-view" class="admin-methodology-view hidden">
-            <section class="admin-reports-table-card">
+            <section class="card card--lg admin-reports-table-card">
               <div class="admin-reports-table-head">
                 <div class="admin-reports-columns admin-methodology-columns" aria-hidden="true">
                   <span>Название</span>
-                  <span>ID</span>
                   <span>Роли</span>
                   <span>4K навыки</span>
                   <span>Сложность</span>
-                  <span>Время</span>
                   <span>Статус / QA</span>
                 </div>
               </div>
@@ -402,7 +425,7 @@
             <section class="admin-methodology-branches-grid" id="admin-methodology-branches"></section>
 
             <section class="admin-methodology-coverage-grid">
-              <article class="admin-analytics-card">
+              <article class="card card--lg admin-analytics-card">
                 <div class="report-card-head">
                   <div>
                     <p class="section-label accent-label">Матрица покрытия</p>
@@ -420,7 +443,7 @@
                 </div>
               </article>
 
-              <article class="admin-analytics-card admin-methodology-summary-card">
+              <article class="card card--lg admin-analytics-card admin-methodology-summary-card">
                 <div class="report-card-head">
                   <div>
                     <p class="section-label accent-label">Статистика базы</p>
@@ -430,7 +453,7 @@
                 <div id="admin-methodology-summary" class="admin-methodology-summary"></div>
               </article>
 
-              <article class="admin-analytics-card admin-methodology-risk-card">
+              <article class="card card--lg admin-analytics-card admin-methodology-risk-card">
                 <div class="report-card-head">
                   <div>
                     <p class="section-label accent-label">Дефицит покрытия</p>
@@ -440,7 +463,7 @@
                 <div id="admin-methodology-skill-gaps" class="admin-methodology-risk-list"></div>
               </article>
 
-              <article class="admin-analytics-card admin-methodology-risk-card">
+              <article class="card card--lg admin-analytics-card admin-methodology-risk-card">
                 <div class="report-card-head">
                   <div>
                     <p class="section-label accent-label">Риск зависимости</p>
@@ -450,7 +473,7 @@
                 <div id="admin-methodology-single-points" class="admin-methodology-risk-list"></div>
               </article>
 
-              <article class="admin-analytics-card admin-methodology-risk-card">
+              <article class="card card--lg admin-analytics-card admin-methodology-risk-card">
                 <div class="report-card-head">
                   <div>
                     <p class="section-label accent-label">Качество кейсов</p>
@@ -482,7 +505,7 @@
           </div>
 
           <div class="admin-methodology-drawer-body">
-            <section class="admin-methodology-detail-card">
+            <section class="card admin-methodology-detail-card">
               <div class="admin-methodology-section-head">
                 <div>
                   <p class="section-label accent-label">Основная информация</p>
@@ -509,7 +532,7 @@
               </div>
             </section>
 
-            <section class="admin-methodology-detail-card">
+            <section class="card admin-methodology-detail-card">
               <div class="admin-methodology-section-head">
                 <div>
                   <p class="section-label accent-label">Текст кейса</p>
@@ -562,7 +585,7 @@
               </div>
             </section>
 
-            <section class="admin-methodology-detail-card">
+            <section class="card admin-methodology-detail-card">
               <div class="admin-methodology-section-head">
                 <div>
                   <p class="section-label accent-label">Методическая разметка</p>
@@ -586,7 +609,7 @@
               </div>
             </section>
 
-            <section class="admin-methodology-detail-card">
+            <section class="card admin-methodology-detail-card">
               <div class="admin-methodology-section-head">
                 <div>
                   <p class="section-label accent-label">Расширенные поля</p>
@@ -673,7 +696,7 @@
               </div>
             </section>
 
-            <section class="admin-methodology-detail-card">
+            <section class="card admin-methodology-detail-card">
               <div class="admin-methodology-section-head">
                 <div>
                   <p class="section-label accent-label">Критерии оценки</p>
@@ -683,7 +706,7 @@
               <div id="admin-methodology-detail-signals" class="admin-methodology-signals"></div>
             </section>
 
-            <section class="admin-methodology-detail-card">
+            <section class="card admin-methodology-detail-card">
               <div class="admin-methodology-section-head">
                 <div>
                   <p class="section-label accent-label">Lifecycle</p>
@@ -706,14 +729,13 @@
       </div>
 
       <div class="admin-shell admin-reports-shell">
-          <section class="admin-hero-card admin-reports-hero">
+          <section class="card card--lg admin-hero-card admin-reports-hero">
             <div>
               <h2 id="admin-reports-title">Отдельные отчеты</h2>
               <p id="admin-reports-subtitle">Управление и анализ индивидуальных результатов тестирования персонала.</p>
             </div>
             <div class="admin-reports-actions">
               <label class="admin-search-field">
-                <span>Поиск</span>
                 <input id="admin-reports-search" type="search" placeholder="Поиск по отчетам...">
               </label>
               <button
@@ -725,10 +747,10 @@
             </div>
           </section>
 
-          <section class="admin-reports-table-card">
+          <section class="card card--lg admin-reports-table-card">
             <div class="admin-reports-table-head">
               <div class="admin-reports-columns" aria-hidden="true">
-                <span>Выбор</span>
+                <span></span>
                 <span>Сотрудник / ID</span>
                 <span>Группа / роль</span>
                 <span>Статус</span>
@@ -750,7 +772,7 @@
             </div>
           </section>
 
-        <section class="admin-reports-summary-card">
+        <section class="card card--lg admin-reports-summary-card">
           <div>
             <p class="section-label accent-label">Сводка</p>
             <h3>Средний % по списку</h3>
@@ -760,7 +782,7 @@
       </div>
 
       <dialog id="admin-reports-group-dialog" class="admin-prompt-lab-case-dialog">
-        <form method="dialog" class="admin-prompt-lab-case-dialog-card">
+        <form method="dialog" class="card card--lg admin-prompt-lab-case-dialog-card">
           <div class="admin-prompt-lab-case-dialog-head">
             <div>
               <p class="section-label accent-label">Выбор пользователей</p>
@@ -786,7 +808,7 @@
       </div>
 
       <div class="admin-shell admin-prompt-lab-shell">
-        <section class="admin-hero-card admin-prompt-lab-hero">
+        <section class="card card--lg admin-hero-card admin-prompt-lab-hero">
           <div>
             <p class="section-label accent-label">Лаборатория промтов</p>
             <h2>Персонализация кейсов</h2>
@@ -801,7 +823,7 @@
 
         <div id="admin-prompt-lab-pane-cases" class="admin-prompt-lab-pane">
           <section class="admin-prompt-lab-grid">
-            <article class="admin-analytics-card admin-prompt-lab-form">
+            <article class="card card--lg admin-analytics-card admin-prompt-lab-form">
               <div class="report-card-head">
                 <div>
                   <p class="section-label accent-label">Новый запуск</p>
@@ -880,7 +902,7 @@
             </article>
           </section>
 
-          <section class="admin-analytics-card admin-prompt-lab-result">
+          <section class="card card--lg admin-analytics-card admin-prompt-lab-result">
             <div class="report-card-head">
               <div>
                 <p class="section-label accent-label">Результат</p>
@@ -895,7 +917,7 @@
 
         <div id="admin-prompt-lab-pane-dialog" class="admin-prompt-lab-pane hidden">
           <section class="admin-prompt-lab-grid">
-            <article class="admin-analytics-card admin-prompt-lab-form">
+            <article class="card card--lg admin-analytics-card admin-prompt-lab-form">
               <div class="report-card-head">
                 <div>
                   <p class="section-label accent-label">Новый запуск</p>
@@ -947,7 +969,7 @@
             </article>
           </section>
 
-          <section class="admin-analytics-card admin-prompt-lab-result">
+          <section class="card card--lg admin-analytics-card admin-prompt-lab-result">
             <div class="report-card-head">
               <div>
                 <p class="section-label accent-label">Результат</p>
@@ -971,7 +993,7 @@
       </div>
 
       <dialog id="admin-prompt-lab-case-dialog" class="admin-prompt-lab-case-dialog">
-        <form method="dialog" class="admin-prompt-lab-case-dialog-card">
+        <form method="dialog" class="card card--lg admin-prompt-lab-case-dialog-card">
           <div class="admin-prompt-lab-case-dialog-head">
             <div>
               <p class="section-label accent-label">Выбор кейсов</p>
@@ -984,7 +1006,7 @@
       </dialog>
 
       <dialog id="admin-prompt-lab-dialog-case-dialog" class="admin-prompt-lab-case-dialog">
-        <form method="dialog" class="admin-prompt-lab-case-dialog-card">
+        <form method="dialog" class="card card--lg admin-prompt-lab-case-dialog-card">
           <div class="admin-prompt-lab-case-dialog-head">
             <div>
               <p class="section-label accent-label">Выбор кейса</p>
@@ -1016,33 +1038,44 @@
           </div>
         </section>
 
-        <section class="admin-detail-user-card">
-          <div class="admin-detail-user-strip">
-            <div class="admin-detail-profile-head">
+        <section class="card card--lg admin-detail-user-card">
+          <div class="admin-detail-user-header">
+            <div class="admin-detail-user-identity">
               <div class="admin-detail-photo-card">
                 <div id="admin-report-detail-avatar" class="admin-detail-photo">A</div>
-                <span class="admin-detail-photo-status"></span>
+                <span class="admin-detail-photo-status" aria-hidden="true"></span>
               </div>
-              <div class="admin-detail-profile-copy">
-                <strong id="admin-report-detail-name">Пользователь</strong>
-                <span id="admin-report-detail-role">Роль не указана</span>
-                <span id="admin-report-detail-group">Группа не указана</span>
-                <span id="admin-report-detail-phone">Телефон не указан</span>
-                <span id="admin-report-detail-telegram">Telegram не указан</span>
-                <div class="admin-detail-profile-badges">
+              <div class="admin-detail-user-identity-copy">
+                <div class="admin-detail-user-badges">
                   <span class="admin-detail-badge">4K Report</span>
                   <span class="admin-detail-badge muted" id="admin-report-detail-status-badge">Черновик</span>
                 </div>
+                <strong id="admin-report-detail-name">Пользователь</strong>
+                <span id="admin-report-detail-role" class="admin-detail-user-role">Роль не указана</span>
               </div>
             </div>
-            <div class="report-hero-score admin-detail-user-score">
+            <div class="admin-detail-user-score">
+              <span class="admin-detail-user-score-label">Интегральный показатель</span>
               <strong id="admin-report-detail-score">0%</strong>
-              <span>Интегральный показатель</span>
             </div>
           </div>
+          <dl class="admin-detail-user-meta">
+            <div class="admin-detail-user-meta-item">
+              <dt>Группа</dt>
+              <dd id="admin-report-detail-group">Группа не указана</dd>
+            </div>
+            <div class="admin-detail-user-meta-item">
+              <dt>Телефон</dt>
+              <dd id="admin-report-detail-phone">Телефон не указан</dd>
+            </div>
+            <div class="admin-detail-user-meta-item">
+              <dt>Telegram</dt>
+              <dd id="admin-report-detail-telegram">Telegram не указан</dd>
+            </div>
+          </dl>
         </section>
 
-        <section class="admin-detail-expert-comment-card">
+        <section class="card card--lg admin-detail-expert-comment-card">
           <div class="report-card-head">
             <div>
               <p class="section-label accent-label">Комментарий эксперта</p>
@@ -1079,36 +1112,34 @@
           </div>
         </section>
 
-        <section class="admin-detail-top-grid">
-          <article class="report-competencies-card">
-            <div class="report-card-head">
-              <div>
-                <p class="section-label accent-label">Компетенции (4К)</p>
-                <h3>Сводные показатели по компетенциям</h3>
+        <article class="card report-competencies-card">
+          <div class="report-card-head">
+            <div>
+              <p class="section-label accent-label">Компетенции (4К)</p>
+              <h3>Сводные показатели по компетенциям</h3>
+            </div>
+          </div>
+          <section class="admin-detail-skill-radar-section" aria-labelledby="admin-report-detail-skills-radar-title">
+            <div class="admin-detail-skill-radar-head">
+              <strong id="admin-report-detail-skills-radar-title">Распределение по 13 навыкам</strong>
+              <p>Оценки отдельных навыков, из которых собирается итоговый профиль 4K.</p>
+            </div>
+            <div class="card admin-detail-skills-radar-card">
+              <div class="admin-detail-skills-radar-frame">
+                <canvas id="admin-report-detail-skills-radar-chart" aria-label="Радар навыков 4K" role="img"></canvas>
+                <div id="admin-report-detail-skills-radar-labels" class="admin-detail-radar-competency-labels hidden" aria-hidden="true">
+                  <span data-competency="communication">Коммуникация</span>
+                  <span data-competency="teamwork">Командная работа</span>
+                  <span data-competency="creativity">Креативность</span>
+                  <span data-competency="critical-thinking">Критическое мышление</span>
+                </div>
+                <div id="admin-report-detail-skills-radar-fallback" class="admin-detail-skills-radar-fallback hidden" aria-live="polite"></div>
               </div>
             </div>
-            <section class="admin-detail-skill-radar-section" aria-labelledby="admin-report-detail-skills-radar-title">
-              <div class="admin-detail-skill-radar-head">
-                <strong id="admin-report-detail-skills-radar-title">Распределение по 13 навыкам</strong>
-                <p>Оценки отдельных навыков, из которых собирается итоговый профиль 4K.</p>
-              </div>
-              <div class="admin-detail-skills-radar-card">
-                <div class="admin-detail-skills-radar-frame">
-                  <canvas id="admin-report-detail-skills-radar-chart" aria-label="Радар навыков 4K" role="img"></canvas>
-                  <div id="admin-report-detail-skills-radar-labels" class="admin-detail-radar-competency-labels hidden" aria-hidden="true">
-                    <span data-competency="communication">Коммуникация</span>
-                    <span data-competency="teamwork">Командная работа</span>
-                    <span data-competency="creativity">Креативность</span>
-                    <span data-competency="critical-thinking">Критическое мышление</span>
-                  </div>
-                  <div id="admin-report-detail-skills-radar-fallback" class="admin-detail-skills-radar-fallback hidden" aria-live="polite"></div>
-                </div>
-              </div>
-            </section>
-          </article>
-        </section>
+          </section>
+        </article>
 
-        <section class="admin-detail-profile-summary-card">
+        <section class="card card--lg card--accent admin-detail-profile-summary-card">
           <div class="report-card-head">
             <div>
               <p class="section-label accent-label">Персонализированный профиль</p>
@@ -1116,38 +1147,38 @@
             </div>
           </div>
           <div class="admin-detail-profile-summary-grid">
-            <article class="admin-detail-profile-summary-item">
+            <article class="card card--inset admin-detail-profile-summary-item">
               <strong>Должность</strong>
               <p id="admin-report-detail-profile-position">Нет данных</p>
             </article>
-            <article class="admin-detail-profile-summary-item">
+            <article class="card card--inset admin-detail-profile-summary-item">
               <strong>Обязанности</strong>
               <p id="admin-report-detail-profile-duties">Нет данных</p>
             </article>
-            <article class="admin-detail-profile-summary-item">
+            <article class="card card--inset admin-detail-profile-summary-item">
               <strong>Домен</strong>
               <p id="admin-report-detail-profile-domain">Нет данных</p>
             </article>
-            <article class="admin-detail-profile-summary-item">
+            <article class="card card--inset admin-detail-profile-summary-item">
               <strong>Процессы</strong>
               <ul id="admin-report-detail-profile-processes" class="admin-detail-profile-summary-list"></ul>
             </article>
-            <article class="admin-detail-profile-summary-item">
+            <article class="card card--inset admin-detail-profile-summary-item">
               <strong>Задачи</strong>
               <ul id="admin-report-detail-profile-tasks" class="admin-detail-profile-summary-list"></ul>
             </article>
-            <article class="admin-detail-profile-summary-item">
+            <article class="card card--inset admin-detail-profile-summary-item">
               <strong>Стейкхолдеры</strong>
               <ul id="admin-report-detail-profile-stakeholders" class="admin-detail-profile-summary-list"></ul>
             </article>
-            <article class="admin-detail-profile-summary-item">
+            <article class="card card--inset admin-detail-profile-summary-item">
               <strong>Ограничения</strong>
               <ul id="admin-report-detail-profile-constraints" class="admin-detail-profile-summary-list"></ul>
             </article>
           </div>
         </section>
 
-        <section class="admin-detail-insights-card">
+        <section class="card card--lg admin-detail-insights-card">
           <div class="report-card-head">
             <div>
               <p class="section-label accent-label">Инсайты и рекомендации</p>
@@ -1155,24 +1186,24 @@
             </div>
             <span class="admin-detail-card-icon accent">✦</span>
           </div>
-          <div class="admin-detail-insights-summary">
+          <div class="card card--accent admin-detail-insights-summary">
             <h4 id="admin-report-detail-insight-title">AI insight недоступен</h4>
             <p id="admin-report-detail-insight-text">После загрузки результатов здесь появится интерпретация профиля пользователя.</p>
             <ul id="admin-report-detail-basis" class="admin-detail-basis-list"></ul>
           </div>
           <div class="admin-detail-insights-grid">
-            <article class="admin-detail-insight-column">
+            <article class="card card--inset admin-detail-insight-column">
               <strong>Сильные стороны</strong>
               <ul id="admin-report-detail-strengths" class="report-recommendations"></ul>
             </article>
-            <article class="admin-detail-insight-column">
+            <article class="card card--inset admin-detail-insight-column">
               <strong>Зоны роста</strong>
               <ul id="admin-report-detail-growth" class="report-recommendations"></ul>
             </article>
           </div>
         </section>
 
-        <section class="admin-detail-quotes-card">
+        <section class="card card--lg admin-detail-quotes-card">
           <div class="report-card-head">
             <div>
               <p class="section-label accent-label">Цитаты из оценки</p>
@@ -1182,7 +1213,7 @@
           <div id="admin-report-detail-quotes" class="admin-detail-quotes-grid"></div>
         </section>
 
-        <section class="admin-detail-cases-card">
+        <section class="card card--lg admin-detail-cases-card">
           <div class="report-card-head">
             <div>
               <p class="section-label accent-label">Кейсы и диалоги</p>
@@ -1202,30 +1233,32 @@
           <p>Решите серию кейсов, чтобы узнать свой потенциал в 4К и определить MBTI профиль через нейросетевой анализ.</p>
         </div>
         <div class="prechat-steps">
-          <article class="prechat-step-card">
+          <article class="card prechat-step-card">
             <div class="mini-card-icon">1</div>
             <h3>1. Получение кейса</h3>
             <p>Ознакомьтесь с подробными условиями бизнес-задачи, вводными данными и контекстом рынка.</p>
           </article>
-          <article class="prechat-step-card">
+          <article class="card prechat-step-card">
             <div class="mini-card-icon">2</div>
             <h3>2. Свободный ответ</h3>
             <p>Опишите свое решение в свободной форме. Мы ценим оригинальность мышления и аргументацию.</p>
           </article>
-          <article class="prechat-step-card">
+          <article class="card prechat-step-card">
             <div class="mini-card-icon">3</div>
             <h3>3. Анализ</h3>
             <p>Мульти-агентная система ИИ оценит ваши компетенции и сформирует детальный профиль навыков.</p>
           </article>
         </div>
         <button id="prechat-start-button" type="button" class="primary-button prechat-start">Начать</button>
-        <div id="prechat-assessment-preparing" class="hero-preparing hidden" aria-live="polite">
-          <div id="prechat-assessment-ring" class="preparing-ring hero" style="--progress: 0%;">
-            <span id="prechat-assessment-percent" class="preparing-ring-value">0%</span>
+        <div id="prechat-assessment-preparing" class="preparing-hero hidden" aria-live="polite">
+          <div class="preparing-hero-row">
+            <span class="preparing-hero-pulse" aria-hidden="true"></span>
+            <strong id="prechat-assessment-title" class="preparing-hero-label">Подготовка кейсов</strong>
+            <span id="prechat-assessment-percent" class="preparing-hero-value">0%</span>
           </div>
-          <div class="preparing-copy">
-            <strong id="prechat-assessment-title">Подготавливаем кейсы</strong>
-            <span id="prechat-assessment-text">Система собирает персонализированный набор кейсов.</span>
+          <div id="prechat-assessment-ring" class="preparing-hero-meter" style="--progress: 0%;">
+            <div class="preparing-hero-meter-fill"></div>
+            <div class="preparing-hero-meter-shimmer" aria-hidden="true"></div>
           </div>
         </div>
         <p id="prechat-error" class="error" hidden></p>
@@ -1278,8 +1311,15 @@
             <p id="interview-case-status">Ожидается запуск интервью</p>
           </div>
 
-          <div id="interview-messages" class="interview-messages"></div>
-          <div id="interview-summary" class="interview-summary hidden"></div>
+          <div class="interview-messages-shell">
+            <div id="interview-scroll-area" class="interview-scroll-area">
+              <div id="interview-summary" class="interview-summary hidden"></div>
+              <div id="interview-messages" class="interview-messages"></div>
+            </div>
+            <button id="interview-messages-scroll" class="interview-messages-scroll" type="button" hidden aria-label="К последним сообщениям">
+              <span aria-hidden="true">↓</span>
+            </button>
+          </div>
           <div id="interview-complete-actions" class="interview-complete-actions hidden">
             <button id="interview-go-processing-button" type="button" class="primary-button">Перейти к анализу</button>
           </div>
@@ -1309,69 +1349,96 @@
       </div>
 
       <div class="profile-shell">
-        <section class="profile-hero-card">
-          <div class="profile-identity-card">
-            <div class="profile-avatar-card">
-              <div id="profile-avatar" class="profile-avatar">A</div>
-              <img id="profile-avatar-image" class="profile-avatar-image hidden" alt="Фото пользователя">
-              <label class="profile-avatar-upload" for="profile-avatar-input" title="Загрузить фото">✎</label>
-              <input id="profile-avatar-input" type="file" accept="image/*" hidden>
+        <section class="profile-hero">
+          <div class="profile-hero-bg" aria-hidden="true"></div>
+          <div class="profile-hero-inner">
+            <div class="profile-hero-identity">
+              <div class="profile-avatar-card">
+                <div id="profile-avatar" class="profile-avatar">A</div>
+                <img id="profile-avatar-image" class="profile-avatar-image hidden" alt="Фото пользователя">
+                <label class="profile-avatar-upload" for="profile-avatar-input" title="Загрузить фото">
+                  <span aria-hidden="true">✎</span>
+                </label>
+                <input id="profile-avatar-input" type="file" accept="image/*" hidden>
+              </div>
+              <div class="profile-hero-copy">
+                <strong id="profile-name">Пользователь</strong>
+                <span id="profile-role">Должность не указана</span>
+              </div>
             </div>
-            <strong id="profile-name">Пользователь</strong>
-            <span id="profile-role">Должность не указана</span>
-            <div class="profile-stats">
+            <div class="profile-hero-stats">
               <article class="profile-stat">
-                <span>Ассессменты</span>
+                <span class="profile-stat-label">Ассессменты</span>
                 <strong id="profile-total-assessments">0</strong>
               </article>
+              <span class="profile-stat-divider" aria-hidden="true"></span>
               <article class="profile-stat">
-                <span>Средний результат</span>
+                <span class="profile-stat-label">Средний результат</span>
                 <strong id="profile-average-score">0%</strong>
               </article>
             </div>
           </div>
+        </section>
 
-          <div class="profile-info-card">
-            <div class="profile-card-head">
-              <h3>Основная информация</h3>
-              <p>Управляйте данными профиля и профессиональными настройками.</p>
-            </div>
-            <div class="profile-info-grid">
-              <label class="profile-field">
-                <span>Имя</span>
+        <section class="profile-grid">
+          <article class="card profile-card profile-contacts-card">
+            <header class="profile-section-head">
+              <div>
+                <h3>Контактные данные</h3>
+                <p>Email и Telegram сохраняются автоматически. Имя и телефон управляются учетной записью.</p>
+              </div>
+              <span class="profile-section-badge">Редактируемое</span>
+            </header>
+            <div class="profile-fields">
+              <label class="profile-field is-readonly">
+                <span class="profile-field-label">ФИО</span>
                 <input id="profile-full-name" type="text" readonly>
               </label>
-              <label class="profile-field">
-                <span>Email</span>
-                <div class="profile-editable-field">
+              <label class="profile-field is-readonly">
+                <span class="profile-field-label">Телефон</span>
+                <input id="profile-phone" type="text" readonly>
+              </label>
+              <label class="profile-field is-editable">
+                <span class="profile-field-label">Email</span>
+                <div class="profile-input-wrap">
                   <input id="profile-email" type="email" placeholder="name@example.com">
                   <span class="profile-field-edit-icon" aria-hidden="true">✎</span>
                 </div>
               </label>
-              <label class="profile-field">
-                <span>Телефон</span>
-                <input id="profile-phone" type="text" readonly>
-              </label>
-              <label class="profile-field">
-                <span>Telegram</span>
-                <div class="profile-editable-field">
+              <label class="profile-field is-editable">
+                <span class="profile-field-label">Telegram</span>
+                <div class="profile-input-wrap">
                   <input id="profile-telegram" type="text" placeholder="@username">
                   <span class="profile-field-edit-icon" aria-hidden="true">✎</span>
                 </div>
               </label>
-              <label class="profile-field">
-                <span>Профессия</span>
+            </div>
+            <p id="profile-save-status" class="profile-save-status" hidden></p>
+          </article>
+
+          <article class="card profile-card profile-work-card">
+            <header class="profile-section-head">
+              <div>
+                <h3>Профессиональный контекст</h3>
+                <p>Используется ассистентом при подборе кейсов под вашу роль.</p>
+              </div>
+              <span class="profile-section-badge profile-section-badge--muted">Из интервью</span>
+            </header>
+            <div class="profile-fields">
+              <label class="profile-field is-readonly">
+                <span class="profile-field-label">Должность</span>
                 <input id="profile-job-description" type="text" readonly>
               </label>
-              <label class="profile-field profile-field-wide">
-                <span>Индустрия</span>
+              <label class="profile-field is-readonly">
+                <span class="profile-field-label">Индустрия</span>
                 <input id="profile-company-industry" type="text" readonly>
               </label>
             </div>
-            <p id="profile-save-status" class="profile-save-status" hidden></p>
-          </div>
+            <div class="profile-work-hint">
+              <p>Чтобы обновить рабочий контекст, пройдите интервью заново — данные собираются на этапе подготовки.</p>
+            </div>
+          </article>
         </section>
-
       </div>
     </section>
 
@@ -1384,13 +1451,13 @@
       </div>
 
       <div class="profile-shell reports-shell">
-        <section class="reports-intro-card">
+        <section class="card reports-intro-card">
           <div class="profile-card-head">
             <h3>Как смотреть результаты</h3>
             <p>Разбивка по навыкам открывается внутри каждой попытки. Нажмите <strong>«Раскрыть»</strong> для деталей или <strong>«Открыть отчет»</strong>, чтобы снова посмотреть итоговый экран.</p>
           </div>
         </section>
-        <section class="profile-history-card reports-history-card">
+        <section class="card profile-history-card reports-history-card">
           <div class="profile-card-head">
             <h3>История прохождений</h3>
             <p>Выберите нужное прохождение и откройте его детали.</p>
@@ -1422,7 +1489,7 @@
           <div class="processing-connector connector-right"></div>
         </div>
 
-        <section class="processing-status-card">
+        <section class="card card--lg processing-status-card">
           <div class="processing-status-header">
             <div>
               <p class="section-label accent-label">Статус системы</p>
@@ -1436,7 +1503,7 @@
           <p id="processing-status-text" class="processing-status-text">Подготавливаем мульти-агентную оценку по результатам кейсов.</p>
         </section>
 
-        <section class="processing-agents-card">
+        <section class="card card--lg processing-agents-card">
           <div class="processing-agents-header">
             <p class="section-label">Активные агенты</p>
             <span id="processing-phase-label">Этап 1 из 4</span>
@@ -1481,7 +1548,7 @@
         </section>
 
         <section class="report-overview-grid">
-          <article class="report-profile-card">
+          <article class="card report-profile-card">
             <p class="section-label accent-label">Профиль пользователя</p>
             <div class="report-profile-user">
               <div id="report-profile-avatar" class="user-avatar">A</div>
@@ -1496,7 +1563,7 @@
             </div>
           </article>
 
-          <article class="report-competencies-card">
+          <article class="card report-competencies-card">
             <div class="report-card-head">
               <div>
                 <p class="section-label accent-label">Навыки 4K</p>
@@ -1509,14 +1576,14 @@
             </div>
           </article>
 
-          <article class="report-insight-card">
+          <article class="card report-insight-card">
             <p class="section-label accent-label">AI insights</p>
             <h3 id="report-strength-title">Сильная сторона пока формируется</h3>
             <p id="report-strength-text">Здесь появится интерпретация результатов после завершения анализа и загрузки данных по навыкам.</p>
           </article>
         </section>
 
-        <section class="report-details-card">
+        <section class="card report-details-card">
           <div class="report-card-head report-details-head">
             <div>
               <p class="section-label">Детализация компетенций</p>
@@ -1548,7 +1615,7 @@
         </button>
       </div>
 
-      <div id="status-card" class="status-card hidden"></div>
+      <div id="status-card" class="card card--inset status-card hidden"></div>
       <div id="messages" class="messages"></div>
       <div id="chat-consent-details" class="chat-consent-details hidden"></div>
       <div id="chat-role-options" class="chat-role-options hidden"></div>
@@ -1561,7 +1628,16 @@
     </section>
   </main>
 
+  <div id="report-info-modal" class="report-info-modal hidden" aria-hidden="true">
+    <article class="report-info-dialog" role="dialog" aria-modal="true" aria-labelledby="report-info-modal-title">
+      <button id="report-info-modal-close" class="report-info-close" type="button" aria-label="Закрыть"></button>
+      <p id="report-info-modal-eyebrow" class="report-info-eyebrow">Детали</p>
+      <h3 id="report-info-modal-title">Информация</h3>
+      <div id="report-info-modal-body" class="report-info-body"></div>
+    </article>
+  </div>
+
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js" defer></script>
-  <script src="/web/app.js?v=20260515-admin-expert-group-picker-modal" defer></script>
+  <script src="/web/app.js?v=20260517-scroll-fade-2" defer></script>
 </body>
 </html>

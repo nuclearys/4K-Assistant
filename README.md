@@ -76,6 +76,20 @@ uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 
 - [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
 
+### Превью экранов
+
+Для проверки экранов без переходов по реальному пользовательскому сценарию можно включить dev-only галерею:
+
+```bash
+AGENT4K_ENABLE_SCREEN_PREVIEWS=1 uv run uvicorn main:app --host 127.0.0.1 --port 8010 --reload
+```
+
+После запуска откройте:
+
+- [http://127.0.0.1:8010/__screens](http://127.0.0.1:8010/__screens)
+
+Галерея использует текущие `web/index.html`, `web/app.css` и `web/app.js`, но подставляет фейковые ответы API.
+
 ## Основные файлы
 
 - [main.py](/Users/andrey/PycharmProjects/Agent_4K/main.py) — точка входа приложения

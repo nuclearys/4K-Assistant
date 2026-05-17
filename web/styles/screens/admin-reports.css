@@ -1,0 +1,308 @@
+.admin-reports-panel {
+    padding: 0 0 var(--space-5);
+    background: var(--bg-soft);
+}
+
+.admin-report-detail-panel {
+    padding: 0 0 var(--space-5);
+    background: var(--bg-soft);
+}
+
+.admin-reports-shell {
+    gap: var(--space-4);
+}
+
+.admin-reports-hero {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: var(--space-4);
+    align-items: end;
+}
+
+.admin-reports-actions {
+    display: flex;
+    gap: var(--space-3);
+    align-items: end;
+}
+
+.admin-search-field {
+    min-width: 200px;
+    display: grid;
+    gap: var(--space-2);
+}
+
+.admin-search-field span {
+    font-family: var(--font-heading);
+    font-size: var(--fs-caption);
+    font-weight: var(--fw-extrabold);
+    letter-spacing: var(--ls-eyebrow);
+    text-transform: uppercase;
+    color: var(--text-muted);
+}
+
+.admin-search-field input {
+    min-height: 44px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--line-strong);
+    background: var(--control-bg);
+    padding: 0 var(--space-3);
+    font-size: var(--fs-body);
+}
+
+.admin-export-button {
+    min-height: 44px;
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius-sm);
+}
+
+#admin-reports-expert-group-button {
+    min-width: 240px;
+    white-space: nowrap;
+}
+
+.admin-reports-table-card {
+    overflow-x: auto;
+}
+
+.admin-reports-table-card > .admin-reports-pagination {
+    position: sticky;
+    left: 0;
+}
+
+.admin-reports-table-head {
+    display: grid;
+    gap: var(--space-2);
+    margin-bottom: var(--space-3);
+}
+
+.admin-reports-columns,
+.admin-report-row {
+    display: grid;
+    grid-template-columns:
+        24px minmax(160px, 1.3fr) minmax(180px, 1fr)
+        120px 160px 100px 110px auto;
+    gap: var(--space-3);
+    align-items: center;
+    text-align: center;
+}
+
+.admin-report-row > .admin-report-select-cell,
+.admin-report-row > .admin-report-user,
+.admin-report-row > .admin-report-download-action {
+    justify-content: center;
+}
+
+.admin-report-score-track {
+    margin: 0 auto;
+}
+
+.admin-reports-columns {
+    padding: 0 var(--space-3);
+    color: var(--text-muted);
+    font-family: var(--font-heading);
+    font-size: var(--fs-caption);
+    font-weight: var(--fw-bold);
+    text-transform: uppercase;
+    letter-spacing: var(--ls-eyebrow);
+}
+
+.admin-reports-columns > span {
+    white-space: nowrap;
+}
+
+.admin-reports-found {
+    color: var(--text-muted);
+    font-size: var(--fs-body-sm);
+}
+
+.admin-reports-list {
+    display: grid;
+    gap: var(--space-2);
+}
+
+.admin-reports-pagination {
+    margin-top: var(--space-3);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--space-3);
+}
+
+.admin-reports-page-summary,
+.admin-reports-page-indicator {
+    color: var(--text-muted);
+    font-size: var(--fs-body-sm);
+}
+
+.admin-reports-pagination-controls {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.admin-report-row {
+    padding: var(--space-3);
+    border-radius: var(--radius-lg);
+    background: rgba(255, 255, 255, 0.96);
+    border: 1px solid var(--line);
+    cursor: pointer;
+    transition:
+        transform 0.18s ease,
+        border-color 0.18s ease;
+}
+
+.admin-report-row:hover,
+.admin-report-row:focus-visible {
+    transform: translateY(-1px);
+    border-color: rgba(70, 72, 212, 0.28);
+    outline: none;
+}
+
+.admin-report-select-cell {
+    display: flex;
+    justify-content: flex-start;
+}
+
+.admin-report-select-toggle {
+    display: inline-flex;
+    align-items: center;
+    padding: var(--space-1);
+    cursor: pointer;
+    user-select: none;
+}
+
+.admin-report-select-toggle.is-disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
+.admin-report-select-checkbox {
+    width: 18px;
+    height: 18px;
+    margin: 0;
+    accent-color: var(--accent);
+    cursor: pointer;
+    flex: 0 0 auto;
+}
+
+.admin-report-user {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.admin-report-avatar {
+    width: 42px;
+    height: 42px;
+    border-radius: var(--radius-md);
+    display: grid;
+    place-items: center;
+    font-family: var(--font-heading);
+    font-size: var(--fs-meta);
+    font-weight: var(--fw-extrabold);
+    color: var(--accent);
+    background: rgba(70, 72, 212, 0.1);
+}
+
+.admin-report-copy,
+.admin-report-group {
+    display: grid;
+    gap: var(--space-1);
+}
+
+.admin-report-copy strong,
+.admin-report-group strong {
+    font-family: var(--font-heading);
+    font-size: var(--fs-body-sm);
+    font-weight: var(--fw-bold);
+}
+
+.admin-report-copy span,
+.admin-report-group span,
+.admin-report-date {
+    color: var(--text-muted);
+    font-size: var(--fs-meta);
+}
+
+.admin-report-download-action {
+    display: flex;
+    justify-content: flex-start;
+}
+
+.admin-report-download-button {
+    white-space: nowrap;
+}
+
+.admin-status-pill {
+    display: inline-flex;
+    padding: var(--space-2);
+    border-radius: var(--radius-pill);
+    font-family: var(--font-heading);
+    font-size: var(--fs-caption);
+    font-weight: var(--fw-extrabold);
+    text-transform: uppercase;
+    letter-spacing: var(--ls-eyebrow);
+}
+
+.admin-status-pill.done {
+    background: var(--success-soft);
+    color: var(--success);
+}
+
+.admin-status-pill.active {
+    background: var(--warning-surface);
+    color: var(--warning);
+}
+
+.admin-status-pill.draft {
+    background: rgba(70, 72, 212, 0.1);
+    color: var(--accent);
+}
+
+.admin-report-score {
+    display: grid;
+    gap: var(--space-2);
+}
+
+.admin-report-score strong {
+    color: var(--accent);
+    font-family: var(--font-heading);
+    font-size: var(--fs-body);
+    font-weight: var(--fw-extrabold);
+}
+
+.admin-report-score-track {
+    width: 75%;
+    height: 8px;
+    border-radius: var(--radius-pill);
+    background: var(--accent-surface);
+    overflow: hidden;
+}
+
+.admin-report-score-track span {
+    display: block;
+    height: 100%;
+    border-radius: var(--radius-pill);
+    background: linear-gradient(135deg, var(--accent), var(--accent-bright));
+}
+
+.admin-reports-summary-card {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--space-3);
+}
+
+.admin-reports-summary-card h3 {
+    margin: var(--space-2) 0 0;
+    font-size: var(--fs-h2);
+}
+
+.admin-reports-summary-card strong {
+    font-family: var(--font-heading);
+    font-size: 3rem;
+    font-weight: var(--fw-extrabold);
+    line-height: 1;
+    color: var(--accent);
+}
+

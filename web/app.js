@@ -205,12 +205,7 @@ const levelPercentMap = {
   'N/A': 0,
 };
 
-const competencyOrder = [
-  'Коммуникация',
-  'Командная работа',
-  'Креативность',
-  'Критическое мышление',
-];
+const competencyOrder = ['Коммуникация', 'Командная работа', 'Креативность', 'Критическое мышление'];
 
 const levelThresholds = [
   { code: 'L1', value: levelPercentMap.L1 },
@@ -247,8 +242,7 @@ const fallbackCompetencyPalette = {
   chartFill: '#64748b',
 };
 
-const getCompetencyPalette = (competencyName) =>
-  competencyPalette[competencyName] || fallbackCompetencyPalette;
+const getCompetencyPalette = (competencyName) => competencyPalette[competencyName] || fallbackCompetencyPalette;
 
 const getCompetencySortIndex = (competencyName) => {
   const index = competencyOrder.indexOf(competencyName);
@@ -259,32 +253,38 @@ const onboardingSteps = [
   {
     step: 'Шаг 01',
     title: 'Познакомьтесь с AI-ассистентом',
-    description: 'Мульти-агентная система анализирует ответы и помогает быстро собрать профиль сотрудника для дальнейшей оценки компетенций.',
+    description:
+      'Мульти-агентная система анализирует ответы и помогает быстро собрать профиль сотрудника для дальнейшей оценки компетенций.',
     features: [
       ['Глубокий анализ', 'Система оценивает не только результат, но и логику ваших ответов.'],
       ['Специализированные агенты', 'Несколько AI-агентов работают над профилем параллельно и дополняют друг друга.'],
     ],
-    visual: '<div class="visual-grid"><div class="visual-card visual-main">Assistant v2.0</div><div class="visual-card">Аналитика</div><div class="visual-card muted"></div><div class="visual-chip"></div></div>',
+    visual:
+      '<div class="visual-grid"><div class="visual-card visual-main">Assistant v2.0</div><div class="visual-card">Аналитика</div><div class="visual-card muted"></div><div class="visual-chip"></div></div>',
   },
   {
     step: 'Шаг 02',
     title: 'Решайте реальные кейсы',
-    description: 'После регистрации вы получите практические задачи и сможете отвечать в свободной форме, без тестов и шаблонов.',
+    description:
+      'После регистрации вы получите практические задачи и сможете отвечать в свободной форме, без тестов и шаблонов.',
     features: [
       ['Свободная форма', 'Вы описываете подход так, как привыкли в реальной работе.'],
       ['Глубокий анализ', 'Алгоритмы 4K анализируют логические связи и полноту ответа.'],
     ],
-    visual: '<div class="case-visual"><div class="case-bubble">Ассистент: Как бы вы оптимизировали логистику при росте спроса на 40%?</div><div class="case-sheet"></div><div class="case-progress">Пишу решение...</div></div>',
+    visual:
+      '<div class="case-visual"><div class="case-bubble">Ассистент: Как бы вы оптимизировали логистику при росте спроса на 40%?</div><div class="case-sheet"></div><div class="case-progress">Пишу решение...</div></div>',
   },
   {
     step: 'Шаг 03',
     title: 'Получите профиль компетенций',
-    description: 'Система оценит ваши навыки по модели 4K и сформирует персональный отчет с глубокой аналитикой потенциала.',
+    description:
+      'Система оценит ваши навыки по модели 4K и сформирует персональный отчет с глубокой аналитикой потенциала.',
     features: [
       ['AI анализ', 'Автоматическая интерпретация ваших сильных сторон и рабочих паттернов.'],
       ['Детальный отчет', 'Итоговый профиль с рекомендациями по развитию и дальнейшему обучению.'],
     ],
-    visual: '<div class="radar-visual"><div class="radar-shape"></div><span>Креативность</span><span>Коммуникация</span><span>Критическое мышление</span><span>Командная работа</span></div>',
+    visual:
+      '<div class="radar-visual"><div class="radar-shape"></div><span>Креативность</span><span>Коммуникация</span><span>Критическое мышление</span><span>Командная работа</span></div>',
     finalButton: 'Перейти к профилю',
   },
 ];
@@ -294,6 +294,7 @@ let adminCompetencyBarChart = null;
 let adminMbtiPieChart = null;
 let adminActivityBarChart = null;
 let reportCompetencyBarChart = null;
+let reportInfoModalCloseTimer = null;
 
 const authPanel = document.getElementById('auth-panel');
 const onboardingPanel = document.getElementById('onboarding-panel');
@@ -322,15 +323,14 @@ const chatInput = document.getElementById('chat-input');
 const chatError = document.getElementById('chat-error');
 const statusCard = document.getElementById('status-card');
 const restartButton = document.getElementById('restart-button');
-const stepBadge = document.getElementById('step-badge');
 const onboardingTitle = document.getElementById('onboarding-title');
 const onboardingDescription = document.getElementById('onboarding-description');
 const featureList = document.getElementById('feature-list');
 const onboardingVisual = document.getElementById('onboarding-visual');
 const onboardingNext = document.getElementById('onboarding-next');
 const onboardingSkip = document.getElementById('onboarding-skip');
-const onboardingBackButton = document.getElementById('onboarding-back-button');
-const onboardingExitButton = document.getElementById('onboarding-exit-button');
+const onboardingStepBackButton = document.getElementById('onboarding-step-back');
+const stepBadgeLabel = document.getElementById('step-badge-label');
 const dashboardGreeting = document.getElementById('dashboard-greeting');
 const dashboardUserName = document.getElementById('dashboard-user-name');
 const dashboardUserRole = document.getElementById('dashboard-user-role');
@@ -465,7 +465,9 @@ const adminMethodologyScenarioPreview = document.getElementById('admin-methodolo
 const adminMethodologyDetailRoles = document.getElementById('admin-methodology-detail-roles');
 const adminMethodologyDetailSkills = document.getElementById('admin-methodology-detail-skills');
 const adminMethodologyDetailPersonalization = document.getElementById('admin-methodology-detail-personalization');
-const adminMethodologyDetailPersonalizationTable = document.getElementById('admin-methodology-detail-personalization-table');
+const adminMethodologyDetailPersonalizationTable = document.getElementById(
+  'admin-methodology-detail-personalization-table',
+);
 const adminMethodologyDetailBlocks = document.getElementById('admin-methodology-detail-blocks');
 const adminMethodologyDetailRedflags = document.getElementById('admin-methodology-detail-redflags');
 const adminMethodologyDetailBlockers = document.getElementById('admin-methodology-detail-blockers');
@@ -479,7 +481,9 @@ const adminMethodologyDetailAnswerStructure = document.getElementById('admin-met
 const adminMethodologyDetailInteractivity = document.getElementById('admin-methodology-detail-interactivity');
 const adminMethodologyDetailAnswerLength = document.getElementById('admin-methodology-detail-answer-length');
 const adminMethodologyDetailDialogTurns = document.getElementById('admin-methodology-detail-dialog-turns');
-const adminMethodologyDetailPersonalizationOptions = document.getElementById('admin-methodology-detail-personalization-options');
+const adminMethodologyDetailPersonalizationOptions = document.getElementById(
+  'admin-methodology-detail-personalization-options',
+);
 const adminMethodologyDetailDifficultyToggles = document.getElementById('admin-methodology-detail-difficulty-toggles');
 const adminMethodologyDetailSelectionTags = document.getElementById('admin-methodology-detail-selection-tags');
 const adminMethodologyDetailRoleRules = document.getElementById('admin-methodology-detail-role-rules');
@@ -490,7 +494,9 @@ const adminMethodologyDetailGenerationNotes = document.getElementById('admin-met
 const adminMethodologyDetailEvaluationNotes = document.getElementById('admin-methodology-detail-evaluation-notes');
 const adminMethodologyDetailAuthorName = document.getElementById('admin-methodology-detail-author-name');
 const adminMethodologyDetailReviewerName = document.getElementById('admin-methodology-detail-reviewer-name');
-const adminMethodologyDetailMethodologistComment = document.getElementById('admin-methodology-detail-methodologist-comment');
+const adminMethodologyDetailMethodologistComment = document.getElementById(
+  'admin-methodology-detail-methodologist-comment',
+);
 const adminMethodologyDrawerPanel = document.querySelector('.admin-methodology-drawer-panel');
 
 if (adminMethodologyScenarioTemplate) {
@@ -591,6 +597,8 @@ const interviewCaseTitle = document.getElementById('interview-case-title');
 const interviewCaseStatus = document.getElementById('interview-case-status');
 const interviewTimerBadge = document.getElementById('interview-timer-badge');
 const interviewMessages = document.getElementById('interview-messages');
+const interviewScrollArea = document.getElementById('interview-scroll-area');
+const interviewMessagesScroll = document.getElementById('interview-messages-scroll');
 const interviewSummary = document.getElementById('interview-summary');
 const interviewCompleteActions = document.getElementById('interview-complete-actions');
 const interviewGoProcessingButton = document.getElementById('interview-go-processing-button');
@@ -657,6 +665,11 @@ const reportStrengthText = document.getElementById('report-strength-text');
 const reportDetailTitle = document.getElementById('report-detail-title');
 const reportTabs = document.getElementById('report-tabs');
 const reportDetailList = document.getElementById('report-detail-list');
+const reportInfoModal = document.getElementById('report-info-modal');
+const reportInfoModalClose = document.getElementById('report-info-modal-close');
+const reportInfoModalEyebrow = document.getElementById('report-info-modal-eyebrow');
+const reportInfoModalTitle = document.getElementById('report-info-modal-title');
+const reportInfoModalBody = document.getElementById('report-info-modal-body');
 
 const staticAssessments = [
   {
@@ -689,7 +702,17 @@ const formatDateTimeLocalValue = (value) => {
     return '';
   }
   const pad = (num) => String(num).padStart(2, '0');
-  return date.getFullYear() + '-' + pad(date.getMonth() + 1) + '-' + pad(date.getDate()) + 'T' + pad(date.getHours()) + ':' + pad(date.getMinutes());
+  return (
+    date.getFullYear() +
+    '-' +
+    pad(date.getMonth() + 1) +
+    '-' +
+    pad(date.getDate()) +
+    'T' +
+    pad(date.getHours()) +
+    ':' +
+    pad(date.getMinutes())
+  );
 };
 
 const formatDateInputValue = (value) => {
@@ -713,7 +736,10 @@ const normalizeExpertAssessmentDateForApi = (value) => {
 };
 
 const getSignupFirstName = (fullName, fallback = 'Пользователь') => {
-  const parts = String(fullName || '').trim().split(/\s+/).filter(Boolean);
+  const parts = String(fullName || '')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
   if (parts.length >= 2) {
     return parts[1];
   }
@@ -721,7 +747,10 @@ const getSignupFirstName = (fullName, fallback = 'Пользователь') => 
 };
 
 const sanitizeDisplayRole = (value) => {
-  const normalized = String(value || '').trim().toLowerCase().replace(/ё/g, 'е');
+  const normalized = String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/ё/g, 'е');
   if (!normalized) {
     return '';
   }
@@ -738,7 +767,10 @@ const sanitizeDisplayRole = (value) => {
 };
 
 const sanitizeDisplayMetaText = (value) => {
-  const normalized = String(value || '').trim().toLowerCase().replace(/ё/g, 'е');
+  const normalized = String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/ё/g, 'е');
   if (!normalized) {
     return '';
   }
@@ -803,9 +835,7 @@ const setProfileStatus = (text = '', tone = '') => {
 };
 
 const renderProfileAvatar = (user) => {
-  const avatarDataUrl = state.profileAvatarDraft != null
-    ? state.profileAvatarDraft
-    : (user?.avatar_data_url || null);
+  const avatarDataUrl = state.profileAvatarDraft != null ? state.profileAvatarDraft : user?.avatar_data_url || null;
 
   profileAvatar.textContent = buildInitials(user?.full_name || 'Пользователь');
   if (avatarDataUrl) {
@@ -826,6 +856,31 @@ const addMessage = (role, text) => {
   item.textContent = text;
   messages.appendChild(item);
   messages.scrollTop = messages.scrollHeight;
+};
+
+const showAgentTyping = () => {
+  if (!messages) {
+    return;
+  }
+  hideAgentTyping();
+  const item = document.createElement('div');
+  item.className = 'message bot message-typing';
+  item.id = 'agent-typing-indicator';
+  item.setAttribute('aria-label', 'Агент печатает');
+  item.setAttribute('role', 'status');
+  item.innerHTML =
+    '<span class="message-typing-dot"></span>' +
+    '<span class="message-typing-dot"></span>' +
+    '<span class="message-typing-dot"></span>';
+  messages.appendChild(item);
+  messages.scrollTop = messages.scrollHeight;
+};
+
+const hideAgentTyping = () => {
+  const existing = document.getElementById('agent-typing-indicator');
+  if (existing && existing.parentNode) {
+    existing.parentNode.removeChild(existing);
+  }
 };
 
 const showError = (element, message) => {
@@ -857,9 +912,10 @@ const renderLoaderFlow = () => {
   const totalSteps = loaderFlowSteps.length || 1;
   const activeIndex = Math.min(loaderFlowStepIndex, totalSteps - 1);
   const activeStep = loaderFlowSteps[activeIndex] || null;
-  const progressValue = loaderProgressValueOverride == null
-    ? Math.round(((activeIndex + 1) / totalSteps) * 100)
-    : loaderProgressValueOverride;
+  const progressValue =
+    loaderProgressValueOverride == null
+      ? Math.round(((activeIndex + 1) / totalSteps) * 100)
+      : loaderProgressValueOverride;
 
   appLoaderProgressLabel.textContent = activeStep?.label || 'Подготовка';
   appLoaderProgressValue.textContent = progressValue + '%';
@@ -879,10 +935,16 @@ const renderLoaderFlow = () => {
     }
     item.className = 'app-loader-step ' + statusClass;
     item.innerHTML =
-      '<div class="app-loader-step-badge">' + badgeLabel + '</div>' +
+      '<div class="app-loader-step-badge">' +
+      badgeLabel +
+      '</div>' +
       '<div class="app-loader-step-copy">' +
-      '<strong>' + step.label + '</strong>' +
-      '<span>' + step.description + '</span>' +
+      '<strong>' +
+      step.label +
+      '</strong>' +
+      '<span>' +
+      step.description +
+      '</span>' +
       '</div>';
     appLoaderSteps.appendChild(item);
   });
@@ -891,9 +953,15 @@ const renderLoaderFlow = () => {
 const startLoaderFlow = (steps) => {
   clearLoaderFlowTimer();
   stopLoaderProgressPolling();
-  loaderFlowSteps = Array.isArray(steps) && steps.length
-    ? steps
-    : [{ label: 'Подготовка', description: 'Система обрабатывает ваш запрос.' }];
+  loaderFlowSteps =
+    Array.isArray(steps) && steps.length
+      ? steps
+      : [
+          {
+            label: 'Подготовка',
+            description: 'Система обрабатывает ваш запрос.',
+          },
+        ];
   loaderFlowStepIndex = 0;
   loaderProgressValueOverride = null;
   renderLoaderFlow();
@@ -969,11 +1037,10 @@ const hideLoader = () => {
   appLoader.classList.add('hidden');
 };
 
-const createOperationId = () => (
+const createOperationId = () =>
   typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
     ? crypto.randomUUID()
-    : 'op-' + Date.now() + '-' + Math.random().toString(16).slice(2)
-);
+    : 'op-' + Date.now() + '-' + Math.random().toString(16).slice(2);
 
 const stopAdminPromptLabPolling = () => {
   if (state.adminPromptLabPollId) {
@@ -1128,10 +1195,26 @@ const renderAssessmentPreparationState = () => {
   }
   updatePreparingRing(libraryAssessmentRing, libraryAssessmentPercent, preparing ? progressPercent : 0);
 
+  const dashboardMiniStart = document.getElementById('dashboard-mini-start');
+  const dashboardMiniPreparing = document.getElementById('dashboard-mini-preparing');
+  const dashboardMiniRing = document.getElementById('dashboard-mini-ring');
+  const dashboardMiniPercent = document.getElementById('dashboard-mini-percent');
+  if (dashboardMiniPreparing) {
+    dashboardMiniPreparing.classList.toggle('hidden', !preparing);
+  }
+  if (dashboardMiniStart) {
+    dashboardMiniStart.classList.toggle('hidden', preparing);
+    dashboardMiniStart.disabled = preparing;
+    if (failed) {
+      dashboardMiniStart.textContent = 'Попробовать снова';
+    }
+  }
+  updatePreparingRing(dashboardMiniRing, dashboardMiniPercent, preparing ? progressPercent : 0);
+
   if (prechatStartButton) {
     prechatStartButton.classList.toggle('hidden', preparing);
     prechatStartButton.disabled = preparing;
-    prechatStartButton.textContent = ready ? 'Начать' : (failed ? 'Попробовать снова' : 'Начать');
+    prechatStartButton.textContent = ready ? 'Начать' : failed ? 'Попробовать снова' : 'Начать';
   }
   if (prechatAssessmentPreparing) {
     prechatAssessmentPreparing.classList.toggle('hidden', !preparing);
@@ -1900,10 +1983,17 @@ const setStatus = (data) => {
   const job = sanitizeDisplayRole(user.job_description || '') || 'не указана';
   const duties = sanitizeDisplayMetaText(user.raw_duties || '') || 'не указаны';
   statusCard.textContent =
-    'Сотрудник: ' + user.full_name + '\n' +
-    'Телефон: ' + (user.phone || 'не указан') + '\n' +
-    'Должность: ' + job + '\n' +
-    'Обязанности: ' + duties;
+    'Сотрудник: ' +
+    user.full_name +
+    '\n' +
+    'Телефон: ' +
+    (user.phone || 'не указан') +
+    '\n' +
+    'Должность: ' +
+    job +
+    '\n' +
+    'Обязанности: ' +
+    duties;
   statusCard.classList.remove('hidden');
 };
 
@@ -1924,8 +2014,12 @@ const renderChatRoleOptions = () => {
       const details = document.createElement('details');
       details.className = 'chat-consent-accordion';
       details.innerHTML =
-        '<summary>' + escapeHtml(state.pendingConsentTitle || 'Текст согласия') + '</summary>' +
-        '<div class="chat-consent-accordion-body"><p>' + escapeHtml(state.pendingConsentText).replace(/\\n/g, '<br>') + '</p></div>';
+        '<summary>' +
+        escapeHtml(state.pendingConsentTitle || 'Текст согласия') +
+        '</summary>' +
+        '<div class="chat-consent-accordion-body"><p>' +
+        escapeHtml(state.pendingConsentText).replace(/\\n/g, '<br>') +
+        '</p></div>';
       chatConsentDetails.appendChild(details);
       chatConsentDetails.classList.remove('hidden');
     } else {
@@ -2011,10 +2105,7 @@ const openChat = () => {
     state.pendingAgentMessage &&
     state.pendingAgentMessage.toLowerCase().includes('пользователь не найден')
   ) {
-    state.pendingAgentMessage = buildExistingUserAgentMessage(
-      state.pendingUser,
-      state.pendingAgentMessage,
-    );
+    state.pendingAgentMessage = buildExistingUserAgentMessage(state.pendingUser, state.pendingAgentMessage);
   }
   if (state.pendingAgentMessage) {
     addMessage('bot', state.pendingAgentMessage);
@@ -2025,16 +2116,7 @@ const openChat = () => {
   }
 };
 
-const adminMbtiChartPalette = [
-  '#4648d4',
-  '#16a34a',
-  '#2563eb',
-  '#ea580c',
-  '#0f766e',
-  '#be123c',
-  '#7c3aed',
-  '#ca8a04',
-];
+const adminMbtiChartPalette = ['#4648d4', '#16a34a', '#2563eb', '#ea580c', '#0f766e', '#be123c', '#7c3aed', '#ca8a04'];
 
 const adminCompetencyBarValueLabelsPlugin = {
   id: 'adminCompetencyBarValueLabels',
@@ -2133,23 +2215,33 @@ const destroyAdminActivityBarChart = () => {
   }
 };
 
-const normalizeAdminCompetencyItems = (items = []) => (
+const normalizeAdminCompetencyItems = (items = []) =>
   (Array.isArray(items) ? items : [])
     .map((item) => ({
       name: String(item.name || 'Без категории'),
       value: Math.max(0, Math.min(100, Number(item.value) || 0)),
     }))
-    .sort((a, b) => getCompetencySortIndex(a.name) - getCompetencySortIndex(b.name))
-);
+    .sort((a, b) => getCompetencySortIndex(a.name) - getCompetencySortIndex(b.name));
 
 const buildAdminCompetencyBarFallbackMarkup = (items) =>
-  items.map((item) => (
-    '<div class="admin-competency-column">' +
-      '<div class="admin-competency-value">' + item.value + '%</div>' +
-      '<div class="admin-competency-bar"><span style="height:' + item.value + '%; background:' + getCompetencyPalette(item.name).chartFill + '"></span></div>' +
-      '<strong>' + escapeHtml(item.name) + '</strong>' +
-    '</div>'
-  )).join('');
+  items
+    .map(
+      (item) =>
+        '<div class="admin-competency-column">' +
+        '<div class="admin-competency-value">' +
+        item.value +
+        '%</div>' +
+        '<div class="admin-competency-bar"><span style="height:' +
+        item.value +
+        '%; background:' +
+        getCompetencyPalette(item.name).chartFill +
+        '"></span></div>' +
+        '<strong>' +
+        escapeHtml(item.name) +
+        '</strong>' +
+        '</div>',
+    )
+    .join('');
 
 const renderAdminCompetencyBarChart = (competencies = []) => {
   if (!adminCompetencyChart) {
@@ -2305,13 +2397,24 @@ const renderAdminCompetencyBarChart = (competencies = []) => {
 };
 
 const buildAdminMbtiFallbackMarkup = (items) =>
-  items.map((item, index) => (
-    '<div class="admin-mbti-row">' +
-      '<span>' + escapeHtml(item.name) + '</span>' +
-      '<div class="admin-mbti-track"><span style="width:' + Math.min(item.value, 100) + '%; background:' + adminMbtiChartPalette[index % adminMbtiChartPalette.length] + '"></span></div>' +
-      '<strong>' + item.value + '%</strong>' +
-    '</div>'
-  )).join('');
+  items
+    .map(
+      (item, index) =>
+        '<div class="admin-mbti-row">' +
+        '<span>' +
+        escapeHtml(item.name) +
+        '</span>' +
+        '<div class="admin-mbti-track"><span style="width:' +
+        Math.min(item.value, 100) +
+        '%; background:' +
+        adminMbtiChartPalette[index % adminMbtiChartPalette.length] +
+        '"></span></div>' +
+        '<strong>' +
+        item.value +
+        '%</strong>' +
+        '</div>',
+    )
+    .join('');
 
 const renderAdminMbtiPieChart = (distribution = []) => {
   if (!adminMbtiChart) {
@@ -2430,33 +2533,41 @@ const getAdminActivityShade = (value, maxValue) => {
     return '#dbe3f3';
   }
   const ratio = Math.max(0, Math.min(1, value / Math.max(maxValue, 1)));
-  const lightness = Math.round(76 - (ratio * 28));
+  const lightness = Math.round(76 - ratio * 28);
   return 'hsl(241 68% ' + lightness + '%)';
 };
 
 const normalizeAdminActivityItems = (points = [], labels = []) => {
   const safePoints = Array.isArray(points) && points.length ? points : [0, 0, 0, 0, 0, 0, 0];
-  const safeLabels = Array.isArray(labels) && labels.length
-    ? labels
-    : safePoints.map((_, index) => 'P' + (index + 1));
+  const safeLabels = Array.isArray(labels) && labels.length ? labels : safePoints.map((_, index) => 'P' + (index + 1));
 
   return safePoints.map((point, index) => ({
-    label: String(safeLabels[index] || ('P' + (index + 1))),
+    label: String(safeLabels[index] || 'P' + (index + 1)),
     value: Math.max(0, Number(point) || 0),
   }));
 };
 
 const buildAdminActivityFallbackMarkup = (items, maxPoint) =>
-  items.map((item) => {
-    const height = Math.max(18, Math.round((item.value / Math.max(maxPoint, 1)) * 220));
-    return (
-      '<div class="admin-activity-bar">' +
-        '<span class="admin-activity-value">' + item.value + '</span>' +
-        '<div class="admin-activity-bar-fill" style="height:' + height + 'px; background:' + getAdminActivityShade(item.value, maxPoint) + '"></div>' +
-        '<small>' + escapeHtml(item.label) + '</small>' +
-      '</div>'
-    );
-  }).join('');
+  items
+    .map((item) => {
+      const height = Math.max(18, Math.round((item.value / Math.max(maxPoint, 1)) * 220));
+      return (
+        '<div class="admin-activity-bar">' +
+        '<span class="admin-activity-value">' +
+        item.value +
+        '</span>' +
+        '<div class="admin-activity-bar-fill" style="height:' +
+        height +
+        'px; background:' +
+        getAdminActivityShade(item.value, maxPoint) +
+        '"></div>' +
+        '<small>' +
+        escapeHtml(item.label) +
+        '</small>' +
+        '</div>'
+      );
+    })
+    .join('');
 
 const renderAdminActivityBarChart = (adminDashboard = {}) => {
   if (!adminActivityChart) {
@@ -2503,7 +2614,7 @@ const renderAdminActivityBarChart = (adminDashboard = {}) => {
           label: 'Завершенные ассессменты',
           data: items.map((item) => item.value),
           backgroundColor: items.map((item) => getAdminActivityShade(item.value, maxPoint)),
-          borderColor: items.map((item) => item.value ? '#4648d4' : '#cbd5e1'),
+          borderColor: items.map((item) => (item.value ? '#4648d4' : '#cbd5e1')),
           borderWidth: 1,
           borderRadius: {
             topLeft: 12,
@@ -2614,21 +2725,22 @@ const renderAdminDashboard = () => {
   adminAvatar.textContent = buildInitials(user.full_name || 'Администратор системы');
   adminTitle.textContent = adminDashboard.title || 'Сводный отчет';
   adminSubtitle.textContent = adminDashboard.subtitle || 'Комплексный анализ платформы.';
-  adminActivityTitle.innerHTML =
-    'Количество завершенных ассессментов за период:' +
-    '<span class="admin-activity-title-period">' + (adminDashboard.activity_period_label || 'Последние 30 дней') + '</span>';
-  if (adminPeriodSelect) {
-    adminPeriodSelect.value = adminDashboard.activity_period_key || state.adminPeriodKey || '30d';
-  }
+  adminActivityTitle.innerHTML = 'Количество завершенных ассессментов за период';
 
   adminMetricsGrid.innerHTML = '';
   (adminDashboard.metrics || []).forEach((metric) => {
     const card = document.createElement('article');
-    card.className = 'admin-metric-card';
+    card.className = 'card admin-metric-card';
     card.innerHTML =
-      '<span>' + metric.label + '</span>' +
-      '<strong>' + metric.value + '</strong>' +
-      '<small>' + (metric.delta || '') + '</small>';
+      '<span>' +
+      metric.label +
+      '</span>' +
+      '<strong>' +
+      metric.value +
+      '</strong>' +
+      '<small>' +
+      (metric.delta || '') +
+      '</small>';
     adminMetricsGrid.appendChild(card);
   });
 
@@ -2639,7 +2751,7 @@ const renderAdminDashboard = () => {
   adminInsightsGrid.innerHTML = '';
   (adminDashboard.insights || []).forEach((item) => {
     const card = document.createElement('article');
-    card.className = 'admin-insight-card';
+    card.className = 'card card--inset admin-insight-card';
     card.innerHTML = '<strong>' + item.title + '</strong><p>' + item.description + '</p>';
     adminInsightsGrid.appendChild(card);
   });
@@ -2669,13 +2781,17 @@ const loadAdminPromptLab = async () => {
 const loadPromptLabSystemCasePreview = async () => {
   const userId = Number(adminPromptLabUserSelect?.value || 0);
   const selectedCaseCodes = getSelectedPromptLabCaseCodes();
-  const caseIdCode = selectedCaseCodes.find((code) => code && code !== '__all__')
-    || String(state.adminPromptLab?.cases?.[0]?.case_id_code || '').trim();
+  const caseIdCode =
+    selectedCaseCodes.find((code) => code && code !== '__all__') ||
+    String(state.adminPromptLab?.cases?.[0]?.case_id_code || '').trim();
   if (!userId || !caseIdCode) {
     return;
   }
   const response = await fetch(
-    '/users/admin/prompt-lab/system-case-preview?user_id=' + encodeURIComponent(userId) + '&case_id_code=' + encodeURIComponent(caseIdCode),
+    '/users/admin/prompt-lab/system-case-preview?user_id=' +
+      encodeURIComponent(userId) +
+      '&case_id_code=' +
+      encodeURIComponent(caseIdCode),
     { credentials: 'same-origin' },
   );
   const data = await readApiResponse(response, 'Не удалось загрузить кейс из системы.');
@@ -2684,13 +2800,15 @@ const loadPromptLabSystemCasePreview = async () => {
     total_cases: 1,
     user: data.user,
     case: data.case,
-    case_items: [{
-      ...data,
-      case_number: 1,
-      personalized_context: '',
-      personalized_task: '',
-      system_prompt: '',
-    }],
+    case_items: [
+      {
+        ...data,
+        case_number: 1,
+        personalized_context: '',
+        personalized_task: '',
+        system_prompt: '',
+      },
+    ],
   };
 };
 
@@ -2729,7 +2847,7 @@ const setSelectedPromptLabCaseCodes = (codes) => {
   const availableCodes = new Set(cases.map((item) => String(item.case_id_code || '').trim()).filter(Boolean));
   const normalizedCodes = [];
   const seen = new Set();
-  for (const rawCode of (Array.isArray(codes) ? codes : [])) {
+  for (const rawCode of Array.isArray(codes) ? codes : []) {
     const code = String(rawCode || '').trim();
     if (!code || seen.has(code)) {
       continue;
@@ -2808,14 +2926,12 @@ const getPromptLabCaseModeLabel = (item) => {
   return mode || '';
 };
 
-const getPromptLabCaseModeTone = (item) => (
-  isPromptLabDialogCase(item) ? 'dialog' : 'turn'
-);
+const getPromptLabCaseModeTone = (item) => (isPromptLabDialogCase(item) ? 'dialog' : 'turn');
 
 const getPromptLabCaseOptionLabel = (item) => {
   const baseLabel = [item?.case_id_code, item?.type_code, item?.title].filter(Boolean).join(' · ');
   const modeLabel = getPromptLabCaseModeLabel(item);
-  return modeLabel ? (baseLabel + ' · ' + modeLabel) : baseLabel;
+  return modeLabel ? baseLabel + ' · ' + modeLabel : baseLabel;
 };
 
 const syncPromptLabDialogCaseHint = () => {
@@ -2823,7 +2939,9 @@ const syncPromptLabDialogCaseHint = () => {
     return;
   }
   const cases = Array.isArray(state.adminPromptLab?.cases) ? state.adminPromptLab.cases : [];
-  const selectedCode = String(state.adminPromptLabDialogSelectedCaseCode || adminPromptLabDialogCaseSelect?.value || '').trim();
+  const selectedCode = String(
+    state.adminPromptLabDialogSelectedCaseCode || adminPromptLabDialogCaseSelect?.value || '',
+  ).trim();
   const selectedCase = cases.find((item) => String(item.case_id_code || '').trim() === selectedCode);
   const modeLabel = getPromptLabCaseModeLabel(selectedCase);
   if (!selectedCase || !modeLabel) {
@@ -2834,8 +2952,11 @@ const syncPromptLabDialogCaseHint = () => {
     return;
   }
   adminPromptLabDialogCaseHint.textContent = isPromptLabDialogCase(selectedCase)
-    ? ('Режим кейса: Диалоговый' + (String(selectedCase.interactivity_mode || '').trim() ? ' · ' + String(selectedCase.interactivity_mode || '').trim() : ''))
-    : ('Режим кейса: ' + modeLabel);
+    ? 'Режим кейса: Диалоговый' +
+      (String(selectedCase.interactivity_mode || '').trim()
+        ? ' · ' + String(selectedCase.interactivity_mode || '').trim()
+        : '')
+    : 'Режим кейса: ' + modeLabel;
   adminPromptLabDialogCaseHint.classList.remove('hidden');
   adminPromptLabDialogCaseHint.classList.toggle('is-dialog-case', isPromptLabDialogCase(selectedCase));
   adminPromptLabDialogCaseHint.classList.toggle('is-turn-case', !!selectedCase && !isPromptLabDialogCase(selectedCase));
@@ -2846,7 +2967,9 @@ const syncPromptLabDialogCasePickerSummary = () => {
     return;
   }
   const cases = Array.isArray(state.adminPromptLab?.cases) ? state.adminPromptLab.cases : [];
-  const selectedCode = String(state.adminPromptLabDialogSelectedCaseCode || adminPromptLabDialogCaseSelect?.value || '').trim();
+  const selectedCode = String(
+    state.adminPromptLabDialogSelectedCaseCode || adminPromptLabDialogCaseSelect?.value || '',
+  ).trim();
   const selectedCase = cases.find((item) => String(item.case_id_code || '').trim() === selectedCode);
   if (!selectedCase) {
     adminPromptLabDialogCasePickerSummary.textContent = 'Кейс не выбран';
@@ -2857,7 +2980,9 @@ const syncPromptLabDialogCasePickerSummary = () => {
 
 const getSelectedPromptLabDialogCase = () => {
   const cases = Array.isArray(state.adminPromptLab?.cases) ? state.adminPromptLab.cases : [];
-  const selectedCode = String(state.adminPromptLabDialogSelectedCaseCode || adminPromptLabDialogCaseSelect?.value || '').trim();
+  const selectedCode = String(
+    state.adminPromptLabDialogSelectedCaseCode || adminPromptLabDialogCaseSelect?.value || '',
+  ).trim();
   return cases.find((item) => String(item.case_id_code || '').trim() === selectedCode) || null;
 };
 
@@ -2866,21 +2991,42 @@ const renderPromptLabDialogCaseDialog = () => {
     return;
   }
   const cases = Array.isArray(state.adminPromptLab?.cases) ? state.adminPromptLab.cases : [];
-  const selectedCode = String(state.adminPromptLabDialogSelectedCaseCode || adminPromptLabDialogCaseSelect?.value || '').trim();
-  adminPromptLabDialogCaseDialogList.innerHTML = cases.map((item) => (
-    '<label class="admin-prompt-lab-case-option' + (isPromptLabDialogCase(item) ? ' is-dialog-case' : '') + '">' +
-      '<input type="radio" name="admin-prompt-lab-dialog-case" value="' + escapeHtml(item.case_id_code) + '"' + (String(item.case_id_code || '').trim() === selectedCode ? ' checked' : '') + '>' +
-      '<span class="admin-prompt-lab-case-option-copy">' +
-        '<strong>' + escapeHtml(item.case_id_code || '') + ' · ' + escapeHtml(item.title || '') + '</strong>' +
+  const selectedCode = String(
+    state.adminPromptLabDialogSelectedCaseCode || adminPromptLabDialogCaseSelect?.value || '',
+  ).trim();
+  adminPromptLabDialogCaseDialogList.innerHTML = cases
+    .map(
+      (item) =>
+        '<label class="admin-prompt-lab-case-option' +
+        (isPromptLabDialogCase(item) ? ' is-dialog-case' : '') +
+        '">' +
+        '<input type="radio" name="admin-prompt-lab-dialog-case" value="' +
+        escapeHtml(item.case_id_code) +
+        '"' +
+        (String(item.case_id_code || '').trim() === selectedCode ? ' checked' : '') +
+        '>' +
+        '<span class="admin-prompt-lab-case-option-copy">' +
+        '<strong>' +
+        escapeHtml(item.case_id_code || '') +
+        ' · ' +
+        escapeHtml(item.title || '') +
+        '</strong>' +
         '<span class="admin-prompt-lab-case-option-meta">' +
-          '<small>' + escapeHtml(item.type_code || '') + '</small>' +
-          (getPromptLabCaseModeLabel(item)
-            ? '<span class="admin-prompt-lab-case-badge ' + escapeHtml(getPromptLabCaseModeTone(item)) + '">' + escapeHtml(getPromptLabCaseModeLabel(item)) + '</span>'
-            : '') +
+        '<small>' +
+        escapeHtml(item.type_code || '') +
+        '</small>' +
+        (getPromptLabCaseModeLabel(item)
+          ? '<span class="admin-prompt-lab-case-badge ' +
+            escapeHtml(getPromptLabCaseModeTone(item)) +
+            '">' +
+            escapeHtml(getPromptLabCaseModeLabel(item)) +
+            '</span>'
+          : '') +
         '</span>' +
-      '</span>' +
-    '</label>'
-  )).join('');
+        '</span>' +
+        '</label>',
+    )
+    .join('');
 };
 
 const syncPromptLabDialogCaseSelectionFromDialog = () => {
@@ -2904,28 +3050,49 @@ const renderPromptLabCaseDialog = () => {
   }
   const cases = Array.isArray(state.adminPromptLab?.cases) ? state.adminPromptLab.cases : [];
   const selectedCodes = new Set(getSelectedPromptLabCaseCodes());
-  adminPromptLabCaseDialogList.innerHTML = (
+  adminPromptLabCaseDialogList.innerHTML =
     '<label class="admin-prompt-lab-case-option">' +
-      '<input type="checkbox" value="__all__"' + (selectedCodes.has('__all__') ? ' checked' : '') + '>' +
-      '<span class="admin-prompt-lab-case-option-copy">' +
-        '<strong>Все шаблоны кейсов</strong>' +
-        '<small>Сгенерировать кейсы по всему набору шаблонов, доступному в системе</small>' +
-      '</span>' +
-    '</label>'
-  ) + cases.map((item) => (
-    '<label class="admin-prompt-lab-case-option' + (isPromptLabDialogCase(item) ? ' is-dialog-case' : '') + '">' +
-      '<input type="checkbox" value="' + escapeHtml(item.case_id_code) + '"' + (selectedCodes.has(String(item.case_id_code || '').trim()) ? ' checked' : '') + '>' +
-      '<span class="admin-prompt-lab-case-option-copy">' +
-        '<strong>' + escapeHtml(item.case_id_code || '') + ' · ' + escapeHtml(item.title || '') + '</strong>' +
-        '<span class="admin-prompt-lab-case-option-meta">' +
-          '<small>' + escapeHtml(item.type_code || '') + '</small>' +
+    '<input type="checkbox" value="__all__"' +
+    (selectedCodes.has('__all__') ? ' checked' : '') +
+    '>' +
+    '<span class="admin-prompt-lab-case-option-copy">' +
+    '<strong>Все шаблоны кейсов</strong>' +
+    '<small>Сгенерировать кейсы по всему набору шаблонов, доступному в системе</small>' +
+    '</span>' +
+    '</label>' +
+    cases
+      .map(
+        (item) =>
+          '<label class="admin-prompt-lab-case-option' +
+          (isPromptLabDialogCase(item) ? ' is-dialog-case' : '') +
+          '">' +
+          '<input type="checkbox" value="' +
+          escapeHtml(item.case_id_code) +
+          '"' +
+          (selectedCodes.has(String(item.case_id_code || '').trim()) ? ' checked' : '') +
+          '>' +
+          '<span class="admin-prompt-lab-case-option-copy">' +
+          '<strong>' +
+          escapeHtml(item.case_id_code || '') +
+          ' · ' +
+          escapeHtml(item.title || '') +
+          '</strong>' +
+          '<span class="admin-prompt-lab-case-option-meta">' +
+          '<small>' +
+          escapeHtml(item.type_code || '') +
+          '</small>' +
           (getPromptLabCaseModeLabel(item)
-            ? '<span class="admin-prompt-lab-case-badge ' + escapeHtml(getPromptLabCaseModeTone(item)) + '">' + escapeHtml(getPromptLabCaseModeLabel(item)) + '</span>'
+            ? '<span class="admin-prompt-lab-case-badge ' +
+              escapeHtml(getPromptLabCaseModeTone(item)) +
+              '">' +
+              escapeHtml(getPromptLabCaseModeLabel(item)) +
+              '</span>'
             : '') +
-        '</span>' +
-      '</span>' +
-    '</label>'
-  )).join('');
+          '</span>' +
+          '</span>' +
+          '</label>',
+      )
+      .join('');
 };
 
 const syncPromptLabCaseSelectionFromDialog = () => {
@@ -2945,9 +3112,7 @@ const syncPromptLabCaseSelectionFromDialog = () => {
   syncPromptLabCasePickerSummary();
 };
 
-const getPromptLabProductionPromptText = () => (
-  String(state.adminPromptLab?.production_prompt_text || '').trim()
-);
+const getPromptLabProductionPromptText = () => String(state.adminPromptLab?.production_prompt_text || '').trim();
 
 const getPromptLabProductionPromptName = () => {
   const instructionName = String(state.adminPromptLab?.production_prompt_name || '').trim();
@@ -3000,9 +3165,7 @@ const syncPromptLabDialogCasePromptSource = () => {
 const syncPromptLabDialogPromptSource = () => {
   const useSystemPrompt = (adminPromptLabDialogSourceSelect?.value || 'system') === 'system';
   const systemText = String(
-    state.adminPromptLabDialogPreview?.interviewer_prompt_text
-    || state.adminPromptLab?.interviewer_prompt_text
-    || ''
+    state.adminPromptLabDialogPreview?.interviewer_prompt_text || state.adminPromptLab?.interviewer_prompt_text || '',
   ).trim();
   if (!adminPromptLabDialogPromptText) {
     return;
@@ -3070,7 +3233,9 @@ const normalizePromptLabProfileValue = (value) => {
         normalizedNestedValue === undefined ||
         normalizedNestedValue === '' ||
         (Array.isArray(normalizedNestedValue) && !normalizedNestedValue.length) ||
-        (typeof normalizedNestedValue === 'object' && !Array.isArray(normalizedNestedValue) && !Object.keys(normalizedNestedValue).length)
+        (typeof normalizedNestedValue === 'object' &&
+          !Array.isArray(normalizedNestedValue) &&
+          !Object.keys(normalizedNestedValue).length)
       ) {
         return accumulator;
       }
@@ -3188,10 +3353,12 @@ const renderAdminPromptLab = () => {
 
   if (adminPromptLabUserSelect) {
     const currentValue = adminPromptLabUserSelect.value;
-    adminPromptLabUserSelect.innerHTML = users.map((item) => {
-      const label = [item.full_name || ('User #' + item.id), item.role_name, item.position].filter(Boolean).join(' · ');
-      return '<option value="' + escapeHtml(item.id) + '">' + escapeHtml(label) + '</option>';
-    }).join('');
+    adminPromptLabUserSelect.innerHTML = users
+      .map((item) => {
+        const label = [item.full_name || 'User #' + item.id, item.role_name, item.position].filter(Boolean).join(' · ');
+        return '<option value="' + escapeHtml(item.id) + '">' + escapeHtml(label) + '</option>';
+      })
+      .join('');
     if (currentValue && users.some((item) => String(item.id) === currentValue)) {
       adminPromptLabUserSelect.value = currentValue;
     } else if (users.length) {
@@ -3201,27 +3368,29 @@ const renderAdminPromptLab = () => {
 
   if (adminPromptLabRoleSelect) {
     const currentValue = adminPromptLabRoleSelect.value;
-    adminPromptLabRoleSelect.innerHTML = roles.map((item) => (
-      '<option value="' + escapeHtml(item.id) + '">' + escapeHtml(item.name) + '</option>'
-    )).join('');
+    adminPromptLabRoleSelect.innerHTML = roles
+      .map((item) => '<option value="' + escapeHtml(item.id) + '">' + escapeHtml(item.name) + '</option>')
+      .join('');
     if (currentValue) {
       adminPromptLabRoleSelect.value = currentValue;
     }
   }
 
   const selectedUser = getSelectedPromptLabUser();
-  const selectedUserId = selectedUser ? (Number(selectedUser.id || 0) || null) : null;
+  const selectedUserId = selectedUser ? Number(selectedUser.id || 0) || null : null;
   if (selectedUser && (selectedUserId !== promptLabLastUserId || !promptLabProfileDirty)) {
     fillPromptLabProfileFromUser(selectedUser);
   }
 
   if (adminPromptLabCaseSelect) {
-    adminPromptLabCaseSelect.innerHTML = (
-      '<option value="__all__">Все шаблоны кейсов</option>'
-    ) + cases.map((item) => {
-      const label = [item.case_id_code, item.type_code, item.title].filter(Boolean).join(' · ');
-      return '<option value="' + escapeHtml(item.case_id_code) + '">' + escapeHtml(label) + '</option>';
-    }).join('');
+    adminPromptLabCaseSelect.innerHTML =
+      '<option value="__all__">Все шаблоны кейсов</option>' +
+      cases
+        .map((item) => {
+          const label = [item.case_id_code, item.type_code, item.title].filter(Boolean).join(' · ');
+          return '<option value="' + escapeHtml(item.case_id_code) + '">' + escapeHtml(label) + '</option>';
+        })
+        .join('');
     if (!state.adminPromptLabSelectedCaseCodes.length && cases.length) {
       setSelectedPromptLabCaseCodes([String(cases[0].case_id_code || '').trim()]);
     } else {
@@ -3231,10 +3400,12 @@ const renderAdminPromptLab = () => {
 
   if (adminPromptLabDialogUserSelect) {
     const currentValue = adminPromptLabDialogUserSelect.value;
-    adminPromptLabDialogUserSelect.innerHTML = users.map((item) => {
-      const label = [item.full_name || ('User #' + item.id), item.role_name, item.position].filter(Boolean).join(' · ');
-      return '<option value="' + escapeHtml(item.id) + '">' + escapeHtml(label) + '</option>';
-    }).join('');
+    adminPromptLabDialogUserSelect.innerHTML = users
+      .map((item) => {
+        const label = [item.full_name || 'User #' + item.id, item.role_name, item.position].filter(Boolean).join(' · ');
+        return '<option value="' + escapeHtml(item.id) + '">' + escapeHtml(label) + '</option>';
+      })
+      .join('');
     if (currentValue && users.some((item) => String(item.id) === currentValue)) {
       adminPromptLabDialogUserSelect.value = currentValue;
     } else if (users.length) {
@@ -3243,11 +3414,15 @@ const renderAdminPromptLab = () => {
   }
 
   if (adminPromptLabDialogCaseSelect) {
-    const currentValue = String(state.adminPromptLabDialogSelectedCaseCode || adminPromptLabDialogCaseSelect.value || '').trim();
-    adminPromptLabDialogCaseSelect.innerHTML = cases.map((item) => {
-      const label = [item.case_id_code, item.type_code, item.title].filter(Boolean).join(' · ');
-      return '<option value="' + escapeHtml(item.case_id_code) + '">' + escapeHtml(label) + '</option>';
-    }).join('');
+    const currentValue = String(
+      state.adminPromptLabDialogSelectedCaseCode || adminPromptLabDialogCaseSelect.value || '',
+    ).trim();
+    adminPromptLabDialogCaseSelect.innerHTML = cases
+      .map((item) => {
+        const label = [item.case_id_code, item.type_code, item.title].filter(Boolean).join(' · ');
+        return '<option value="' + escapeHtml(item.case_id_code) + '">' + escapeHtml(label) + '</option>';
+      })
+      .join('');
     if (currentValue && cases.some((item) => String(item.case_id_code) === currentValue)) {
       adminPromptLabDialogCaseSelect.value = currentValue;
       state.adminPromptLabDialogSelectedCaseCode = currentValue;
@@ -3315,11 +3490,10 @@ const getPromptLabDialogMethodicalSummary = (preview) => {
 
 const getPromptLabDialogPreviewCaseCode = (preview) => String(preview?.case?.case_id_code || '').trim();
 
-const isPromptLabDialogPreviewDialogCase = (preview) => (
-  preview?.is_dialog_case === true
-  || isPromptLabDialogCase(preview?.case)
-  || /диалог/i.test(String(preview?.methodical_context?.interactivity_mode || '').trim())
-);
+const isPromptLabDialogPreviewDialogCase = (preview) =>
+  preview?.is_dialog_case === true ||
+  isPromptLabDialogCase(preview?.case) ||
+  /диалог/i.test(String(preview?.methodical_context?.interactivity_mode || '').trim());
 
 const getPromptLabDialogEffectiveCaseGenerationPromptText = (preview) => {
   const sourceMode = String(adminPromptLabDialogCaseSourceSelect?.value || 'system').trim();
@@ -3327,10 +3501,10 @@ const getPromptLabDialogEffectiveCaseGenerationPromptText = (preview) => {
     return String(adminPromptLabDialogCasePromptText?.value || '').trim();
   }
   return String(
-    preview?.case_generation_prompt_text
-    || state.adminPromptLab?.production_prompt_text
-    || adminPromptLabDialogCasePromptText?.value
-    || ''
+    preview?.case_generation_prompt_text ||
+      state.adminPromptLab?.production_prompt_text ||
+      adminPromptLabDialogCasePromptText?.value ||
+      '',
   ).trim();
 };
 
@@ -3347,18 +3521,16 @@ const getPromptLabDialogEffectivePromptText = (preview) => {
     return String(adminPromptLabDialogPromptText?.value || '').trim();
   }
   return String(
-    preview?.interviewer_prompt_text
-    || state.adminPromptLab?.interviewer_prompt_text
-    || adminPromptLabDialogPromptText?.value
-    || ''
+    preview?.interviewer_prompt_text ||
+      state.adminPromptLab?.interviewer_prompt_text ||
+      adminPromptLabDialogPromptText?.value ||
+      '',
   ).trim();
 };
 
 const getPromptLabDialogPromptBlockTitle = () => {
   const sourceMode = String(adminPromptLabDialogSourceSelect?.value || 'system').trim();
-  return sourceMode === 'custom'
-    ? 'Пользовательский промт интервьюера'
-    : 'Системный промт интервьюера';
+  return sourceMode === 'custom' ? 'Пользовательский промт интервьюера' : 'Системный промт интервьюера';
 };
 
 const getPromptLabDialogHistorySpeakerLabel = (item, preview) => {
@@ -3377,19 +3549,29 @@ const getPromptLabDialogHistorySpeakerLabel = (item, preview) => {
   return 'Агент интервьюер';
 };
 
-const renderPromptLabDialogueHistory = (history, preview) => (
+const renderPromptLabDialogueHistory = (history, preview) =>
   '<section class="admin-prompt-lab-output-block">' +
-    '<h4>' + escapeHtml(isPromptLabDialogPreviewDialogCase(preview) ? 'Диалог' : 'Ответ пользователя') + '</h4>' +
-    '<div class="admin-prompt-lab-dialog-history">' +
-      history.map((item) => (
-        '<article class="admin-prompt-lab-dialog-message role-' + escapeHtml(item.role || 'assistant') + '">' +
-          '<strong>' + escapeHtml(getPromptLabDialogHistorySpeakerLabel(item, preview)) + '</strong>' +
-          '<pre>' + escapeHtml(item.content || '') + '</pre>' +
-        '</article>'
-      )).join('') +
-    '</div>' +
-  '</section>'
-);
+  '<h4>' +
+  escapeHtml(isPromptLabDialogPreviewDialogCase(preview) ? 'Диалог' : 'Ответ пользователя') +
+  '</h4>' +
+  '<div class="admin-prompt-lab-dialog-history">' +
+  history
+    .map(
+      (item) =>
+        '<article class="admin-prompt-lab-dialog-message role-' +
+        escapeHtml(item.role || 'assistant') +
+        '">' +
+        '<strong>' +
+        escapeHtml(getPromptLabDialogHistorySpeakerLabel(item, preview)) +
+        '</strong>' +
+        '<pre>' +
+        escapeHtml(item.content || '') +
+        '</pre>' +
+        '</article>',
+    )
+    .join('') +
+  '</div>' +
+  '</section>';
 
 const renderAdminPromptLabDialogResult = () => {
   if (!adminPromptLabDialogResult) {
@@ -3401,16 +3583,21 @@ const renderAdminPromptLabDialogResult = () => {
   const previewCaseCode = getPromptLabDialogPreviewCaseCode(preview);
   if (!preview) {
     if (state.adminPromptLabDialogRunning) {
-      adminPromptLabDialogResult.innerHTML = '<p class="report-empty-state">Готовим диалог для <strong>' + escapeHtml(selectedCaseCode || 'выбранного кейса') + '</strong>. Для диалоговых кейсов подготовка может занять до 20–30 секунд.</p>';
+      adminPromptLabDialogResult.innerHTML =
+        '<p class="report-empty-state">Готовим диалог для <strong>' +
+        escapeHtml(selectedCaseCode || 'выбранного кейса') +
+        '</strong>. Для диалоговых кейсов подготовка может занять до 20–30 секунд.</p>';
       return;
     }
-    adminPromptLabDialogResult.innerHTML = '<p class="report-empty-state">Подготовьте диалог, чтобы увидеть персонализированный кейс и ответ агента.</p>';
+    adminPromptLabDialogResult.innerHTML =
+      '<p class="report-empty-state">Подготовьте диалог, чтобы увидеть персонализированный кейс и ответ агента.</p>';
     return;
   }
   if (selectedCaseCode && previewCaseCode && selectedCaseCode !== previewCaseCode) {
-    adminPromptLabDialogResult.innerHTML = (
-      '<p class="report-empty-state">Выбран новый кейс <strong>' + escapeHtml(selectedCaseCode) + '</strong>. Нажмите «Подготовить диалог», чтобы обновить результат.</p>'
-    );
+    adminPromptLabDialogResult.innerHTML =
+      '<p class="report-empty-state">Выбран новый кейс <strong>' +
+      escapeHtml(selectedCaseCode) +
+      '</strong>. Нажмите «Подготовить диалог», чтобы обновить результат.</p>';
     if (adminPromptLabDialogSendButton) {
       adminPromptLabDialogSendButton.disabled = true;
     }
@@ -3420,34 +3607,59 @@ const renderAdminPromptLabDialogResult = () => {
     return;
   }
   const history = Array.isArray(state.adminPromptLabDialogHistory) ? state.adminPromptLabDialogHistory : [];
-  const isCompleted = history.some((item) => String(item.content || '').trim() === 'Лимит сообщений по этому кейсу достигнут. Мы фиксируем ваш ответ и завершаем кейс.');
+  const isCompleted = history.some(
+    (item) =>
+      String(item.content || '').trim() ===
+      'Лимит сообщений по этому кейсу достигнут. Мы фиксируем ваш ответ и завершаем кейс.',
+  );
   const effectiveCaseGenerationPromptText = getPromptLabDialogEffectiveCaseGenerationPromptText(preview);
   const effectivePromptText = getPromptLabDialogEffectivePromptText(preview);
   adminPromptLabDialogResult.innerHTML =
     '<div class="admin-prompt-lab-result-summary">' +
-      '<span>Подготовлен диалог для</span>' +
-      '<strong>' + escapeHtml(previewCaseCode || 'неизвестного кейса') + '</strong>' +
-      '<span>' + escapeHtml(preview?.case?.title || '') + '</span>' +
+    '<span>Подготовлен диалог для</span>' +
+    '<strong>' +
+    escapeHtml(previewCaseCode || 'неизвестного кейса') +
+    '</strong>' +
+    '<span>' +
+    escapeHtml(preview?.case?.title || '') +
+    '</span>' +
     '</div>' +
-    renderPromptLabTextBlock('Сгенерированный кейс', buildPromptLabCaseText(preview.personalized_context, preview.personalized_task)) +
-    renderPromptLabTextBlock(getPromptLabDialogCaseGenerationPromptBlockTitle(), effectiveCaseGenerationPromptText || 'Промт персонализации кейса не задан.') +
-    renderPromptLabTextBlock(getPromptLabDialogPromptBlockTitle(), effectivePromptText || 'Промт интервьюера не задан.') +
-    renderPromptLabTextBlock('Требования к ответу', getPromptLabDialogMethodicalSummary(preview) || 'Методические требования не заданы.') +
+    renderPromptLabTextBlock(
+      'Сгенерированный кейс',
+      buildPromptLabCaseText(preview.personalized_context, preview.personalized_task),
+    ) +
+    renderPromptLabTextBlock(
+      getPromptLabDialogCaseGenerationPromptBlockTitle(),
+      effectiveCaseGenerationPromptText || 'Промт персонализации кейса не задан.',
+    ) +
+    renderPromptLabTextBlock(
+      getPromptLabDialogPromptBlockTitle(),
+      effectivePromptText || 'Промт интервьюера не задан.',
+    ) +
+    renderPromptLabTextBlock(
+      'Требования к ответу',
+      getPromptLabDialogMethodicalSummary(preview) || 'Методические требования не заданы.',
+    ) +
     (history.length ? renderPromptLabDialogueHistory(history, preview) : '');
   if (adminPromptLabDialogSendButton) {
-    adminPromptLabDialogSendButton.disabled = state.adminPromptLabDialogRunning || !state.adminPromptLabDialogPrepared || isCompleted;
+    adminPromptLabDialogSendButton.disabled =
+      state.adminPromptLabDialogRunning || !state.adminPromptLabDialogPrepared || isCompleted;
   }
   if (adminPromptLabDialogUserMessage) {
-    adminPromptLabDialogUserMessage.disabled = state.adminPromptLabDialogRunning || !state.adminPromptLabDialogPrepared || isCompleted;
+    adminPromptLabDialogUserMessage.disabled =
+      state.adminPromptLabDialogRunning || !state.adminPromptLabDialogPrepared || isCompleted;
   }
 };
 
-const renderPromptLabTextBlock = (title, value) => (
+const renderPromptLabTextBlock = (title, value) =>
   '<section class="admin-prompt-lab-output-block">' +
-    '<h4>' + escapeHtml(title) + '</h4>' +
-    '<pre>' + escapeHtml(typeof value === 'string' ? value : JSON.stringify(value || {}, null, 2)) + '</pre>' +
-  '</section>'
-);
+  '<h4>' +
+  escapeHtml(title) +
+  '</h4>' +
+  '<pre>' +
+  escapeHtml(typeof value === 'string' ? value : JSON.stringify(value || {}, null, 2)) +
+  '</pre>' +
+  '</section>';
 
 const renderPromptLabCaseQualityBlock = (quality) => {
   const data = quality && typeof quality === 'object' ? quality : null;
@@ -3465,19 +3677,23 @@ const renderPromptLabCaseQualityBlock = (quality) => {
   const issues = Array.isArray(data.quality_issues) ? data.quality_issues : [];
   const strengths = Array.isArray(data.quality_strengths) ? data.quality_strengths : [];
   const metricsHtml = metrics.length
-    ? (
-      '<div class="admin-prompt-lab-result-summary">' +
-        metrics.map(([label, value, maxValue]) => (
-          '<span><strong>' + escapeHtml(label) + ':</strong> ' + escapeHtml(String(value)) + '/' + escapeHtml(String(maxValue)) + '</span>'
-        )).join('') +
+    ? '<div class="admin-prompt-lab-result-summary">' +
+      metrics
+        .map(
+          ([label, value, maxValue]) =>
+            '<span><strong>' +
+            escapeHtml(label) +
+            ':</strong> ' +
+            escapeHtml(String(value)) +
+            '/' +
+            escapeHtml(String(maxValue)) +
+            '</span>',
+        )
+        .join('') +
       '</div>'
-    )
     : '';
   return (
-    '<section class="admin-prompt-lab-output-block">' +
-      '<h4>Метрики качества кейса</h4>' +
-      metricsHtml +
-    '</section>'
+    '<section class="admin-prompt-lab-output-block">' + '<h4>Метрики качества кейса</h4>' + metricsHtml + '</section>'
   );
 };
 
@@ -3487,12 +3703,7 @@ const buildPromptLabCaseText = (context, task) => {
   if (!normalizedContext && !normalizedTask) {
     return 'Для этого пользователя по этому шаблону в системе пока нет сохраненного персонализированного кейса.';
   }
-  return [
-    'Ситуация',
-    normalizedContext,
-    'Что нужно сделать',
-    normalizedTask,
-  ].filter(Boolean).join('\n\n');
+  return ['Ситуация', normalizedContext, 'Что нужно сделать', normalizedTask].filter(Boolean).join('\n\n');
 };
 
 const renderAdminPromptLabResult = () => {
@@ -3501,26 +3712,46 @@ const renderAdminPromptLabResult = () => {
     return;
   }
   const caseItems = Array.isArray(result.case_items) && result.case_items.length ? result.case_items : [result];
-  const taskBlocks = caseItems.map((item, index) => (
-    '<article class="admin-prompt-lab-task-card">' +
-      '<div class="admin-prompt-lab-task-head">' +
-        '<span>Задача ' + escapeHtml(item.case_number || index + 1) + ' из ' + escapeHtml(result.total_cases || caseItems.length) + '</span>' +
-        '<strong>' + escapeHtml(item.case?.case_id_code || '') + ' · ' + escapeHtml(item.case?.title || '') + '</strong>' +
-      '</div>' +
-      '<div class="admin-prompt-lab-case-compare">' +
+  const taskBlocks = caseItems
+    .map(
+      (item, index) =>
+        '<article class="card admin-prompt-lab-task-card">' +
+        '<div class="admin-prompt-lab-task-head">' +
+        '<span>Задача ' +
+        escapeHtml(item.case_number || index + 1) +
+        ' из ' +
+        escapeHtml(result.total_cases || caseItems.length) +
+        '</span>' +
+        '<strong>' +
+        escapeHtml(item.case?.case_id_code || '') +
+        ' · ' +
+        escapeHtml(item.case?.title || '') +
+        '</strong>' +
+        '</div>' +
+        '<div class="admin-prompt-lab-case-compare">' +
         renderPromptLabTextBlock('Шаблон кейса', buildPromptLabCaseText(item.base_context, item.base_task)) +
-        ((item.personalized_context || item.personalized_task)
-          ? renderPromptLabTextBlock('Сгенерированный кейс', buildPromptLabCaseText(item.personalized_context, item.personalized_task))
+        (item.personalized_context || item.personalized_task
+          ? renderPromptLabTextBlock(
+              'Сгенерированный кейс',
+              buildPromptLabCaseText(item.personalized_context, item.personalized_task),
+            )
           : '') +
-      '</div>' +
-      renderPromptLabCaseQualityBlock(item.case_quality) +
-    '</article>'
-  )).join('');
+        '</div>' +
+        renderPromptLabCaseQualityBlock(item.case_quality) +
+        '</article>',
+    )
+    .join('');
   adminPromptLabResult.innerHTML =
     '<div class="admin-prompt-lab-result-summary">' +
-      '<span>Run #' + escapeHtml(result.id) + '</span>' +
-      '<strong>' + escapeHtml(result.total_cases || caseItems.length) + ' кейсов</strong>' +
-      '<span>' + escapeHtml(result.user?.full_name || 'Пользователь') + '</span>' +
+    '<span>Run #' +
+    escapeHtml(result.id) +
+    '</span>' +
+    '<strong>' +
+    escapeHtml(result.total_cases || caseItems.length) +
+    ' кейсов</strong>' +
+    '<span>' +
+    escapeHtml(result.user?.full_name || 'Пользователь') +
+    '</span>' +
     '</div>' +
     taskBlocks;
 };
@@ -3618,7 +3849,9 @@ const resetAdminPromptLabDialog = () => {
   const selectedCase = getSelectedPromptLabDialogCase();
   const selectedCode = String(selectedCase?.case_id_code || '').trim();
   setPromptLabDialogStatus(
-    selectedCode ? ('Выбран кейс ' + selectedCode + '. Нажмите «Подготовить диалог», чтобы запустить новый сценарий.') : '',
+    selectedCode
+      ? 'Выбран кейс ' + selectedCode + '. Нажмите «Подготовить диалог», чтобы запустить новый сценарий.'
+      : '',
     'muted',
   );
   renderAdminPromptLab();
@@ -3627,7 +3860,9 @@ const resetAdminPromptLabDialog = () => {
 
 const prepareAdminPromptLabDialog = async () => {
   const userId = Number(adminPromptLabDialogUserSelect?.value || 0);
-  const caseIdCode = String(state.adminPromptLabDialogSelectedCaseCode || adminPromptLabDialogCaseSelect?.value || '').trim();
+  const caseIdCode = String(
+    state.adminPromptLabDialogSelectedCaseCode || adminPromptLabDialogCaseSelect?.value || '',
+  ).trim();
   if (!userId || !caseIdCode) {
     setPromptLabDialogStatus('Выберите пользователя и кейс.', 'error');
     return;
@@ -3675,7 +3910,9 @@ const prepareAdminPromptLabDialog = async () => {
     state.adminPromptLabDialogPrepared = true;
     if (adminPromptLabDialogPromptText) {
       if ((adminPromptLabDialogSourceSelect?.value || 'system') === 'system' || !promptLabDialogPromptDirty) {
-        adminPromptLabDialogPromptText.value = String(result.interviewer_prompt_text || state.adminPromptLab?.interviewer_prompt_text || '').trim();
+        adminPromptLabDialogPromptText.value = String(
+          result.interviewer_prompt_text || state.adminPromptLab?.interviewer_prompt_text || '',
+        ).trim();
       }
     }
     syncPromptLabDialogPromptSource();
@@ -3725,7 +3962,10 @@ const sendAdminPromptLabDialogTurn = async () => {
       { role: 'user', content: userMessage },
     ];
     if (isPromptLabDialogPreviewDialogCase(preview)) {
-      nextHistory.push({ role: 'assistant', content: result.assistant_message || '' });
+      nextHistory.push({
+        role: 'assistant',
+        content: result.assistant_message || '',
+      });
     }
     state.adminPromptLabDialogHistory = nextHistory;
     if (adminPromptLabDialogUserMessage) {
@@ -3797,7 +4037,9 @@ const saveAdminMethodologyDetail = async () => {
 
 const getFilteredAdminMethodologyCases = () => {
   const items = Array.isArray(state.adminMethodology?.cases) ? state.adminMethodology.cases : [];
-  const query = String(state.adminMethodologySearch || '').trim().toLowerCase();
+  const query = String(state.adminMethodologySearch || '')
+    .trim()
+    .toLowerCase();
   if (!query) {
     return items;
   }
@@ -3813,7 +4055,9 @@ const getFilteredAdminMethodologyCases = () => {
       ...(Array.isArray(item.roles) ? item.roles : []),
       ...(Array.isArray(item.skills) ? item.skills : []),
       ...(Array.isArray(item.selection_tags) ? item.selection_tags : []),
-    ].join(' ').toLowerCase();
+    ]
+      .join(' ')
+      .toLowerCase();
     return haystack.includes(query);
   });
 };
@@ -3895,14 +4139,14 @@ const getAdminMethodologyDraftFromDetail = (detail) => ({
   stakes_text: detail?.stakes_text || '',
   personalization_items: Array.isArray(detail?.personalization_items)
     ? detail.personalization_items.map((item, index) => ({
-      field_code: normalizePersonalizationCode(item.field_code),
-      field_label: item.field_label || '',
-      field_value_template: item.field_value_template || '',
-      description: item.description || '',
-      source_type: item.source_type || 'static',
-      is_required: Boolean(item.is_required),
-      display_order: Number(item.display_order) || index + 1,
-    }))
+        field_code: normalizePersonalizationCode(item.field_code),
+        field_label: item.field_label || '',
+        field_value_template: item.field_value_template || '',
+        description: item.description || '',
+        source_type: item.source_type || 'static',
+        is_required: Boolean(item.is_required),
+        display_order: Number(item.display_order) || index + 1,
+      }))
     : [],
   personalization_options_text: detail?.personalization_options_text || '',
   difficulty_toggles: detail?.difficulty_toggles || '',
@@ -3921,12 +4165,13 @@ const setDetailNodeText = (node, text, fallback = '—') => {
   node.textContent = text || fallback;
 };
 
-const escapeHtml = (value) => String(value || '')
-  .replace(/&/g, '&amp;')
-  .replace(/</g, '&lt;')
-  .replace(/>/g, '&gt;')
-  .replace(/"/g, '&quot;')
-  .replace(/'/g, '&#39;');
+const escapeHtml = (value) =>
+  String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 
 const highlightAdminInsightFigures = (value) => {
   const text = String(value || '');
@@ -3955,62 +4200,222 @@ const setDetailNodeMultiline = (node, text, fallback, hiddenWhenEmpty = false) =
   node.classList.toggle('hidden', hiddenWhenEmpty && !resolvedText);
 };
 
-const getMethodologyStatusLabel = (status) => (
-  status === 'ready' ? 'Ready' : status === 'retired' ? 'Архив' : 'Draft'
-);
+const getMethodologyStatusLabel = (status) => (status === 'ready' ? 'Ready' : status === 'retired' ? 'Архив' : 'Draft');
 
-const normalizePersonalizationCode = (value) => String(value || '')
-  .trim()
-  .replace(/[{}]/g, '')
-  .toLowerCase();
+const normalizePersonalizationCode = (value) =>
+  String(value || '')
+    .trim()
+    .replace(/[{}]/g, '')
+    .toLowerCase();
 
 const buildAdminMethodologyPersonalizationDefaults = (code) => {
   const normalized = normalizePersonalizationCode(code);
   const defaults = new Map([
-    ['роль_кратко', { value: 'менеджер команды сопровождения', source: 'из профиля пользователя' }],
-    ['job_title', { value: 'менеджер команды сопровождения', source: 'из профиля пользователя' }],
-    ['industry', { value: 'сервиса и клиентской поддержки', source: 'из профиля пользователя' }],
-    ['сфера_деятельности_компании', { value: 'сервиса и клиентской поддержки', source: 'из профиля пользователя' }],
-    ['контекст_обязанностей', { value: 'сопровождение клиентских обращений и контроль качества сервиса', source: 'задано в шаблоне кейса' }],
-    ['процесс', { value: 'обработка обращений клиентов', source: 'задано в шаблоне кейса' }],
-    ['процесс/сервис', { value: 'обработка обращений клиентов', source: 'задано в шаблоне кейса' }],
-    ['процесс/задача', { value: 'обработка обращений клиентов', source: 'задано в шаблоне кейса' }],
-    ['пример_поведения', { value: 'сотрудник повторно закрывает обращения без решения', source: 'задано в шаблоне кейса' }],
-    ['влияние', { value: 'растет число повторных обращений', source: 'задано в шаблоне кейса' }],
+    [
+      'роль_кратко',
+      {
+        value: 'менеджер команды сопровождения',
+        source: 'из профиля пользователя',
+      },
+    ],
+    [
+      'job_title',
+      {
+        value: 'менеджер команды сопровождения',
+        source: 'из профиля пользователя',
+      },
+    ],
+    [
+      'industry',
+      {
+        value: 'сервиса и клиентской поддержки',
+        source: 'из профиля пользователя',
+      },
+    ],
+    [
+      'сфера_деятельности_компании',
+      {
+        value: 'сервиса и клиентской поддержки',
+        source: 'из профиля пользователя',
+      },
+    ],
+    [
+      'контекст_обязанностей',
+      {
+        value: 'сопровождение клиентских обращений и контроль качества сервиса',
+        source: 'задано в шаблоне кейса',
+      },
+    ],
+    [
+      'процесс',
+      {
+        value: 'обработка обращений клиентов',
+        source: 'задано в шаблоне кейса',
+      },
+    ],
+    [
+      'процесс/сервис',
+      {
+        value: 'обработка обращений клиентов',
+        source: 'задано в шаблоне кейса',
+      },
+    ],
+    [
+      'процесс/задача',
+      {
+        value: 'обработка обращений клиентов',
+        source: 'задано в шаблоне кейса',
+      },
+    ],
+    [
+      'пример_поведения',
+      {
+        value: 'сотрудник повторно закрывает обращения без решения',
+        source: 'задано в шаблоне кейса',
+      },
+    ],
+    [
+      'влияние',
+      {
+        value: 'растет число повторных обращений',
+        source: 'задано в шаблоне кейса',
+      },
+    ],
     ['срок', { value: '2 недели', source: 'задано в шаблоне кейса' }],
-    ['ресурсы_развития', { value: 'наставничество и еженедельные 1:1', source: 'задано в шаблоне кейса' }],
-    ['метрика', { value: 'доля повторных обращений', source: 'задано в шаблоне кейса' }],
-    ['стейкхолдер', { value: 'руководитель направления', source: 'задано в шаблоне кейса' }],
-    ['ограничение', { value: 'нельзя менять SLA без согласования', source: 'задано в шаблоне кейса' }],
-    ['ограничения/полномочия', { value: 'нельзя обещать решение без подтверждения смежной команды', source: 'задано в шаблоне кейса' }],
+    [
+      'ресурсы_развития',
+      {
+        value: 'наставничество и еженедельные 1:1',
+        source: 'задано в шаблоне кейса',
+      },
+    ],
+    [
+      'метрика',
+      {
+        value: 'доля повторных обращений',
+        source: 'задано в шаблоне кейса',
+      },
+    ],
+    [
+      'стейкхолдер',
+      {
+        value: 'руководитель направления',
+        source: 'задано в шаблоне кейса',
+      },
+    ],
+    [
+      'ограничение',
+      {
+        value: 'нельзя менять SLA без согласования',
+        source: 'задано в шаблоне кейса',
+      },
+    ],
+    [
+      'ограничения/полномочия',
+      {
+        value: 'нельзя обещать решение без подтверждения смежной команды',
+        source: 'задано в шаблоне кейса',
+      },
+    ],
     ['система', { value: 'Service Desk', source: 'задано в шаблоне кейса' }],
     ['канал', { value: 'чат поддержки', source: 'задано в шаблоне кейса' }],
     ['тип_клиента', { value: 'внутренний заказчик', source: 'задано в шаблоне кейса' }],
-    ['стейкхолдеры', { value: 'руководитель направления и смежная команда', source: 'задано в шаблоне кейса' }],
-    ['описание_проблемы', { value: 'обращение закрыто без фактического решения', source: 'задано в шаблоне кейса' }],
-    ['sla/срок', { value: 'до конца рабочего дня', source: 'задано в шаблоне кейса' }],
-    ['критичное_действие_/_этап_процесса', { value: 'завершение клиентского запроса', source: 'задано в шаблоне кейса' }],
+    [
+      'стейкхолдеры',
+      {
+        value: 'руководитель направления и смежная команда',
+        source: 'задано в шаблоне кейса',
+      },
+    ],
+    [
+      'описание_проблемы',
+      {
+        value: 'обращение закрыто без фактического решения',
+        source: 'задано в шаблоне кейса',
+      },
+    ],
+    [
+      'sla/срок',
+      {
+        value: 'до конца рабочего дня',
+        source: 'задано в шаблоне кейса',
+      },
+    ],
+    [
+      'критичное_действие_/_этап_процесса',
+      {
+        value: 'завершение клиентского запроса',
+        source: 'задано в шаблоне кейса',
+      },
+    ],
     ['id_обращения', { value: 'INC-48217', source: 'задано в шаблоне кейса' }],
     ['время_жалобы', { value: '16:40', source: 'задано в шаблоне кейса' }],
-    ['что_зафиксировано_в_системе', { value: 'обращение закрыто с пометкой выполнено', source: 'задано в шаблоне кейса' }],
-    ['что_осталось_нерешённым', { value: 'клиент не получил ожидаемый результат', source: 'задано в шаблоне кейса' }],
-    ['последствие_для_процесса', { value: 'сдвигается следующий этап работы клиента', source: 'задано в шаблоне кейса' }],
-    ['ответственная_команда_/_специалист', { value: 'команда сопровождения второй линии', source: 'задано в шаблоне кейса' }],
-    ['руководитель_/_дежурный_/_владелец_процесса', { value: 'дежурный руководитель смены', source: 'задано в шаблоне кейса' }],
-    ['риск', { value: 'эскалация повторных обращений', source: 'задано в шаблоне кейса' }],
-    ['триггер', { value: 'жалоба на закрытие обращения без решения', source: 'задано в шаблоне кейса' }],
+    [
+      'что_зафиксировано_в_системе',
+      {
+        value: 'обращение закрыто с пометкой выполнено',
+        source: 'задано в шаблоне кейса',
+      },
+    ],
+    [
+      'что_осталось_нерешённым',
+      {
+        value: 'клиент не получил ожидаемый результат',
+        source: 'задано в шаблоне кейса',
+      },
+    ],
+    [
+      'последствие_для_процесса',
+      {
+        value: 'сдвигается следующий этап работы клиента',
+        source: 'задано в шаблоне кейса',
+      },
+    ],
+    [
+      'ответственная_команда_/_специалист',
+      {
+        value: 'команда сопровождения второй линии',
+        source: 'задано в шаблоне кейса',
+      },
+    ],
+    [
+      'руководитель_/_дежурный_/_владелец_процесса',
+      {
+        value: 'дежурный руководитель смены',
+        source: 'задано в шаблоне кейса',
+      },
+    ],
+    [
+      'риск',
+      {
+        value: 'эскалация повторных обращений',
+        source: 'задано в шаблоне кейса',
+      },
+    ],
+    [
+      'триггер',
+      {
+        value: 'жалоба на закрытие обращения без решения',
+        source: 'задано в шаблоне кейса',
+      },
+    ],
   ]);
   if (defaults.has(normalized)) {
     return defaults.get(normalized);
   }
   return {
     value: '',
-    source: normalized.includes('роль') || normalized.includes('industry') ? 'из профиля пользователя' : 'задано в шаблоне кейса',
+    source:
+      normalized.includes('роль') || normalized.includes('industry')
+        ? 'из профиля пользователя'
+        : 'задано в шаблоне кейса',
   };
 };
 
 const expandAdminMethodologyRoleLabel = (value) => {
-  const normalized = String(value || '').trim().toLowerCase();
+  const normalized = String(value || '')
+    .trim()
+    .toLowerCase();
   if (normalized === 'm') {
     return 'Менеджер';
   }
@@ -4029,12 +4434,9 @@ const extractAdminMethodologyPlaceholders = (text) => {
 };
 
 const collectAdminMethodologyScenarioText = (source) => {
-  const parts = [
-    source?.intro_context,
-    source?.facts_data,
-    source?.task_for_user,
-    source?.constraints_text,
-  ].map((item) => String(item || '').trim()).filter(Boolean);
+  const parts = [source?.intro_context, source?.facts_data, source?.task_for_user, source?.constraints_text]
+    .map((item) => String(item || '').trim())
+    .filter(Boolean);
   return parts.join('\n\n');
 };
 
@@ -4051,11 +4453,12 @@ const collectAdminMethodologyPersonalizationRows = (detail, scenarioText) => {
       code,
       label: item.field_label || code,
       description: item.description || '',
-      source: item.source_type === 'from_user_profile'
-        ? 'из профиля пользователя'
-        : item.source_type === 'hybrid'
-          ? 'профиль + шаблон'
-          : fallback.source,
+      source:
+        item.source_type === 'from_user_profile'
+          ? 'из профиля пользователя'
+          : item.source_type === 'hybrid'
+            ? 'профиль + шаблон'
+            : fallback.source,
       sourceType: item.source_type || 'static',
       isRequired: Boolean(item.is_required),
       inScenario: fromText.includes(code),
@@ -4080,14 +4483,13 @@ const collectAdminMethodologyPersonalizationRows = (detail, scenarioText) => {
       displayOrder: itemMap.size + 1,
     });
   });
-  return Array.from(itemMap.values())
-    .sort((first, second) => {
-      const orderDelta = (first.displayOrder || 0) - (second.displayOrder || 0);
-      if (orderDelta !== 0) {
-        return orderDelta;
-      }
-      return String(first.code || '').localeCompare(String(second.code || ''), 'ru');
-    });
+  return Array.from(itemMap.values()).sort((first, second) => {
+    const orderDelta = (first.displayOrder || 0) - (second.displayOrder || 0);
+    if (orderDelta !== 0) {
+      return orderDelta;
+    }
+    return String(first.code || '').localeCompare(String(second.code || ''), 'ru');
+  });
 };
 
 const buildAdminMethodologyScenarioMarkup = (text, personalizationRows, mode) => {
@@ -4099,7 +4501,11 @@ const buildAdminMethodologyScenarioMarkup = (text, personalizationRows, mode) =>
   return safeText
     .replace(/\{([^}]+)\}/g, (_, rawCode) => {
       const code = normalizePersonalizationCode(rawCode);
-      return '<span class="admin-methodology-inline-variable">' + escapeHtml(valueMap.get(code) || ('{' + rawCode + '}')) + '</span>';
+      return (
+        '<span class="admin-methodology-inline-variable">' +
+        escapeHtml(valueMap.get(code) || '{' + rawCode + '}') +
+        '</span>'
+      );
     })
     .replace(/\n/g, '<br>');
 };
@@ -4109,24 +4515,36 @@ const renderAdminMethodologyPersonalizationTable = (rows) => {
     return;
   }
   if (!rows.length) {
-    adminMethodologyDetailPersonalizationTable.innerHTML = '<p class="report-empty-state">Переменные персонализации пока не заданы.</p>';
+    adminMethodologyDetailPersonalizationTable.innerHTML =
+      '<p class="report-empty-state">Переменные персонализации пока не заданы.</p>';
     return;
   }
   adminMethodologyDetailPersonalizationTable.innerHTML =
     '<div class="admin-methodology-personalization-row admin-methodology-personalization-head">' +
-      '<span>Переменная</span>' +
-      '<span>Описание</span>' +
-      '<span>Источник</span>' +
-      '<span>В тексте</span>' +
+    '<span>Переменная</span>' +
+    '<span>Описание</span>' +
+    '<span>Источник</span>' +
+    '<span>В тексте</span>' +
     '</div>' +
-    rows.map((row) => (
-      '<div class="admin-methodology-personalization-row">' +
-        '<span class="admin-methodology-personalization-code">{' + escapeHtml(row.code) + '}</span>' +
-        '<span>' + escapeHtml(row.description || row.label || 'Описание не задано') + '</span>' +
-        '<span class="admin-methodology-personalization-source">' + escapeHtml(row.source) + '</span>' +
-        '<span class="admin-methodology-personalization-usage">' + (row.inScenario ? 'Да' : 'Нет') + '</span>' +
-      '</div>'
-    )).join('');
+    rows
+      .map(
+        (row) =>
+          '<div class="admin-methodology-personalization-row">' +
+          '<span class="admin-methodology-personalization-code">{' +
+          escapeHtml(row.code) +
+          '}</span>' +
+          '<span>' +
+          escapeHtml(row.description || row.label || 'Описание не задано') +
+          '</span>' +
+          '<span class="admin-methodology-personalization-source">' +
+          escapeHtml(row.source) +
+          '</span>' +
+          '<span class="admin-methodology-personalization-usage">' +
+          (row.inScenario ? 'Да' : 'Нет') +
+          '</span>' +
+          '</div>',
+      )
+      .join('');
 };
 
 const syncAdminMethodologyPersonalizationVariables = () => {
@@ -4142,7 +4560,9 @@ const syncAdminMethodologyPersonalizationVariables = () => {
       .map((item) => normalizePersonalizationCode(item.field_code))
       .filter(Boolean),
   );
-  const scenarioCodes = extractAdminMethodologyPlaceholders(collectAdminMethodologyScenarioText(state.adminMethodologyDraft));
+  const scenarioCodes = extractAdminMethodologyPlaceholders(
+    collectAdminMethodologyScenarioText(state.adminMethodologyDraft),
+  );
   scenarioCodes.forEach((code) => {
     if (existingCodes.has(code)) {
       return;
@@ -4180,7 +4600,10 @@ const buildAdminMethodologyPersonalizationItem = (detail, fieldCode, overrides =
     field_label: overrides.field_label || option?.field_name || fallback.label || code,
     field_value_template: overrides.field_value_template ?? fallback.value ?? '',
     description: overrides.description ?? option?.description ?? '',
-    source_type: overrides.source_type || option?.source_type || (fallback.source === 'из профиля пользователя' ? 'from_user_profile' : 'static'),
+    source_type:
+      overrides.source_type ||
+      option?.source_type ||
+      (fallback.source === 'из профиля пользователя' ? 'from_user_profile' : 'static'),
     is_required: Boolean(overrides.is_required ?? option?.is_required),
     display_order: Number(overrides.display_order) || 1,
   };
@@ -4194,8 +4617,10 @@ const ensureAdminMethodologyPersonalizationDraft = (detail) => {
     state.adminMethodologyDraft.personalization_items = [];
   }
   if (!state.adminMethodologyDraft.personalization_items.length) {
-    const codes = collectAdminMethodologyPersonalizationRows(detail, collectAdminMethodologyScenarioText(state.adminMethodologyDraft))
-      .map((item) => normalizePersonalizationCode(item.code));
+    const codes = collectAdminMethodologyPersonalizationRows(
+      detail,
+      collectAdminMethodologyScenarioText(state.adminMethodologyDraft),
+    ).map((item) => normalizePersonalizationCode(item.code));
     state.adminMethodologyDraft.personalization_items = codes.map((code, index) => ({
       ...buildAdminMethodologyPersonalizationItem(detail, code),
       display_order: index + 1,
@@ -4207,7 +4632,9 @@ const ensureAdminMethodologyPersonalizationDraft = (detail) => {
 
 const getNextAdminMethodologyPersonalizationCode = (detail) => {
   const usedCodes = new Set(
-    (state.adminMethodologyDraft?.personalization_items || []).map((item) => normalizePersonalizationCode(item.field_code)),
+    (state.adminMethodologyDraft?.personalization_items || []).map((item) =>
+      normalizePersonalizationCode(item.field_code),
+    ),
   );
   const available = (detail?.personalization_options || [])
     .map((item) => normalizePersonalizationCode(item.field_code))
@@ -4228,7 +4655,10 @@ const updateAdminMethodologyPlaceholderAcrossDraft = (fromCode, toCode) => {
   }
   const pattern = new RegExp('\\{\\s*' + fromCode.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*\\}', 'gi');
   ['intro_context', 'facts_data', 'task_for_user', 'constraints_text'].forEach((key) => {
-    state.adminMethodologyDraft[key] = String(state.adminMethodologyDraft[key] || '').replace(pattern, '{' + toCode + '}');
+    state.adminMethodologyDraft[key] = String(state.adminMethodologyDraft[key] || '').replace(
+      pattern,
+      '{' + toCode + '}',
+    );
   });
 };
 
@@ -4272,7 +4702,9 @@ const updateAdminMethodologyPersonalizationItem = (index, patch) => {
     return;
   }
   const nextCode = patch.field_code ? normalizePersonalizationCode(patch.field_code) : current.field_code;
-  const duplicateIndex = items.findIndex((item, itemIndex) => itemIndex !== index && normalizePersonalizationCode(item.field_code) === nextCode);
+  const duplicateIndex = items.findIndex(
+    (item, itemIndex) => itemIndex !== index && normalizePersonalizationCode(item.field_code) === nextCode,
+  );
   if (duplicateIndex >= 0) {
     return;
   }
@@ -4321,7 +4753,9 @@ const insertAdminMethodologyPlaceholder = (fieldCode) => {
     return;
   }
   const placeholder = '{' + normalizedCode + '}';
-  const fieldKey = ['intro_context', 'facts_data', 'task_for_user', 'constraints_text'].includes(state.adminMethodologyActiveTextField)
+  const fieldKey = ['intro_context', 'facts_data', 'task_for_user', 'constraints_text'].includes(
+    state.adminMethodologyActiveTextField,
+  )
     ? state.adminMethodologyActiveTextField
     : 'intro_context';
   const target = document.querySelector('[data-field-key="' + fieldKey + '"]');
@@ -4350,7 +4784,6 @@ const insertAdminMethodologyPlaceholder = (fieldCode) => {
   }
   refreshAdminMethodologyScenarioSection(state.adminMethodologyDetail, state.adminMethodologyDraft);
 };
-
 
 const refreshAdminMethodologyScenarioSection = (detail, source) => {
   const scenarioText = collectAdminMethodologyScenarioText(source);
@@ -4549,8 +4982,8 @@ const renderAdminMethodologyDetail = () => {
     const difficultySelect = document.createElement('select');
     difficultySelect.className = 'admin-methodology-input';
     [
-      {value: 'base', label: 'Base'},
-      {value: 'hard', label: 'Hard'},
+      { value: 'base', label: 'Base' },
+      { value: 'hard', label: 'Hard' },
     ].forEach((item) => {
       const option = document.createElement('option');
       option.value = item.value;
@@ -4618,113 +5051,152 @@ const renderAdminMethodologyDetail = () => {
       value: draft.stakeholders_text,
       rows: 3,
       placeholder: 'Стейкхолдеры кейса',
-      onChange: (value) => { state.adminMethodologyDraft.stakeholders_text = value; },
+      onChange: (value) => {
+        state.adminMethodologyDraft.stakeholders_text = value;
+      },
     });
     renderAdminMethodologyEditorField(adminMethodologyDetailParticipants, 'textarea', {
       value: draft.participants_roles,
       rows: 3,
       placeholder: 'Роли и участники',
-      onChange: (value) => { state.adminMethodologyDraft.participants_roles = value; },
+      onChange: (value) => {
+        state.adminMethodologyDraft.participants_roles = value;
+      },
     });
     renderAdminMethodologyEditorField(adminMethodologyDetailExpectedArtifact, 'textarea', {
       value: draft.expected_artifact,
       rows: 2,
       placeholder: 'Ожидаемый артефакт ответа',
-      onChange: (value) => { state.adminMethodologyDraft.expected_artifact = value; },
+      onChange: (value) => {
+        state.adminMethodologyDraft.expected_artifact = value;
+      },
     });
     renderAdminMethodologyEditorField(adminMethodologyDetailAnswerStructure, 'textarea', {
       value: draft.answer_structure_hint,
       rows: 4,
       placeholder: 'Подсказка по структуре ответа',
-      onChange: (value) => { state.adminMethodologyDraft.answer_structure_hint = value; },
+      onChange: (value) => {
+        state.adminMethodologyDraft.answer_structure_hint = value;
+      },
     });
     renderAdminMethodologyEditorField(adminMethodologyDetailInteractivity, 'text', {
       value: draft.interactivity_mode,
       placeholder: '1 ход / диалог / ...',
-      onChange: (value) => { state.adminMethodologyDraft.interactivity_mode = value; },
+      onChange: (value) => {
+        state.adminMethodologyDraft.interactivity_mode = value;
+      },
     });
     renderAdminMethodologyEditorField(adminMethodologyDetailAnswerLength, 'text', {
       value: draft.recommended_answer_length,
       placeholder: '5–7 предложений / 8–12 вопросов ...',
-      onChange: (value) => { state.adminMethodologyDraft.recommended_answer_length = value; },
+      onChange: (value) => {
+        state.adminMethodologyDraft.recommended_answer_length = value;
+      },
     });
     renderAdminMethodologyEditorField(adminMethodologyDetailDialogTurns, 'textarea', {
       value: draft.dialog_turns_hint,
       rows: 3,
       placeholder: 'Уточняющие вопросы / диалоговые ходы',
-      onChange: (value) => { state.adminMethodologyDraft.dialog_turns_hint = value; },
+      onChange: (value) => {
+        state.adminMethodologyDraft.dialog_turns_hint = value;
+      },
     });
     renderAdminMethodologyEditorField(adminMethodologyDetailPersonalizationOptions, 'textarea', {
       value: draft.personalization_options_text,
       rows: 3,
       placeholder: 'Варианты персонализации',
-      onChange: (value) => { state.adminMethodologyDraft.personalization_options_text = value; },
+      onChange: (value) => {
+        state.adminMethodologyDraft.personalization_options_text = value;
+      },
     });
     renderAdminMethodologyEditorField(adminMethodologyDetailDifficultyToggles, 'textarea', {
       value: draft.difficulty_toggles,
       rows: 3,
       placeholder: 'Крутилки сложности',
-      onChange: (value) => { state.adminMethodologyDraft.difficulty_toggles = value; },
+      onChange: (value) => {
+        state.adminMethodologyDraft.difficulty_toggles = value;
+      },
     });
     renderAdminMethodologyEditorField(adminMethodologyDetailSelectionTags, 'textarea', {
       value: Array.isArray(draft.selection_tags) ? draft.selection_tags.join(', ') : '',
       rows: 2,
       placeholder: 'тег1, тег2, тег3',
       onChange: (value) => {
-        state.adminMethodologyDraft.selection_tags = String(value || '').split(',').map((item) => item.trim()).filter(Boolean);
+        state.adminMethodologyDraft.selection_tags = String(value || '')
+          .split(',')
+          .map((item) => item.trim())
+          .filter(Boolean);
       },
     });
     renderAdminMethodologyEditorField(adminMethodologyDetailRoleRules, 'textarea', {
       value: draft.role_personalization_rules,
       rows: 4,
       placeholder: 'Ролевые правила персонализации',
-      onChange: (value) => { state.adminMethodologyDraft.role_personalization_rules = value; },
+      onChange: (value) => {
+        state.adminMethodologyDraft.role_personalization_rules = value;
+      },
     });
     renderAdminMethodologyEditorField(adminMethodologyDetailFormatRules, 'textarea', {
       value: draft.format_control_rules,
       rows: 4,
       placeholder: 'Контроль формата ответа',
-      onChange: (value) => { state.adminMethodologyDraft.format_control_rules = value; },
+      onChange: (value) => {
+        state.adminMethodologyDraft.format_control_rules = value;
+      },
     });
     renderAdminMethodologyEditorField(adminMethodologyDetailScoringRules, 'textarea', {
       value: draft.scoring_aggregation_rules,
       rows: 4,
       placeholder: 'Правила агрегации оценки',
-      onChange: (value) => { state.adminMethodologyDraft.scoring_aggregation_rules = value; },
+      onChange: (value) => {
+        state.adminMethodologyDraft.scoring_aggregation_rules = value;
+      },
     });
     renderAdminMethodologyEditorField(adminMethodologyDetailBadCaseRisks, 'textarea', {
       value: draft.bad_case_risks,
       rows: 4,
       placeholder: 'Ограничения и риски плохого кейса',
-      onChange: (value) => { state.adminMethodologyDraft.bad_case_risks = value; },
+      onChange: (value) => {
+        state.adminMethodologyDraft.bad_case_risks = value;
+      },
     });
     renderAdminMethodologyEditorField(adminMethodologyDetailGenerationNotes, 'textarea', {
       value: draft.generation_notes,
       rows: 4,
       placeholder: 'Примечания для генерации',
-      onChange: (value) => { state.adminMethodologyDraft.generation_notes = value; },
+      onChange: (value) => {
+        state.adminMethodologyDraft.generation_notes = value;
+      },
     });
     renderAdminMethodologyEditorField(adminMethodologyDetailEvaluationNotes, 'textarea', {
       value: draft.evaluation_notes,
       rows: 4,
       placeholder: 'Заметки для оценивания',
-      onChange: (value) => { state.adminMethodologyDraft.evaluation_notes = value; },
+      onChange: (value) => {
+        state.adminMethodologyDraft.evaluation_notes = value;
+      },
     });
     renderAdminMethodologyEditorField(adminMethodologyDetailAuthorName, 'text', {
       value: draft.author_name,
       placeholder: 'Автор',
-      onChange: (value) => { state.adminMethodologyDraft.author_name = value; },
+      onChange: (value) => {
+        state.adminMethodologyDraft.author_name = value;
+      },
     });
     renderAdminMethodologyEditorField(adminMethodologyDetailReviewerName, 'text', {
       value: draft.reviewer_name,
       placeholder: 'Проверяющий',
-      onChange: (value) => { state.adminMethodologyDraft.reviewer_name = value; },
+      onChange: (value) => {
+        state.adminMethodologyDraft.reviewer_name = value;
+      },
     });
     renderAdminMethodologyEditorField(adminMethodologyDetailMethodologistComment, 'textarea', {
       value: draft.methodologist_comment,
       rows: 3,
       placeholder: 'Комментарий методиста',
-      onChange: (value) => { state.adminMethodologyDraft.methodologist_comment = value; },
+      onChange: (value) => {
+        state.adminMethodologyDraft.methodologist_comment = value;
+      },
     });
     adminMethodologyDetailFacts.classList.remove('hidden');
     adminMethodologyDetailConstraints.classList.remove('hidden');
@@ -4751,12 +5223,18 @@ const renderAdminMethodologyDetail = () => {
     setDetailNodeText(adminMethodologyDetailArtifact, detail.artifact_name || '—');
     setDetailNodeText(
       adminMethodologyDetailStatus,
-      'Тип: ' + getMethodologyStatusLabel(detail.passport_status) +
-        ' · Кейс: ' + getMethodologyStatusLabel(detail.case_status) +
-        ' · Текст: ' + getMethodologyStatusLabel(detail.case_text_status) +
-        ' · ' + (detail.difficulty_level === 'hard' ? 'Hard' : 'Base') +
-        ' · кейс v' + (detail.case_registry_version || 1) +
-        ' / текст v' + (detail.case_text_version || 1),
+      'Тип: ' +
+        getMethodologyStatusLabel(detail.passport_status) +
+        ' · Кейс: ' +
+        getMethodologyStatusLabel(detail.case_status) +
+        ' · Текст: ' +
+        getMethodologyStatusLabel(detail.case_text_status) +
+        ' · ' +
+        (detail.difficulty_level === 'hard' ? 'Hard' : 'Base') +
+        ' · кейс v' +
+        (detail.case_registry_version || 1) +
+        ' / текст v' +
+        (detail.case_text_version || 1),
     );
     setDetailNodeText(
       adminMethodologyDetailTiming,
@@ -4766,31 +5244,104 @@ const renderAdminMethodologyDetail = () => {
     setDetailNodeMultiline(adminMethodologyDetailFacts, detail.facts_data, 'Дополнительные факты не заданы.', true);
     setDetailNodeMultiline(adminMethodologyDetailTask, detail.task_for_user, 'Задача кейса пока не заполнена.');
     setDetailNodeMultiline(adminMethodologyDetailConstraints, detail.constraints_text, 'Ограничения не заданы.', true);
-    setDetailNodeMultiline(adminMethodologyDetailStakeholders, detail.stakeholders_text, 'Стейкхолдеры не заданы.', true);
-    setDetailNodeMultiline(adminMethodologyDetailParticipants, detail.participants_roles, 'Роли и участники не заданы.', true);
-    setDetailNodeMultiline(adminMethodologyDetailExpectedArtifact, detail.expected_artifact, 'Артефакт ответа не задан.', true);
-    setDetailNodeMultiline(adminMethodologyDetailAnswerStructure, detail.answer_structure_hint, 'Подсказка по структуре ответа не задана.', true);
+    setDetailNodeMultiline(
+      adminMethodologyDetailStakeholders,
+      detail.stakeholders_text,
+      'Стейкхолдеры не заданы.',
+      true,
+    );
+    setDetailNodeMultiline(
+      adminMethodologyDetailParticipants,
+      detail.participants_roles,
+      'Роли и участники не заданы.',
+      true,
+    );
+    setDetailNodeMultiline(
+      adminMethodologyDetailExpectedArtifact,
+      detail.expected_artifact,
+      'Артефакт ответа не задан.',
+      true,
+    );
+    setDetailNodeMultiline(
+      adminMethodologyDetailAnswerStructure,
+      detail.answer_structure_hint,
+      'Подсказка по структуре ответа не задана.',
+      true,
+    );
     setDetailNodeText(adminMethodologyDetailInteractivity, detail.interactivity_mode, 'Интерактивность не задана');
     setDetailNodeText(adminMethodologyDetailAnswerLength, detail.recommended_answer_length, 'Длина ответа не задана');
-    setDetailNodeMultiline(adminMethodologyDetailDialogTurns, detail.dialog_turns_hint, 'Диалоговые ходы не заданы.', true);
-    setDetailNodeMultiline(adminMethodologyDetailPersonalizationOptions, detail.personalization_options_text, 'Варианты персонализации не заданы.', true);
-    setDetailNodeMultiline(adminMethodologyDetailDifficultyToggles, detail.difficulty_toggles, 'Крутилки сложности не заданы.', true);
+    setDetailNodeMultiline(
+      adminMethodologyDetailDialogTurns,
+      detail.dialog_turns_hint,
+      'Диалоговые ходы не заданы.',
+      true,
+    );
+    setDetailNodeMultiline(
+      adminMethodologyDetailPersonalizationOptions,
+      detail.personalization_options_text,
+      'Варианты персонализации не заданы.',
+      true,
+    );
+    setDetailNodeMultiline(
+      adminMethodologyDetailDifficultyToggles,
+      detail.difficulty_toggles,
+      'Крутилки сложности не заданы.',
+      true,
+    );
     setDetailNodeText(adminMethodologyDetailSelectionTags, (detail.selection_tags || []).join(', '), 'Теги не заданы');
-    setDetailNodeMultiline(adminMethodologyDetailRoleRules, detail.role_personalization_rules, 'Ролевые правила не заданы.', true);
-    setDetailNodeMultiline(adminMethodologyDetailFormatRules, detail.format_control_rules, 'Правила формата не заданы.', true);
-    setDetailNodeMultiline(adminMethodologyDetailScoringRules, detail.scoring_aggregation_rules, 'Правила агрегации не заданы.', true);
-    setDetailNodeMultiline(adminMethodologyDetailBadCaseRisks, detail.bad_case_risks, 'Риски плохого кейса не заданы.', true);
-    setDetailNodeMultiline(adminMethodologyDetailGenerationNotes, detail.generation_notes, 'Примечания для генерации не заданы.', true);
-    setDetailNodeMultiline(adminMethodologyDetailEvaluationNotes, detail.evaluation_notes, 'Заметки для оценивания не заданы.', true);
+    setDetailNodeMultiline(
+      adminMethodologyDetailRoleRules,
+      detail.role_personalization_rules,
+      'Ролевые правила не заданы.',
+      true,
+    );
+    setDetailNodeMultiline(
+      adminMethodologyDetailFormatRules,
+      detail.format_control_rules,
+      'Правила формата не заданы.',
+      true,
+    );
+    setDetailNodeMultiline(
+      adminMethodologyDetailScoringRules,
+      detail.scoring_aggregation_rules,
+      'Правила агрегации не заданы.',
+      true,
+    );
+    setDetailNodeMultiline(
+      adminMethodologyDetailBadCaseRisks,
+      detail.bad_case_risks,
+      'Риски плохого кейса не заданы.',
+      true,
+    );
+    setDetailNodeMultiline(
+      adminMethodologyDetailGenerationNotes,
+      detail.generation_notes,
+      'Примечания для генерации не заданы.',
+      true,
+    );
+    setDetailNodeMultiline(
+      adminMethodologyDetailEvaluationNotes,
+      detail.evaluation_notes,
+      'Заметки для оценивания не заданы.',
+      true,
+    );
     setDetailNodeText(adminMethodologyDetailAuthorName, detail.author_name, 'Автор не указан');
     setDetailNodeText(adminMethodologyDetailReviewerName, detail.reviewer_name, 'Проверяющий не указан');
-    setDetailNodeMultiline(adminMethodologyDetailMethodologistComment, detail.methodologist_comment, 'Комментарий методиста не задан.', true);
+    setDetailNodeMultiline(
+      adminMethodologyDetailMethodologistComment,
+      detail.methodologist_comment,
+      'Комментарий методиста не задан.',
+      true,
+    );
     renderMethodologyChips(adminMethodologyDetailRoles, detail.roles, 'Роли не заданы');
     renderMethodologyChips(adminMethodologyDetailSkills, detail.skills, 'Навыки не заданы');
   }
 
   adminMethodologyDetailBlocks.innerHTML = '';
-  (detail.required_blocks && detail.required_blocks.length ? detail.required_blocks : ['Блоки ответа не заданы.']).forEach((text) => {
+  (detail.required_blocks && detail.required_blocks.length
+    ? detail.required_blocks
+    : ['Блоки ответа не заданы.']
+  ).forEach((text) => {
     const item = document.createElement('li');
     item.textContent = text;
     adminMethodologyDetailBlocks.appendChild(item);
@@ -4804,19 +5355,25 @@ const renderAdminMethodologyDetail = () => {
   });
 
   adminMethodologyDetailBlockers.innerHTML = '';
-  (detail.qa_blockers && detail.qa_blockers.length ? detail.qa_blockers : ['Критических блокеров сейчас нет.']).forEach((text) => {
-    const item = document.createElement('li');
-    item.textContent = text;
-    adminMethodologyDetailBlockers.appendChild(item);
-  });
+  (detail.qa_blockers && detail.qa_blockers.length ? detail.qa_blockers : ['Критических блокеров сейчас нет.']).forEach(
+    (text) => {
+      const item = document.createElement('li');
+      item.textContent = text;
+      adminMethodologyDetailBlockers.appendChild(item);
+    },
+  );
 
   adminMethodologyDetailChecks.innerHTML = '';
   (detail.quality_checks || []).forEach((check) => {
     const item = document.createElement('div');
     item.className = 'admin-methodology-check-item ' + (check.passed ? 'passed' : 'failed');
     item.innerHTML =
-      '<strong>' + check.name + '</strong>' +
-      '<span>' + (check.passed ? 'OK' : 'Проверить') + '</span>' +
+      '<strong>' +
+      check.name +
+      '</strong>' +
+      '<span>' +
+      (check.passed ? 'OK' : 'Проверить') +
+      '</span>' +
       (check.comment ? '<small>' + check.comment + '</small>' : '');
     adminMethodologyDetailChecks.appendChild(item);
   });
@@ -4827,14 +5384,23 @@ const renderAdminMethodologyDetail = () => {
   adminMethodologyDetailSignals.innerHTML = '';
   (detail.skill_signals && detail.skill_signals.length ? detail.skill_signals : []).forEach((signal) => {
     const card = document.createElement('article');
-    card.className = 'admin-methodology-signal-card';
+    card.className = 'card card--inset admin-methodology-signal-card';
     card.innerHTML =
       '<div class="admin-methodology-signal-head">' +
-        '<strong>' + signal.skill_name + '</strong>' +
-        '<span>' + signal.competency_name + '</span>' +
+      '<strong>' +
+      signal.skill_name +
+      '</strong>' +
+      '<span>' +
+      signal.competency_name +
+      '</span>' +
       '</div>' +
-      '<p>' + signal.evidence_description + '</p>' +
-      '<small>' + ((signal.related_response_block_code || 'response') + (signal.expected_signal ? ' · ' + signal.expected_signal : '')) + '</small>';
+      '<p>' +
+      signal.evidence_description +
+      '</p>' +
+      '<small>' +
+      ((signal.related_response_block_code || 'response') +
+        (signal.expected_signal ? ' · ' + signal.expected_signal : '')) +
+      '</small>';
     adminMethodologyDetailSignals.appendChild(card);
   });
   if (!detail.skill_signals || !detail.skill_signals.length) {
@@ -4847,10 +5413,20 @@ const renderAdminMethodologyDetail = () => {
     item.className = 'admin-methodology-history-item';
     item.innerHTML =
       '<div class="admin-methodology-history-head">' +
-        '<strong>' + entry.summary + '</strong>' +
-        '<span>' + new Date(entry.changed_at).toLocaleString('ru-RU') + '</span>' +
+      '<strong>' +
+      entry.summary +
+      '</strong>' +
+      '<span>' +
+      new Date(entry.changed_at).toLocaleString('ru-RU') +
+      '</span>' +
       '</div>' +
-      '<small>' + entry.entity_scope + ' · ' + entry.action + ' · ' + entry.changed_by + '</small>';
+      '<small>' +
+      entry.entity_scope +
+      ' · ' +
+      entry.action +
+      ' · ' +
+      entry.changed_by +
+      '</small>';
     adminMethodologyDetailHistory.appendChild(item);
   });
   if (!detail.change_log || !detail.change_log.length) {
@@ -4894,7 +5470,12 @@ const openAdminMethodologyDetail = async (caseIdCode) => {
       setDetailNodeText(
         adminMethodologyDetailStatus,
         summary
-          ? 'Кейс: ' + getMethodologyStatusLabel(summary.status) + ' · QA: ' + summary.passed_checks + '/' + summary.total_checks
+          ? 'Кейс: ' +
+              getMethodologyStatusLabel(summary.status) +
+              ' · QA: ' +
+              summary.passed_checks +
+              '/' +
+              summary.total_checks
           : 'Подготовка',
       );
       setDetailNodeText(
@@ -4906,7 +5487,11 @@ const openAdminMethodologyDetail = async (caseIdCode) => {
         '',
         'Не удалось загрузить детальную карточку. ' + (error?.message || 'Попробуйте открыть кейс повторно.'),
       );
-      setDetailNodeMultiline(adminMethodologyDetailTask, '', 'Базовая информация о кейсе показана из списка. Детальные поля временно недоступны.');
+      setDetailNodeMultiline(
+        adminMethodologyDetailTask,
+        '',
+        'Базовая информация о кейсе показана из списка. Детальные поля временно недоступны.',
+      );
     }
     adminMethodologyDetailTitle.textContent = 'Не удалось загрузить кейс';
   }
@@ -4960,8 +5545,16 @@ const renderAdminMethodologyPagedRiskList = (container, config) => {
   toolbar.className = 'admin-methodology-risk-toolbar';
   toolbar.innerHTML =
     '<div class="admin-methodology-risk-summary">' +
-      '<strong>Показано ' + pageItems.length + ' из ' + items.length + '</strong>' +
-      '<span>Страница ' + uiState.page + ' из ' + totalPages + '</span>' +
+    '<strong>Показано ' +
+    pageItems.length +
+    ' из ' +
+    items.length +
+    '</strong>' +
+    '<span>Страница ' +
+    uiState.page +
+    ' из ' +
+    totalPages +
+    '</span>' +
     '</div>';
 
   const controls = document.createElement('div');
@@ -5080,11 +5673,17 @@ const renderAdminMethodology = () => {
   adminMethodologyMetrics.innerHTML = '';
   (data.metrics || []).forEach((metric) => {
     const card = document.createElement('article');
-    card.className = 'admin-metric-card';
+    card.className = 'card admin-metric-card';
     card.innerHTML =
-      '<span>' + metric.label + '</span>' +
-      '<strong>' + metric.value + '</strong>' +
-      '<small>' + (metric.delta || '') + '</small>';
+      '<span>' +
+      metric.label +
+      '</span>' +
+      '<strong>' +
+      metric.value +
+      '</strong>' +
+      '<small>' +
+      (metric.delta || '') +
+      '</small>';
     adminMethodologyMetrics.appendChild(card);
   });
 
@@ -5112,26 +5711,58 @@ const renderAdminMethodology = () => {
         item.recommended_answer_length ? 'Длина: ' + item.recommended_answer_length : '',
         item.expected_artifact ? 'Артефакт: ' + item.expected_artifact : '',
       ].filter(Boolean);
-      const tagsHtml = Array.isArray(item.selection_tags) && item.selection_tags.length
-        ? '<div class="admin-methodology-inline-tags">' + item.selection_tags.slice(0, 3).map((tag) => '<span class="admin-methodology-inline-tag">' + escapeHtml(tag) + '</span>').join('') + '</div>'
-        : '';
+      const tagsHtml =
+        Array.isArray(item.selection_tags) && item.selection_tags.length
+          ? '<div class="admin-methodology-inline-tags">' +
+            item.selection_tags
+              .slice(0, 3)
+              .map((tag) => '<span class="admin-methodology-inline-tag">' + escapeHtml(tag) + '</span>')
+              .join('') +
+            '</div>'
+          : '';
       const metaHtml = metadataParts.length
         ? '<small class="admin-methodology-row-meta">' + metadataParts.join(' · ') + '</small>'
         : '';
+      const difficultyLabel = item.difficulty_level === 'hard' ? 'Hard' : 'Base';
+      const timeLabel = item.estimated_time_min ? item.estimated_time_min + ' мин' : '—';
       row.innerHTML =
         '<div class="admin-report-cell admin-methodology-title-cell">' +
-          '<strong>' + item.title + '</strong>' +
-          metaHtml +
-          tagsHtml +
+        '<strong>' +
+        item.title +
+        '</strong>' +
+        '<small class="admin-methodology-row-id">' +
+        item.case_id_code +
+        '</small>' +
+        metaHtml +
+        tagsHtml +
         '</div>' +
-        '<div class="admin-report-cell admin-methodology-id-cell"><span>' + item.case_id_code + '</span></div>' +
-        '<div class="admin-report-cell"><strong>' + ((item.roles || []).join(', ') || 'Не заданы') + '</strong></div>' +
-        '<div class="admin-report-cell"><span>' + ((item.skills || []).slice(0, 3).join(', ') || 'Нет навыков') + '</span></div>' +
-        '<div class="admin-report-cell"><strong>' + (item.difficulty_level === 'hard' ? 'Hard' : 'Base') + '</strong></div>' +
-        '<div class="admin-report-cell"><strong>' + (item.estimated_time_min ? item.estimated_time_min + ' мин' : '—') + '</strong></div>' +
+        '<div class="admin-report-cell"><strong>' +
+        ((item.roles || []).join(', ') || 'Не заданы') +
+        '</strong></div>' +
+        '<div class="admin-report-cell"><span>' +
+        ((item.skills || []).slice(0, 3).join(', ') || 'Нет навыков') +
+        '</span></div>' +
+        '<div class="admin-report-cell admin-methodology-difficulty-cell">' +
+        '<strong>' +
+        difficultyLabel +
+        '</strong>' +
+        '<small>' +
+        timeLabel +
+        '</small>' +
+        '</div>' +
         '<div class="admin-report-cell admin-methodology-status-cell">' +
-          '<span class="admin-status-pill ' + (item.status === 'ready' ? 'done' : item.status === 'retired' ? 'draft' : 'active') + '">' + statusLabel + '</span>' +
-          '<small>' + qaLabel + ' · ' + item.passed_checks + '/' + item.total_checks + '</small>' +
+        '<span class="admin-status-pill ' +
+        (item.status === 'ready' ? 'done' : item.status === 'retired' ? 'draft' : 'active') +
+        '">' +
+        statusLabel +
+        '</span>' +
+        '<small>' +
+        qaLabel +
+        ' · ' +
+        item.passed_checks +
+        '/' +
+        item.total_checks +
+        '</small>' +
         '</div>';
       const openDetail = () => {
         void openAdminMethodologyDetail(item.case_id_code);
@@ -5163,30 +5794,56 @@ const renderAdminMethodology = () => {
   adminMethodologyPassports.innerHTML = '';
   (data.passports || []).forEach((item) => {
     const card = document.createElement('article');
-    card.className = 'admin-methodology-passport-card';
+    card.className = 'card admin-methodology-passport-card';
     const rolesText = Array.isArray(item.roles) && item.roles.length ? item.roles.join(', ') : 'Роли не заданы';
     const passportMeta = [
       item.interactivity_mode ? 'Формат: ' + item.interactivity_mode : '',
       item.recommended_answer_length ? 'Длина: ' + item.recommended_answer_length : '',
     ].filter(Boolean);
-    const passportTagsHtml = Array.isArray(item.selection_tags) && item.selection_tags.length
-      ? '<div class="admin-methodology-inline-tags">' + item.selection_tags.slice(0, 3).map((tag) => '<span class="admin-methodology-inline-tag">' + escapeHtml(tag) + '</span>').join('') + '</div>'
-      : '';
+    const passportTagsHtml =
+      Array.isArray(item.selection_tags) && item.selection_tags.length
+        ? '<div class="admin-methodology-inline-tags">' +
+          item.selection_tags
+            .slice(0, 3)
+            .map((tag) => '<span class="admin-methodology-inline-tag">' + escapeHtml(tag) + '</span>')
+            .join('') +
+          '</div>'
+        : '';
     card.innerHTML =
       '<div class="admin-methodology-passport-head">' +
-        '<strong>' + item.type_code + '</strong>' +
-        '<span class="admin-status-pill ' + (item.status === 'ready' ? 'done' : item.status === 'retired' ? 'draft' : 'active') + '">' + (item.status === 'ready' ? 'Ready' : item.status === 'retired' ? 'Retired' : 'Draft') + '</span>' +
+      '<strong>' +
+      item.type_code +
+      '</strong>' +
+      '<span class="admin-status-pill ' +
+      (item.status === 'ready' ? 'done' : item.status === 'retired' ? 'draft' : 'active') +
+      '">' +
+      (item.status === 'ready' ? 'Ready' : item.status === 'retired' ? 'Retired' : 'Draft') +
+      '</span>' +
       '</div>' +
-      '<h4>' + item.type_name + '</h4>' +
-      '<p>' + item.artifact_name + '</p>' +
-      (passportMeta.length ? '<small class="admin-methodology-row-meta">' + passportMeta.join(' · ') + '</small>' : '') +
+      '<h4>' +
+      item.type_name +
+      '</h4>' +
+      '<p>' +
+      item.artifact_name +
+      '</p>' +
+      (passportMeta.length
+        ? '<small class="admin-methodology-row-meta">' + passportMeta.join(' · ') + '</small>'
+        : '') +
       passportTagsHtml +
       '<div class="admin-methodology-passport-meta">' +
-        '<span>' + item.ready_cases_count + ' кейсов ready</span>' +
-        '<span>' + item.required_blocks_count + ' блока</span>' +
-        '<span>' + item.red_flags_count + ' red flags</span>' +
+      '<span>' +
+      item.ready_cases_count +
+      ' кейсов ready</span>' +
+      '<span>' +
+      item.required_blocks_count +
+      ' блока</span>' +
+      '<span>' +
+      item.red_flags_count +
+      ' red flags</span>' +
       '</div>' +
-      '<small>' + rolesText + '</small>';
+      '<small>' +
+      rolesText +
+      '</small>';
     adminMethodologyPassports.appendChild(card);
   });
   adminMethodologyBranches.innerHTML = '';
@@ -5194,20 +5851,34 @@ const renderAdminMethodology = () => {
     const coveragePercent = Math.max(0, Math.min(100, Number(item.skill_coverage_percent) || 0));
     const competencyPercent = Math.max(0, Math.min(100, Number(item.competency_coverage_percent) || 0));
     const card = document.createElement('article');
-    card.className = 'admin-methodology-branch-card';
+    card.className = 'card admin-methodology-branch-card';
     card.innerHTML =
       '<div class="admin-methodology-branch-head">' +
-        '<strong>' + item.role_name + '</strong>' +
-        '<span>' + item.ready_case_count + '/' + item.case_count + ' кейсов</span>' +
+      '<strong>' +
+      item.role_name +
+      '</strong>' +
+      '<span>' +
+      item.ready_case_count +
+      '/' +
+      item.case_count +
+      ' кейсов</span>' +
       '</div>' +
       '<div class="admin-methodology-branch-stat">' +
-        '<span>Покрытие навыков</span><strong>' + coveragePercent + '%</strong>' +
+      '<span>Покрытие навыков</span><strong>' +
+      coveragePercent +
+      '%</strong>' +
       '</div>' +
-      '<div class="admin-report-score-track"><span style="width:' + coveragePercent + '%"></span></div>' +
+      '<div class="admin-report-score-track"><span style="width:' +
+      coveragePercent +
+      '%"></span></div>' +
       '<div class="admin-methodology-branch-stat secondary">' +
-        '<span>Покрытие компетенций</span><strong>' + competencyPercent + '%</strong>' +
+      '<span>Покрытие компетенций</span><strong>' +
+      competencyPercent +
+      '%</strong>' +
       '</div>' +
-      '<div class="admin-report-score-track warm"><span style="width:' + competencyPercent + '%"></span></div>';
+      '<div class="admin-report-score-track warm"><span style="width:' +
+      competencyPercent +
+      '%"></span></div>';
     adminMethodologyBranches.appendChild(card);
   });
 
@@ -5216,10 +5887,18 @@ const renderAdminMethodology = () => {
     const row = document.createElement('div');
     row.className = 'admin-methodology-coverage-row';
     row.innerHTML =
-      '<span>' + item.competency_name + '</span>' +
-      '<span>' + item.linear_value + '</span>' +
-      '<span>' + item.manager_value + '</span>' +
-      '<span>' + item.leader_value + '</span>';
+      '<span>' +
+      item.competency_name +
+      '</span>' +
+      '<span>' +
+      item.linear_value +
+      '</span>' +
+      '<span>' +
+      item.manager_value +
+      '</span>' +
+      '<span>' +
+      item.leader_value +
+      '</span>';
     adminMethodologyCoverageBody.appendChild(row);
   });
 
@@ -5228,9 +5907,15 @@ const renderAdminMethodology = () => {
     const qaReadyCount = filteredCases.filter((item) => item.qa_ready).length;
     const readyCount = filteredCases.filter((item) => item.status === 'ready').length;
     adminMethodologySummary.innerHTML =
-      '<div><span>Кейсов в выборке</span><strong>' + totalCases + '</strong></div>' +
-      '<div><span>Ready</span><strong>' + readyCount + '</strong></div>' +
-      '<div><span>QA ready</span><strong>' + qaReadyCount + '</strong></div>';
+      '<div><span>Кейсов в выборке</span><strong>' +
+      totalCases +
+      '</strong></div>' +
+      '<div><span>Ready</span><strong>' +
+      readyCount +
+      '</strong></div>' +
+      '<div><span>QA ready</span><strong>' +
+      qaReadyCount +
+      '</strong></div>';
   }
 
   if (adminMethodologySkillGaps) {
@@ -5244,11 +5929,19 @@ const renderAdminMethodology = () => {
         card.className = 'admin-methodology-risk-item ' + (item.severity === 'critical' ? 'critical' : 'warning');
         card.innerHTML =
           '<div class="admin-methodology-risk-head">' +
-            '<strong>' + item.skill_name + '</strong>' +
-            '<span>' + item.role_name + '</span>' +
+          '<strong>' +
+          item.skill_name +
+          '</strong>' +
+          '<span>' +
+          item.role_name +
+          '</span>' +
           '</div>' +
-          '<p>' + item.competency_name + '</p>' +
-          '<small>' + (item.ready_case_count === 0 ? 'Нет ready-кейсов' : 'Только ' + item.ready_case_count + ' ready-кейс') + '</small>';
+          '<p>' +
+          item.competency_name +
+          '</p>' +
+          '<small>' +
+          (item.ready_case_count === 0 ? 'Нет ready-кейсов' : 'Только ' + item.ready_case_count + ' ready-кейс') +
+          '</small>';
         return card;
       },
     });
@@ -5265,11 +5958,21 @@ const renderAdminMethodology = () => {
         card.className = 'admin-methodology-risk-item single-point';
         card.innerHTML =
           '<div class="admin-methodology-risk-head">' +
-            '<strong>' + item.skill_name + '</strong>' +
-            '<span>' + ((item.type_codes || []).join(', ') || '—') + '</span>' +
+          '<strong>' +
+          item.skill_name +
+          '</strong>' +
+          '<span>' +
+          ((item.type_codes || []).join(', ') || '—') +
+          '</span>' +
           '</div>' +
-          '<p>' + item.competency_name + '</p>' +
-          '<small>' + ((item.role_names || []).join(', ') || 'Роли не указаны') + ' · ' + item.ready_case_count + ' ready-кейс(ов)</small>';
+          '<p>' +
+          item.competency_name +
+          '</p>' +
+          '<small>' +
+          ((item.role_names || []).join(', ') || 'Роли не указаны') +
+          ' · ' +
+          item.ready_case_count +
+          ' ready-кейс(ов)</small>';
         return card;
       },
     });
@@ -5282,23 +5985,40 @@ const renderAdminMethodology = () => {
       items,
       emptyText: 'Пока недостаточно данных прохождений для аналитики качества кейсов.',
       renderItem: (item) => {
-        const coverageText = item.avg_block_coverage_percent == null
-          ? 'покрытие структуры еще не накоплено'
-          : 'среднее покрытие ' + Math.round(item.avg_block_coverage_percent) + '%';
+        const coverageText =
+          item.avg_block_coverage_percent == null
+            ? 'покрытие структуры еще не накоплено'
+            : 'среднее покрытие ' + Math.round(item.avg_block_coverage_percent) + '%';
         const card = document.createElement('article');
         card.className = 'admin-methodology-risk-item case-quality';
         card.innerHTML =
           '<div class="admin-methodology-risk-head">' +
-            '<strong>' + item.title + '</strong>' +
-            '<span>' + item.case_id_code + ' · ' + item.type_code + '</span>' +
+          '<strong>' +
+          item.title +
+          '</strong>' +
+          '<span>' +
+          item.case_id_code +
+          ' · ' +
+          item.type_code +
+          '</span>' +
           '</div>' +
-          '<p>' + item.issue_label + '</p>' +
+          '<p>' +
+          item.issue_label +
+          '</p>' +
           '<small>' +
-            item.assessments_count + ' оценок · ' +
-            'red flags ' + item.avg_red_flag_count.toFixed(1) + ' · ' +
-            'missing blocks ' + item.avg_missing_blocks_count.toFixed(1) + ' · ' +
-            coverageText + ' · ' +
-            'низкие уровни ' + item.low_level_rate_percent + '%' +
+          item.assessments_count +
+          ' оценок · ' +
+          'red flags ' +
+          item.avg_red_flag_count.toFixed(1) +
+          ' · ' +
+          'missing blocks ' +
+          item.avg_missing_blocks_count.toFixed(1) +
+          ' · ' +
+          coverageText +
+          ' · ' +
+          'низкие уровни ' +
+          item.low_level_rate_percent +
+          '%' +
           '</small>';
         return card;
       },
@@ -5361,14 +6081,19 @@ const sendChatMessage = async (text, displayText = null) => {
   safeStorage.setItem(STORAGE_KEYS.pendingNoChangesQuickReply, '0');
   renderChatRoleOptions();
 
-  addMessage('user', displayText || (Array.isArray(state.pendingRoleOptions) && state.pendingRoleOptions.length
-    ? (state.pendingRoleOptions.find((item) => String(item.id) === messageText)?.name || messageText)
-    : messageText));
+  addMessage(
+    'user',
+    displayText ||
+      (Array.isArray(state.pendingRoleOptions) && state.pendingRoleOptions.length
+        ? state.pendingRoleOptions.find((item) => String(item.id) === messageText)?.name || messageText
+        : messageText),
+  );
   chatInput.value = '';
   showError(chatError, '');
   state.isChatSubmitting = true;
   chatInput.disabled = true;
   chatForm.querySelector('button').disabled = true;
+  showAgentTyping();
 
   try {
     const operationId = state.isNewUserFlow ? createOperationId() : null;
@@ -5393,6 +6118,7 @@ const sendChatMessage = async (text, displayText = null) => {
     });
     const data = await readApiResponse(response, 'Не удалось обработать сообщение.');
 
+    hideAgentTyping();
     addMessage('bot', data.message);
     state.completed = data.completed;
     state.pendingUser = data.user || state.pendingUser;
@@ -5431,12 +6157,13 @@ const sendChatMessage = async (text, displayText = null) => {
     } else {
       state.isChatSubmitting = false;
       if (!chatForm.classList.contains('hidden')) {
-      chatInput.disabled = false;
-      chatForm.querySelector('button').disabled = false;
-      chatInput.focus();
+        chatInput.disabled = false;
+        chatForm.querySelector('button').disabled = false;
+        chatInput.focus();
       }
     }
   } catch (error) {
+    hideAgentTyping();
     if (state.isNewUserFlow) {
       hideLoader();
     }
@@ -5456,7 +6183,9 @@ const sendChatMessage = async (text, displayText = null) => {
 };
 
 const getAdminStatusBadgeLabel = (status) => {
-  const normalized = String(status || '').trim().toLowerCase();
+  const normalized = String(status || '')
+    .trim()
+    .toLowerCase();
   if (normalized === 'завершено') {
     return 'Завершено';
   }
@@ -5539,10 +6268,7 @@ const drawRadarCompetencyRegionBackgrounds = (chart, options = {}) => {
     const segments = Math.max(4, Math.ceil((endAngle - startAngle) / (Math.PI / 18)));
     for (let index = 0; index <= segments; index += 1) {
       const angle = startAngle + ((endAngle - startAngle) * index) / segments;
-      context.lineTo(
-        scale.xCenter + Math.cos(angle) * radius,
-        scale.yCenter + Math.sin(angle) * radius,
-      );
+      context.lineTo(scale.xCenter + Math.cos(angle) * radius, scale.yCenter + Math.sin(angle) * radius);
     }
     context.closePath();
     context.fillStyle = palette.fill;
@@ -5589,9 +6315,7 @@ const radarThresholdRingsPlugin = {
         }
       }
       context.closePath();
-      context.strokeStyle = threshold.code === 'L3'
-        ? 'rgba(15, 23, 42, 0.38)'
-        : 'rgba(15, 23, 42, 0.25)';
+      context.strokeStyle = threshold.code === 'L3' ? 'rgba(15, 23, 42, 0.38)' : 'rgba(15, 23, 42, 0.25)';
       context.stroke();
 
       const labelAngle = -Math.PI / 4;
@@ -5708,10 +6432,12 @@ const adminSkillRadarNotDetectedLabelsPlugin = {
       if (!bounds) {
         return false;
       }
-      return event.x >= bounds.left - 4
-        && event.x <= bounds.right + 4
-        && event.y >= bounds.top - 4
-        && event.y <= bounds.bottom + 8;
+      return (
+        event.x >= bounds.left - 4 &&
+        event.x <= bounds.right + 4 &&
+        event.y >= bounds.top - 4 &&
+        event.y <= bounds.bottom + 8
+      );
     });
 
     if (hoveredIndex === -1) {
@@ -5735,9 +6461,13 @@ const adminSkillRadarNotDetectedLabelsPlugin = {
 
     chart.canvas.style.cursor = 'help';
     tooltip.innerHTML =
-      '<strong>' + escapeHtml(skill?.skill_name || 'Навык') + '</strong>' +
+      '<strong>' +
+      escapeHtml(skill?.skill_name || 'Навык') +
+      '</strong>' +
       '<span>Компетенция не проявилась в ассессменте</span>' +
-      '<em>' + escapeHtml(skill?.competency_name || '') + '</em>';
+      '<em>' +
+      escapeHtml(skill?.competency_name || '') +
+      '</em>';
     tooltip.style.left = left + 'px';
     tooltip.style.top = top + 'px';
     tooltip.classList.remove('hidden');
@@ -5800,12 +6530,19 @@ const renderAdminProfileSummaryList = (node, items) => {
 
 const buildAdminSkillRadarFallbackMarkup = (skills) =>
   '<div class="admin-detail-skill-radar-list">' +
-    skills.map((skill) => (
-      '<div class="admin-detail-skill-radar-item">' +
-        '<span>' + (skill.skill_name || 'Навык') + '</span>' +
-        '<strong>' + getLevelPercent(skill.assessed_level_code) + '%</strong>' +
-      '</div>'
-    )).join('') +
+  skills
+    .map(
+      (skill) =>
+        '<div class="admin-detail-skill-radar-item">' +
+        '<span>' +
+        (skill.skill_name || 'Навык') +
+        '</span>' +
+        '<strong>' +
+        getLevelPercent(skill.assessed_level_code) +
+        '%</strong>' +
+        '</div>',
+    )
+    .join('') +
   '</div>';
 
 const renderAdminSkillRadar = (skills = []) => {
@@ -5983,7 +6720,9 @@ const renderAdminSkillRadar = (skills = []) => {
 
 const getFilteredAdminReports = () => {
   const items = Array.isArray(state.adminReports?.items) ? state.adminReports.items : [];
-  const query = String(state.adminReportsSearch || '').trim().toLowerCase();
+  const query = String(state.adminReportsSearch || '')
+    .trim()
+    .toLowerCase();
   if (!query) {
     return items;
   }
@@ -5996,7 +6735,9 @@ const getFilteredAdminReports = () => {
       item.phone,
       String(item.user_id),
       String(item.session_id),
-    ].join(' ').toLowerCase();
+    ]
+      .join(' ')
+      .toLowerCase();
     return haystack.includes(query);
   });
 };
@@ -6008,7 +6749,8 @@ const renderAdminReports = () => {
   }
 
   adminReportsTitle.textContent = reports.title || 'Отдельные отчеты';
-  adminReportsSubtitle.textContent = reports.subtitle || 'Управление и анализ индивидуальных результатов тестирования персонала.';
+  adminReportsSubtitle.textContent =
+    reports.subtitle || 'Управление и анализ индивидуальных результатов тестирования персонала.';
   if (adminReportsSearch) {
     adminReportsSearch.value = state.adminReportsSearch || '';
   }
@@ -6026,11 +6768,9 @@ const renderAdminReports = () => {
   adminReportsFound.textContent = 'Найдено: ' + filteredItems.length;
   const selectedIds = new Set((state.adminReportsSelectedSessionIds || []).map((value) => Number(value)));
 
-  const scoreValues = filteredItems
-    .map((item) => item.score_percent)
-    .filter((value) => typeof value === 'number');
+  const scoreValues = filteredItems.map((item) => item.score_percent).filter((value) => typeof value === 'number');
   adminReportsSummaryScore.textContent = scoreValues.length
-    ? (Math.round((scoreValues.reduce((sum, value) => sum + value, 0) / scoreValues.length) * 10) / 10) + '%'
+    ? Math.round((scoreValues.reduce((sum, value) => sum + value, 0) / scoreValues.length) * 10) / 10 + '%'
     : '—';
 
   adminReportsList.innerHTML = '';
@@ -6064,33 +6804,62 @@ const renderAdminReports = () => {
     const checked = selectedIds.has(Number(item.session_id));
     row.innerHTML =
       '<div class="admin-report-cell admin-report-select-cell">' +
-        '<label class="admin-report-select-toggle' + (isCompleted ? '' : ' is-disabled') + '">' +
-          '<input class="admin-report-select-checkbox" type="checkbox" name="session_ids" form="admin-reports-expert-group-form" value="' + Number(item.session_id) + '" ' + (checked ? 'checked ' : '') + (isCompleted ? '' : 'disabled ') + 'aria-label="Выбрать отчет по сессии ' + item.session_id + '">' +
-          '<span>' + (checked ? 'Выбрано' : 'Выбрать') + '</span>' +
-        '</label>' +
+      '<label class="admin-report-select-toggle' +
+      (isCompleted ? '' : ' is-disabled') +
+      '">' +
+      '<input class="admin-report-select-checkbox" type="checkbox" name="session_ids" form="admin-reports-expert-group-form" value="' +
+      Number(item.session_id) +
+      '" ' +
+      (checked ? 'checked ' : '') +
+      (isCompleted ? '' : 'disabled ') +
+      'aria-label="Выбрать отчет по сессии ' +
+      item.session_id +
+      '">' +
+      '</label>' +
       '</div>' +
       '<div class="admin-report-cell admin-report-user">' +
-        '<div class="admin-report-avatar">' + buildInitials(item.full_name || 'Сотрудник') + '</div>' +
-        '<div class="admin-report-copy">' +
-          '<strong>' + item.full_name + '</strong>' +
-          '<span>ID ' + item.user_id + '</span>' +
-        '</div>' +
+      '<div class="admin-report-copy">' +
+      '<strong>' +
+      item.full_name +
+      '</strong>' +
+      '<span>ID ' +
+      item.user_id +
+      '</span>' +
+      '</div>' +
       '</div>' +
       '<div class="admin-report-cell admin-report-group">' +
-        '<strong>' + groupName + '</strong>' +
-        '<span>' + roleName + '</span>' +
+      '<strong>' +
+      groupName +
+      '</strong>' +
+      '<span>' +
+      roleName +
+      '</span>' +
       '</div>' +
       '<div class="admin-report-cell admin-report-status">' +
-        '<span class="admin-status-pill ' + (item.status === 'Завершено' ? 'done' : item.status === 'В процессе' ? 'active' : 'draft') + '">' + item.status + '</span>' +
+      '<span class="admin-status-pill ' +
+      (item.status === 'Завершено' ? 'done' : item.status === 'В процессе' ? 'active' : 'draft') +
+      '">' +
+      item.status +
+      '</span>' +
       '</div>' +
       '<div class="admin-report-cell admin-report-score">' +
-        '<strong>' + scoreLabel + '</strong>' +
-        '<div class="admin-report-score-track"><span style="width:' + scorePercent + '%"></span></div>' +
+      '<strong>' +
+      scoreLabel +
+      '</strong>' +
+      '<div class="admin-report-score-track"><span style="width:' +
+      scorePercent +
+      '%"></span></div>' +
       '</div>' +
-      '<div class="admin-report-cell admin-report-mbti">' + (item.mbti_type || 'Нет данных') + '</div>' +
-      '<div class="admin-report-cell admin-report-date">' + formatAdminReportDate(item) + '</div>' +
+      '<div class="admin-report-cell admin-report-mbti">' +
+      (item.mbti_type || 'Нет данных') +
+      '</div>' +
+      '<div class="admin-report-cell admin-report-date">' +
+      formatAdminReportDate(item) +
+      '</div>' +
       '<div class="admin-report-cell admin-report-download-action">' +
-        '<button class="ghost-button compact-ghost admin-report-download-button" type="button" aria-label="Скачать PDF отчета по сессии ' + item.session_id + '">Скачать</button>' +
+      '<button class="ghost-button compact-ghost admin-report-download-button" type="button" aria-label="Скачать PDF отчета по сессии ' +
+      item.session_id +
+      '">Скачать</button>' +
       '</div>';
     const openDetail = () => {
       void openAdminReportDetail(item.session_id);
@@ -6153,12 +6922,11 @@ const renderAdminReports = () => {
   if (adminReportsExpertGroupButton) {
     const completedCount = filteredItems.filter((item) => item.status === 'Завершено').length;
     const selectedCompletedCount = filteredItems.filter(
-      (item) => item.status === 'Завершено' && selectedIds.has(Number(item.session_id))
+      (item) => item.status === 'Завершено' && selectedIds.has(Number(item.session_id)),
     ).length;
     adminReportsExpertGroupButton.disabled = completedCount <= 0;
-    adminReportsExpertGroupButton.textContent = selectedCompletedCount > 0
-      ? 'Выгрузить ассесменты (' + selectedCompletedCount + ')'
-      : 'Выгрузить ассесменты';
+    adminReportsExpertGroupButton.textContent =
+      selectedCompletedCount > 0 ? 'Выгрузить ассесменты (' + selectedCompletedCount + ')' : 'Выгрузить ассесменты';
   }
 };
 
@@ -6172,7 +6940,7 @@ const loadAdminReports = async () => {
     (Array.isArray(data?.items) ? data.items : [])
       .filter((item) => item.status === 'Завершено')
       .map((item) => Number(item.session_id))
-      .filter((value) => Number.isFinite(value) && value > 0)
+      .filter((value) => Number.isFinite(value) && value > 0),
   );
   state.adminReportsSelectedSessionIds = (state.adminReportsSelectedSessionIds || [])
     .map((value) => Number(value))
@@ -6185,8 +6953,7 @@ const renderAdminReportsGroupDialog = () => {
   if (!adminReportsGroupDialogList || !adminReportsGroupDialogSummary) {
     return;
   }
-  const completedItems = getFilteredAdminReports()
-    .filter((item) => item.status === 'Завершено');
+  const completedItems = getFilteredAdminReports().filter((item) => item.status === 'Завершено');
   const selectedIds = new Set((state.adminReportsSelectedSessionIds || []).map((value) => Number(value)));
   if (!completedItems.length) {
     adminReportsGroupDialogSummary.textContent = 'По текущему фильтру нет завершенных ассессментов для выгрузки.';
@@ -6197,24 +6964,41 @@ const renderAdminReportsGroupDialog = () => {
     return;
   }
   const selectedCount = completedItems.filter((item) => selectedIds.has(Number(item.session_id))).length;
-  adminReportsGroupDialogSummary.textContent = selectedCount > 0
-    ? 'Выбрано для выгрузки: ' + selectedCount
-    : 'Выберите завершенные ассессменты для выгрузки.';
-  adminReportsGroupDialogList.innerHTML = completedItems.map((item) => {
-    const checked = selectedIds.has(Number(item.session_id));
-    const groupName = sanitizeDisplayMetaText(item.group_name || '') || 'Не указана';
-    const roleName = sanitizeDisplayRole(item.role_name || '') || 'Роль не указана';
-    const scoreLabel = typeof item.score_percent === 'number' ? item.score_percent + '%' : '—';
-    return (
-      '<label class="admin-prompt-lab-case-option">' +
-        '<input type="checkbox" value="' + Number(item.session_id) + '"' + (checked ? ' checked' : '') + '>' +
+  adminReportsGroupDialogSummary.textContent =
+    selectedCount > 0 ? 'Выбрано для выгрузки: ' + selectedCount : 'Выберите завершенные ассессменты для выгрузки.';
+  adminReportsGroupDialogList.innerHTML = completedItems
+    .map((item) => {
+      const checked = selectedIds.has(Number(item.session_id));
+      const groupName = sanitizeDisplayMetaText(item.group_name || '') || 'Не указана';
+      const roleName = sanitizeDisplayRole(item.role_name || '') || 'Роль не указана';
+      const scoreLabel = typeof item.score_percent === 'number' ? item.score_percent + '%' : '—';
+      return (
+        '<label class="admin-prompt-lab-case-option">' +
+        '<input type="checkbox" value="' +
+        Number(item.session_id) +
+        '"' +
+        (checked ? ' checked' : '') +
+        '>' +
         '<span class="admin-prompt-lab-case-option-copy">' +
-          '<strong>' + escapeHtml(item.full_name || '') + ' · ID ' + escapeHtml(item.user_id) + '</strong>' +
-          '<small>' + escapeHtml(groupName) + ' · ' + escapeHtml(roleName) + ' · ' + escapeHtml(scoreLabel) + ' · ' + escapeHtml(formatAdminReportDate(item)) + '</small>' +
+        '<strong>' +
+        escapeHtml(item.full_name || '') +
+        ' · ID ' +
+        escapeHtml(item.user_id) +
+        '</strong>' +
+        '<small>' +
+        escapeHtml(groupName) +
+        ' · ' +
+        escapeHtml(roleName) +
+        ' · ' +
+        escapeHtml(scoreLabel) +
+        ' · ' +
+        escapeHtml(formatAdminReportDate(item)) +
+        '</small>' +
         '</span>' +
-      '</label>'
-    );
-  }).join('');
+        '</label>'
+      );
+    })
+    .join('');
   if (adminReportsGroupDialogExport) {
     adminReportsGroupDialogExport.disabled = selectedCount <= 0;
   }
@@ -6225,7 +7009,7 @@ const syncAdminReportsSelectionFromDialog = () => {
     return;
   }
   state.adminReportsSelectedSessionIds = Array.from(
-    adminReportsGroupDialogList.querySelectorAll('input[type="checkbox"]:checked')
+    adminReportsGroupDialogList.querySelectorAll('input[type="checkbox"]:checked'),
   )
     .map((node) => Number(node.value || 0))
     .filter((value) => Number.isFinite(value) && value > 0);
@@ -6283,7 +7067,8 @@ const renderAdminReportDetail = () => {
       adminReportDetailMbtiSummary.textContent = 'Данные по отчету пока недоступны.';
     }
     adminReportDetailInsightTitle.textContent = 'AI insight недоступен';
-    adminReportDetailInsightText.textContent = 'После загрузки результатов здесь появится интерпретация профиля пользователя.';
+    adminReportDetailInsightText.textContent =
+      'После загрузки результатов здесь появится интерпретация профиля пользователя.';
     if (adminReportDetailProfilePosition) {
       adminReportDetailProfilePosition.textContent = 'Нет данных';
     }
@@ -6345,17 +7130,22 @@ const renderAdminReportDetail = () => {
   }
 
   const reportDate = detail.report_date
-    ? new Date(detail.report_date).toLocaleDateString('ru-RU', { day: '2-digit', month: 'long', year: 'numeric' })
+    ? new Date(detail.report_date).toLocaleDateString('ru-RU', {
+        day: '2-digit',
+        month: 'long',
+        year: 'numeric',
+      })
     : 'Без даты';
   const scorePercent = typeof detail.score_percent === 'number' ? detail.score_percent : 0;
-  const mbtiAxes = Array.isArray(detail.mbti_axes) && detail.mbti_axes.length
-    ? detail.mbti_axes
-    : [
-        { left: 'Экстраверсия', right: 'Интроверсия', value: 0 },
-        { left: 'Интуиция', right: 'Сенсорика', value: 0 },
-        { left: 'Мышление', right: 'Чувство', value: 0 },
-        { left: 'Суждение', right: 'Восприятие', value: 0 },
-      ];
+  const mbtiAxes =
+    Array.isArray(detail.mbti_axes) && detail.mbti_axes.length
+      ? detail.mbti_axes
+      : [
+          { left: 'Экстраверсия', right: 'Интроверсия', value: 0 },
+          { left: 'Интуиция', right: 'Сенсорика', value: 0 },
+          { left: 'Мышление', right: 'Чувство', value: 0 },
+          { left: 'Суждение', right: 'Восприятие', value: 0 },
+        ];
 
   adminReportDetailDate.textContent = reportDate;
   adminReportDetailScore.textContent = scorePercent + '%';
@@ -6385,12 +7175,13 @@ const renderAdminReportDetail = () => {
   if (adminReportDetailExpertComment) {
     const canEditExpertComment = Boolean(detail.can_edit_expert_comment);
     const hasExpertRecord = Boolean(
-      (detail.expert_comment || '').trim()
-      || (detail.expert_name || '').trim()
-      || (detail.expert_contacts || '').trim()
-      || detail.expert_assessed_at
+      (detail.expert_comment || '').trim() ||
+      (detail.expert_name || '').trim() ||
+      (detail.expert_contacts || '').trim() ||
+      detail.expert_assessed_at,
     );
-    const isEditingExpertComment = canEditExpertComment && (!hasExpertRecord || state.adminReportDetailExpertCommentEditing);
+    const isEditingExpertComment =
+      canEditExpertComment && (!hasExpertRecord || state.adminReportDetailExpertCommentEditing);
     adminReportDetailExpertComment.value = detail.expert_comment || '';
     adminReportDetailExpertComment.disabled = !isEditingExpertComment;
     adminReportDetailExpertComment.placeholder = canEditExpertComment
@@ -6400,78 +7191,86 @@ const renderAdminReportDetail = () => {
   if (adminReportDetailExpertName) {
     const canEditExpertComment = Boolean(detail.can_edit_expert_comment);
     const hasExpertRecord = Boolean(
-      (detail.expert_comment || '').trim()
-      || (detail.expert_name || '').trim()
-      || (detail.expert_contacts || '').trim()
-      || detail.expert_assessed_at
+      (detail.expert_comment || '').trim() ||
+      (detail.expert_name || '').trim() ||
+      (detail.expert_contacts || '').trim() ||
+      detail.expert_assessed_at,
     );
-    const isEditingExpertComment = canEditExpertComment && (!hasExpertRecord || state.adminReportDetailExpertCommentEditing);
+    const isEditingExpertComment =
+      canEditExpertComment && (!hasExpertRecord || state.adminReportDetailExpertCommentEditing);
     adminReportDetailExpertName.value = detail.expert_name || '';
     adminReportDetailExpertName.disabled = !isEditingExpertComment;
   }
   if (adminReportDetailExpertContacts) {
     const canEditExpertComment = Boolean(detail.can_edit_expert_comment);
     const hasExpertRecord = Boolean(
-      (detail.expert_comment || '').trim()
-      || (detail.expert_name || '').trim()
-      || (detail.expert_contacts || '').trim()
-      || detail.expert_assessed_at
+      (detail.expert_comment || '').trim() ||
+      (detail.expert_name || '').trim() ||
+      (detail.expert_contacts || '').trim() ||
+      detail.expert_assessed_at,
     );
-    const isEditingExpertComment = canEditExpertComment && (!hasExpertRecord || state.adminReportDetailExpertCommentEditing);
+    const isEditingExpertComment =
+      canEditExpertComment && (!hasExpertRecord || state.adminReportDetailExpertCommentEditing);
     adminReportDetailExpertContacts.value = detail.expert_contacts || '';
     adminReportDetailExpertContacts.disabled = !isEditingExpertComment;
   }
   if (adminReportDetailExpertAssessedAt) {
     const canEditExpertComment = Boolean(detail.can_edit_expert_comment);
     const hasExpertRecord = Boolean(
-      (detail.expert_comment || '').trim()
-      || (detail.expert_name || '').trim()
-      || (detail.expert_contacts || '').trim()
-      || detail.expert_assessed_at
+      (detail.expert_comment || '').trim() ||
+      (detail.expert_name || '').trim() ||
+      (detail.expert_contacts || '').trim() ||
+      detail.expert_assessed_at,
     );
-    const isEditingExpertComment = canEditExpertComment && (!hasExpertRecord || state.adminReportDetailExpertCommentEditing);
+    const isEditingExpertComment =
+      canEditExpertComment && (!hasExpertRecord || state.adminReportDetailExpertCommentEditing);
     adminReportDetailExpertAssessedAt.value = formatDateInputValue(detail.expert_assessed_at);
     adminReportDetailExpertAssessedAt.disabled = !isEditingExpertComment;
   }
   if (adminReportDetailExpertCommentEdit) {
     const canEditExpertComment = Boolean(detail.can_edit_expert_comment);
     const hasExpertRecord = Boolean(
-      (detail.expert_comment || '').trim()
-      || (detail.expert_name || '').trim()
-      || (detail.expert_contacts || '').trim()
-      || detail.expert_assessed_at
+      (detail.expert_comment || '').trim() ||
+      (detail.expert_name || '').trim() ||
+      (detail.expert_contacts || '').trim() ||
+      detail.expert_assessed_at,
     );
-    const isEditingExpertComment = canEditExpertComment && (!hasExpertRecord || state.adminReportDetailExpertCommentEditing);
+    const isEditingExpertComment =
+      canEditExpertComment && (!hasExpertRecord || state.adminReportDetailExpertCommentEditing);
     adminReportDetailExpertCommentEdit.hidden = !canEditExpertComment || !hasExpertRecord || isEditingExpertComment;
     adminReportDetailExpertCommentEdit.disabled = !canEditExpertComment || !hasExpertRecord;
   }
   if (adminReportDetailExpertCommentCancel) {
     const canEditExpertComment = Boolean(detail.can_edit_expert_comment);
     const hasExpertRecord = Boolean(
-      (detail.expert_comment || '').trim()
-      || (detail.expert_name || '').trim()
-      || (detail.expert_contacts || '').trim()
-      || detail.expert_assessed_at
+      (detail.expert_comment || '').trim() ||
+      (detail.expert_name || '').trim() ||
+      (detail.expert_contacts || '').trim() ||
+      detail.expert_assessed_at,
     );
-    const isEditingExpertComment = canEditExpertComment && (!hasExpertRecord || state.adminReportDetailExpertCommentEditing);
+    const isEditingExpertComment =
+      canEditExpertComment && (!hasExpertRecord || state.adminReportDetailExpertCommentEditing);
     adminReportDetailExpertCommentCancel.hidden = !isEditingExpertComment;
     adminReportDetailExpertCommentCancel.disabled = !isEditingExpertComment || !hasExpertRecord;
   }
   if (adminReportDetailExpertCommentSave) {
     const canEditExpertComment = Boolean(detail.can_edit_expert_comment);
     const hasExpertRecord = Boolean(
-      (detail.expert_comment || '').trim()
-      || (detail.expert_name || '').trim()
-      || (detail.expert_contacts || '').trim()
-      || detail.expert_assessed_at
+      (detail.expert_comment || '').trim() ||
+      (detail.expert_name || '').trim() ||
+      (detail.expert_contacts || '').trim() ||
+      detail.expert_assessed_at,
     );
-    const isEditingExpertComment = canEditExpertComment && (!hasExpertRecord || state.adminReportDetailExpertCommentEditing);
+    const isEditingExpertComment =
+      canEditExpertComment && (!hasExpertRecord || state.adminReportDetailExpertCommentEditing);
     adminReportDetailExpertCommentSave.hidden = canEditExpertComment && hasExpertRecord && !isEditingExpertComment;
     adminReportDetailExpertCommentSave.disabled = !isEditingExpertComment;
     adminReportDetailExpertCommentSave.textContent = 'Сохранить комментарий';
   }
   if (adminReportDetailExpertCommentStatus) {
-    adminReportDetailExpertCommentStatus.textContent = state.adminReportDetailExpertCommentDirty ? 'Изменения не сохранены.' : '';
+    adminReportDetailExpertCommentStatus.textContent = state.adminReportDetailExpertCommentDirty
+      ? 'Изменения не сохранены.'
+      : '';
   }
 
   const profileSummary = detail.profile_summary || {};
@@ -6498,8 +7297,14 @@ const renderAdminReportDetail = () => {
       item.className = 'admin-detail-mbti-axis';
       const value = Math.max(0, Math.min(100, Number(axis.value) || 0));
       item.innerHTML =
-        '<div class="admin-detail-mbti-axis-head"><span>' + (axis.left || 'Нет данных') + '</span><span>' + (axis.right || 'Нет данных') + '</span></div>' +
-        '<div class="admin-detail-mbti-axis-track"><span style="width:' + value + '%"></span></div>';
+        '<div class="admin-detail-mbti-axis-head"><span>' +
+        (axis.left || 'Нет данных') +
+        '</span><span>' +
+        (axis.right || 'Нет данных') +
+        '</span></div>' +
+        '<div class="admin-detail-mbti-axis-track"><span style="width:' +
+        value +
+        '%"></span></div>';
       adminReportDetailMbtiAxes.appendChild(item);
     });
   }
@@ -6512,14 +7317,20 @@ const renderAdminReportDetail = () => {
   });
 
   adminReportDetailStrengths.innerHTML = '';
-  (detail.strengths && detail.strengths.length ? detail.strengths : ['Сильные стороны будут определены после анализа результатов.']).forEach((text) => {
+  (detail.strengths && detail.strengths.length
+    ? detail.strengths
+    : ['Сильные стороны будут определены после анализа результатов.']
+  ).forEach((text) => {
     const item = document.createElement('li');
     item.textContent = text;
     adminReportDetailStrengths.appendChild(item);
   });
 
   adminReportDetailGrowth.innerHTML = '';
-  (detail.growth_areas && detail.growth_areas.length ? detail.growth_areas : ['Зоны роста будут определены после анализа результатов.']).forEach((text) => {
+  (detail.growth_areas && detail.growth_areas.length
+    ? detail.growth_areas
+    : ['Зоны роста будут определены после анализа результатов.']
+  ).forEach((text) => {
     const item = document.createElement('li');
     item.textContent = text;
     adminReportDetailGrowth.appendChild(item);
@@ -6528,7 +7339,7 @@ const renderAdminReportDetail = () => {
   adminReportDetailQuotes.innerHTML = '';
   (detail.quotes && detail.quotes.length ? detail.quotes : []).forEach((text) => {
     const card = document.createElement('article');
-    card.className = 'admin-detail-quote-card';
+    card.className = 'card card--inset admin-detail-quote-card';
     card.innerHTML = '<p>' + escapeHtml(text) + '</p>';
     adminReportDetailQuotes.appendChild(card);
   });
@@ -6537,17 +7348,24 @@ const renderAdminReportDetail = () => {
     const caseItems = Array.isArray(detail.case_items) ? detail.case_items : [];
     adminReportDetailCases.innerHTML = '';
     if (!caseItems.length) {
-      adminReportDetailCases.innerHTML = '<p class="report-empty-state">Для этой сессии пока не сохранены кейсы или история диалога.</p>';
+      adminReportDetailCases.innerHTML =
+        '<p class="report-empty-state">Для этой сессии пока не сохранены кейсы или история диалога.</p>';
     } else {
       const renderCaseTextBlock = (label, text) => {
         const normalized = String(text || '').trim();
         if (!normalized) {
           return '';
         }
-        return '<div class="admin-detail-case-text-block">' +
-          '<strong>' + escapeHtml(label) + '</strong>' +
-          '<p>' + escapeHtml(normalized) + '</p>' +
-        '</div>';
+        return (
+          '<div class="admin-detail-case-text-block">' +
+          '<strong>' +
+          escapeHtml(label) +
+          '</strong>' +
+          '<p>' +
+          escapeHtml(normalized) +
+          '</p>' +
+          '</div>'
+        );
       };
 
       caseItems.forEach((item) => {
@@ -6559,99 +7377,167 @@ const renderAdminReportDetail = () => {
           completed: 'Завершен',
         };
         const startedAt = item.started_at
-          ? new Date(item.started_at).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+          ? new Date(item.started_at).toLocaleString('ru-RU', {
+              day: '2-digit',
+              month: '2-digit',
+              year: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit',
+            })
           : 'Нет данных';
         const finishedAt = item.finished_at
-          ? new Date(item.finished_at).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+          ? new Date(item.finished_at).toLocaleString('ru-RU', {
+              day: '2-digit',
+              month: '2-digit',
+              year: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit',
+            })
           : 'Нет данных';
         const textBlocks = [
           renderCaseTextBlock('Контекст', item.personalized_context),
           renderCaseTextBlock('Задача', item.personalized_task),
-        ].filter(Boolean).join('');
+        ]
+          .filter(Boolean)
+          .join('');
         const promptBlock = item.prompt_text
           ? '<details class="admin-detail-case-prompt-details">' +
-              '<summary>Показать полный промпт</summary>' +
-              '<pre>' + escapeHtml(item.prompt_text) + '</pre>' +
+            '<summary>Показать полный промпт</summary>' +
+            '<pre>' +
+            escapeHtml(item.prompt_text) +
+            '</pre>' +
             '</details>'
           : '';
         const details = document.createElement('details');
-        details.className = 'admin-detail-case-item';
+        details.className = 'card admin-detail-case-item';
         details.innerHTML =
           '<summary class="admin-detail-case-summary">' +
-            '<div class="admin-detail-case-summary-main">' +
-              '<span class="admin-detail-case-order">Кейс ' + escapeHtml(item.case_number) + '</span>' +
-              '<strong>' + escapeHtml(item.case_title || 'Кейс без названия') + '</strong>' +
-              '<span class="admin-detail-case-code">' + escapeHtml(item.case_id_code || 'Без ID') + '</span>' +
-            '</div>' +
-            '<div class="admin-detail-case-summary-meta">' +
-              '<span>' + escapeHtml(statusMap[item.status] || item.status || 'Неизвестно') + '</span>' +
-              '<span>' + escapeHtml((item.dialogue || []).length) + ' сообщений</span>' +
-              '<span>' + escapeHtml((item.skill_results || []).length) + ' навыков</span>' +
-            '</div>' +
+          '<div class="admin-detail-case-summary-main">' +
+          '<span class="admin-detail-case-order">Кейс ' +
+          escapeHtml(item.case_number) +
+          '</span>' +
+          '<strong>' +
+          escapeHtml(item.case_title || 'Кейс без названия') +
+          '</strong>' +
+          '<span class="admin-detail-case-code">' +
+          escapeHtml(item.case_id_code || 'Без ID') +
+          '</span>' +
+          '</div>' +
+          '<div class="admin-detail-case-summary-meta">' +
+          '<span>' +
+          escapeHtml(statusMap[item.status] || item.status || 'Неизвестно') +
+          '</span>' +
+          '<span>' +
+          escapeHtml((item.dialogue || []).length) +
+          ' сообщений</span>' +
+          '<span>' +
+          escapeHtml((item.skill_results || []).length) +
+          ' навыков</span>' +
+          '</div>' +
           '</summary>' +
           '<div class="admin-detail-case-body">' +
-            '<div class="admin-detail-case-columns">' +
-              '<section class="admin-detail-case-panel">' +
-                '<details class="admin-detail-case-section" open>' +
-                  '<summary class="admin-detail-case-section-summary">Текст кейса</summary>' +
-                  '<div class="admin-detail-case-section-body">' +
-                    '<div class="admin-detail-case-meta"><span>Начало: ' + escapeHtml(startedAt) + '</span><span>Завершение: ' + escapeHtml(finishedAt) + '</span></div>' +
-                    '<div class="admin-detail-case-text-stack">' +
-                      (textBlocks || '<p class="report-empty-state">Текст кейса в этой сессии не сохранен.</p>') +
+          '<div class="admin-detail-case-columns">' +
+          '<section class="card admin-detail-case-panel">' +
+          '<details class="admin-detail-case-section" open>' +
+          '<summary class="admin-detail-case-section-summary">Текст кейса</summary>' +
+          '<div class="admin-detail-case-section-body">' +
+          '<div class="admin-detail-case-meta"><span>Начало: ' +
+          escapeHtml(startedAt) +
+          '</span><span>Завершение: ' +
+          escapeHtml(finishedAt) +
+          '</span></div>' +
+          '<div class="admin-detail-case-text-stack">' +
+          (textBlocks || '<p class="report-empty-state">Текст кейса в этой сессии не сохранен.</p>') +
+          '</div>' +
+          promptBlock +
+          '</div>' +
+          '</details>' +
+          '</section>' +
+          '<section class="card admin-detail-case-panel">' +
+          '<details class="admin-detail-case-section" open>' +
+          '<summary class="admin-detail-case-section-summary">Диалог по кейсу</summary>' +
+          '<div class="admin-detail-case-section-body">' +
+          '<div class="admin-detail-case-dialogue">' +
+          '<div class="admin-detail-case-dialogue-toolbar">' +
+          '<span class="admin-detail-case-dialogue-caption">Диалог пользователя с агентом</span>' +
+          '<button type="button" class="ghost-button compact-ghost admin-detail-case-dialogue-pdf-button" data-session-id="' +
+          escapeHtml(detail.session_id) +
+          '" data-session-case-id="' +
+          escapeHtml(item.session_case_id) +
+          '">Скачать диалог PDF</button>' +
+          '</div>' +
+          ((item.dialogue || []).length
+            ? item.dialogue
+                .map(
+                  (message) =>
+                    '<article class="admin-detail-case-message ' +
+                    (message.role === 'user' ? 'is-user' : 'is-assistant') +
+                    '">' +
+                    '<span class="admin-detail-case-message-role">' +
+                    escapeHtml(message.role === 'user' ? 'Пользователь' : 'Ассистент') +
+                    '</span>' +
+                    '<p>' +
+                    escapeHtml(message.message_text || '') +
+                    '</p>' +
+                    '</article>',
+                )
+                .join('')
+            : '<p class="report-empty-state">Диалог по кейсу не найден.</p>') +
+          '</div>' +
+          '</div>' +
+          '</details>' +
+          '</section>' +
+          '</div>' +
+          '<section class="card admin-detail-case-panel">' +
+          '<h4>Результат по кейсу</h4>' +
+          '<div class="admin-detail-case-skills">' +
+          ((item.skill_results || []).length
+            ? item.skill_results
+                .map(
+                  (skill) =>
+                    '<article class="card admin-detail-case-skill-card">' +
+                    '<div class="admin-detail-case-skill-head">' +
+                    '<strong>' +
+                    escapeHtml(skill.skill_name || 'Навык') +
+                    '</strong>' +
+                    '<span>' +
+                    escapeHtml(skill.assessed_level_name || skill.assessed_level_code || 'Без уровня') +
+                    '</span>' +
                     '</div>' +
-                    promptBlock +
-                  '</div>' +
-                '</details>' +
-              '</section>' +
-              '<section class="admin-detail-case-panel">' +
-                '<details class="admin-detail-case-section" open>' +
-                '<summary class="admin-detail-case-section-summary">Диалог по кейсу</summary>' +
-                '<div class="admin-detail-case-section-body">' +
-                  '<div class="admin-detail-case-dialogue">' +
-                    '<div class="admin-detail-case-dialogue-toolbar">' +
-                      '<span class="admin-detail-case-dialogue-caption">Диалог пользователя с агентом</span>' +
-                      '<button type="button" class="ghost-button compact-ghost admin-detail-case-dialogue-pdf-button" data-session-id="' + escapeHtml(detail.session_id) + '" data-session-case-id="' + escapeHtml(item.session_case_id) + '">Скачать диалог PDF</button>' +
+                    '<div class="admin-detail-case-skill-meta">' +
+                    '<span>' +
+                    escapeHtml(skill.competency_name || 'Без категории') +
+                    '</span>' +
+                    '<span>Artifact: ' +
+                    escapeHtml(
+                      typeof skill.artifact_compliance_percent === 'number'
+                        ? skill.artifact_compliance_percent + '%'
+                        : '—',
+                    ) +
+                    '</span>' +
+                    '<span>Blocks: ' +
+                    escapeHtml(
+                      typeof skill.block_coverage_percent === 'number' ? skill.block_coverage_percent + '%' : '—',
+                    ) +
+                    '</span>' +
                     '</div>' +
-                    ((item.dialogue || []).length
-                      ? item.dialogue.map((message) =>
-                          '<article class="admin-detail-case-message ' + (message.role === 'user' ? 'is-user' : 'is-assistant') + '">' +
-                              '<span class="admin-detail-case-message-role">' + escapeHtml(message.role === 'user' ? 'Пользователь' : 'Ассистент') + '</span>' +
-                              '<p>' + escapeHtml(message.message_text || '') + '</p>' +
-                            '</article>'
-                          ).join('')
-                        : '<p class="report-empty-state">Диалог по кейсу не найден.</p>') +
+                    '<div class="admin-detail-case-tags">' +
+                    ((skill.red_flags || [])
+                      .map((flag) => '<span class="admin-detail-case-tag danger">' + escapeHtml(flag) + '</span>')
+                      .join('') || '<span class="admin-detail-case-tag muted">Без red flags</span>') +
+                    (skill.found_evidence || [])
+                      .map((itemText) => '<span class="admin-detail-case-tag">' + escapeHtml(itemText) + '</span>')
+                      .join('') +
                     '</div>' +
-                  '</div>' +
-                '</details>' +
-              '</section>' +
-            '</div>' +
-            '<section class="admin-detail-case-panel">' +
-              '<h4>Результат по кейсу</h4>' +
-              '<div class="admin-detail-case-skills">' +
-                ((item.skill_results || []).length
-                  ? item.skill_results.map((skill) =>
-                      '<article class="admin-detail-case-skill-card">' +
-                        '<div class="admin-detail-case-skill-head">' +
-                          '<strong>' + escapeHtml(skill.skill_name || 'Навык') + '</strong>' +
-                          '<span>' + escapeHtml(skill.assessed_level_name || skill.assessed_level_code || 'Без уровня') + '</span>' +
-                        '</div>' +
-                        '<div class="admin-detail-case-skill-meta">' +
-                          '<span>' + escapeHtml(skill.competency_name || 'Без категории') + '</span>' +
-                          '<span>Artifact: ' + escapeHtml(typeof skill.artifact_compliance_percent === 'number' ? skill.artifact_compliance_percent + '%' : '—') + '</span>' +
-                          '<span>Blocks: ' + escapeHtml(typeof skill.block_coverage_percent === 'number' ? skill.block_coverage_percent + '%' : '—') + '</span>' +
-                        '</div>' +
-                        '<div class="admin-detail-case-tags">' +
-                          ((skill.red_flags || []).map((flag) => '<span class="admin-detail-case-tag danger">' + escapeHtml(flag) + '</span>').join('') || '<span class="admin-detail-case-tag muted">Без red flags</span>') +
-                          ((skill.found_evidence || []).map((itemText) => '<span class="admin-detail-case-tag">' + escapeHtml(itemText) + '</span>').join('')) +
-                        '</div>' +
-                        (skill.evidence_excerpt
-                          ? '<p class="admin-detail-case-evidence">' + escapeHtml(skill.evidence_excerpt) + '</p>'
-                          : '') +
-                      '</article>'
-                    ).join('')
-                  : '<p class="report-empty-state">Локальная аналитика по кейсу не найдена.</p>') +
-              '</div>' +
-            '</section>' +
+                    (skill.evidence_excerpt
+                      ? '<p class="admin-detail-case-evidence">' + escapeHtml(skill.evidence_excerpt) + '</p>'
+                      : '') +
+                    '</article>',
+                )
+                .join('')
+            : '<p class="report-empty-state">Локальная аналитика по кейсу не найдена.</p>') +
+          '</div>' +
+          '</section>' +
           '</div>';
         const caseDialoguePdfButton = details.querySelector('.admin-detail-case-dialogue-pdf-button');
         if (caseDialoguePdfButton) {
@@ -6731,12 +7617,13 @@ const saveAdminReportExpertComment = async () => {
       const detailState = state.adminReportDetail;
       const canEditExpertComment = Boolean(detailState?.can_edit_expert_comment);
       const hasExpertRecord = Boolean(
-        (detailState?.expert_comment || '').trim()
-        || (detailState?.expert_name || '').trim()
-        || (detailState?.expert_contacts || '').trim()
-        || detailState?.expert_assessed_at
+        (detailState?.expert_comment || '').trim() ||
+        (detailState?.expert_name || '').trim() ||
+        (detailState?.expert_contacts || '').trim() ||
+        detailState?.expert_assessed_at,
       );
-      const isEditingExpertComment = canEditExpertComment && (!hasExpertRecord || state.adminReportDetailExpertCommentEditing);
+      const isEditingExpertComment =
+        canEditExpertComment && (!hasExpertRecord || state.adminReportDetailExpertCommentEditing);
       adminReportDetailExpertCommentSave.hidden = canEditExpertComment && hasExpertRecord && !isEditingExpertComment;
       adminReportDetailExpertCommentSave.disabled = !isEditingExpertComment;
       adminReportDetailExpertCommentSave.textContent = previousText || 'Сохранить комментарий';
@@ -6885,7 +7772,10 @@ const openAdminReportDetail = async (sessionId) => {
     renderAdminReportDetail();
     if (state.adminReportDetail?.user_id && state.adminReportDetail?.session_id) {
       try {
-        await loadAdminReportDetailSkillAssessments(state.adminReportDetail.user_id, state.adminReportDetail.session_id);
+        await loadAdminReportDetailSkillAssessments(
+          state.adminReportDetail.user_id,
+          state.adminReportDetail.session_id,
+        );
       } catch (skillError) {
         console.error('Failed to load admin skill assessments', skillError);
         state.adminReportDetailSkillAssessments = [];
@@ -6931,9 +7821,10 @@ const renderDashboard = () => {
 
   const user = state.pendingUser;
   const position = sanitizeDisplayRole(user && user.job_description ? user.job_description : '');
-  const progressText = dashboard.active_assessment.progress_percent >= 100
-    ? 'Завершено ' + dashboard.active_assessment.progress_percent + '%'
-    : 'Завершено ' + dashboard.active_assessment.progress_percent + '%';
+  const progressText =
+    dashboard.active_assessment.progress_percent >= 100
+      ? 'Завершено ' + dashboard.active_assessment.progress_percent + '%'
+      : 'Завершено ' + dashboard.active_assessment.progress_percent + '%';
 
   dashboardGreeting.textContent = 'Добро пожаловать, ' + (user?.full_name || dashboard.greeting_name);
   dashboardUserName.textContent = user
@@ -6956,46 +7847,74 @@ const renderDashboard = () => {
   availableAssessments.innerHTML = '';
   dashboard.available_assessments.forEach((item, index) => {
     const card = document.createElement('article');
-    card.className = 'assessment-mini-card';
-    const actionMarkup = index === 0
-      ? '<button class="mini-card-action-button" type="button">' +
+    card.className = 'card card--lg assessment-mini-card';
+    const actionMarkup =
+      index === 0
+        ? '<button id="dashboard-mini-start" class="mini-card-action-button" type="button">' +
           (canReusePreparedAssessment() ? 'К кейсам' : 'Начать') +
-        '</button>'
-      : '<span>' + escapeHtml(item.status) + '</span>';
+          '</button>' +
+          '<div id="dashboard-mini-preparing" class="preparing-hero preparing-hero--mini hidden" aria-live="polite">' +
+          '<div id="dashboard-mini-ring" class="preparing-hero-row" style="--progress: 0%;">' +
+          '<span class="preparing-hero-pulse" aria-hidden="true"></span>' +
+          '<span id="dashboard-mini-percent" class="preparing-hero-value">0%</span>' +
+          '</div>' +
+          '</div>'
+        : '<span>' + escapeHtml(item.status) + '</span>';
     card.innerHTML =
       '<div class="mini-card-icon">4K</div>' +
-      '<h3>' + escapeHtml(item.title) + '</h3>' +
-      '<p>' + escapeHtml(item.description) + '</p>' +
-      '<div class="mini-card-meta"><span>' + escapeHtml(item.duration_minutes) + ' минут</span>' + actionMarkup + '</div>';
+      '<h3>' +
+      escapeHtml(item.title) +
+      '</h3>' +
+      '<p>' +
+      escapeHtml(item.description) +
+      '</p>' +
+      '<div class="mini-card-meta"><span>' +
+      escapeHtml(item.duration_minutes) +
+      ' минут</span>' +
+      actionMarkup +
+      '</div>';
     if (index === 0) {
       const actionButton = card.querySelector('.mini-card-action-button');
       actionButton.addEventListener('click', handleAssessmentEntryClick);
     }
     availableAssessments.appendChild(card);
   });
+  renderAssessmentPreparationState();
 
   staticAssessments.forEach((item) => {
     const card = document.createElement('article');
-    card.className = 'assessment-mini-card muted-card ' + item.tone;
+    card.className = 'card is-placeholder assessment-mini-card muted-card ' + item.tone;
     card.innerHTML =
-      '<div class="mini-card-icon muted-icon">' + (item.title === 'MBTI Profile' ? '◌' : '◍') + '</div>' +
-      '<h3>' + item.title + '</h3>' +
-      '<p>' + item.description + '</p>' +
-      '<div class="mini-card-meta"><span>' + item.duration + '</span><span>Скоро</span></div>';
+      '<div class="mini-card-icon muted-icon">' +
+      (item.title === 'MBTI Profile' ? '◌' : '◍') +
+      '</div>' +
+      '<h3>' +
+      item.title +
+      '</h3>' +
+      '<p>' +
+      item.description +
+      '</p>' +
+      '<div class="mini-card-meta"><span>' +
+      item.duration +
+      '</span><span>Скоро</span></div>';
     availableAssessments.appendChild(card);
   });
 
   reportsList.innerHTML = '';
   const reportsCount = Number.isFinite(Number(dashboard.reports_total))
     ? Number(dashboard.reports_total)
-    : (Array.isArray(dashboard.reports) ? dashboard.reports.length : 0);
+    : Array.isArray(dashboard.reports)
+      ? dashboard.reports.length
+      : 0;
   const reportsSummary = document.createElement('button');
   reportsSummary.type = 'button';
   reportsSummary.className = 'reports-summary-button';
   reportsSummary.innerHTML =
     '<div class="reports-summary-copy">' +
-      '<span class="reports-summary-label">Всего отчетов по оценке</span>' +
-      '<strong class="reports-summary-count">' + reportsCount + '</strong>' +
+    '<span class="reports-summary-label">Всего отчетов по оценке</span>' +
+    '<strong class="reports-summary-count">' +
+    reportsCount +
+    '</strong>' +
     '</div>' +
     '<span class="reports-summary-action">Перейти к отчетам</span>';
   reportsSummary.addEventListener('click', () => {
@@ -7026,18 +7945,16 @@ const hasAssessmentHistory = () => {
   const dashboardProgress = Number(state.dashboard?.active_assessment?.progress_percent || 0);
   const dashboardCompletedCases = Number(state.dashboard?.active_assessment?.completed_cases || 0);
   const hasReports = Array.isArray(state.dashboard?.reports) && state.dashboard.reports.length > 0;
-  const hasProfileSessions =
-    Array.isArray(state.profileSummary?.sessions) && state.profileSummary.sessions.length > 0;
+  const hasProfileSessions = Array.isArray(state.profileSummary?.sessions) && state.profileSummary.sessions.length > 0;
   const hasCompletedAssessmentFlag = safeStorage.getItem(STORAGE_KEYS.assessmentCompletedOnce) === '1';
 
   return dashboardProgress > 0 || dashboardCompletedCases > 0 || hasReports || hasProfileSessions;
 };
 
-const hasCompletedAssessmentBefore = () => (
-  hasAssessmentHistory()
-  || Boolean(state.assessmentSessionId)
-  || safeStorage.getItem(STORAGE_KEYS.assessmentCompletedOnce) === '1'
-);
+const hasCompletedAssessmentBefore = () =>
+  hasAssessmentHistory() ||
+  Boolean(state.assessmentSessionId) ||
+  safeStorage.getItem(STORAGE_KEYS.assessmentCompletedOnce) === '1';
 
 const renderAiWelcomeState = () => {
   const isContinueMode = hasIncompleteAssessment();
@@ -7050,25 +7967,25 @@ const renderAiWelcomeState = () => {
     ? 'Продолжить ассессмент'
     : prepared
       ? 'Перейти к кейсам'
-    : shouldRepeat
-      ? 'Пройти ассессмент снова'
-      : 'Начать первый ассессмент';
+      : shouldRepeat
+        ? 'Пройти ассессмент снова'
+        : 'Начать первый ассессмент';
   libraryStartButton.textContent = isContinueMode
     ? 'Продолжить'
     : prepared
       ? 'К кейсам'
-    : shouldRepeat
-      ? 'Снова'
-      : 'Начать';
+      : shouldRepeat
+        ? 'Снова'
+        : 'Начать';
 
   if (aiHeroDescription) {
     aiHeroDescription.textContent = isContinueMode
       ? 'Продолжите текущий ассессмент, чтобы завершить оценку компетенций и перейти к итоговому профилю.'
       : prepared
         ? 'Набор кейсов уже подготовлен. Можно сразу переходить к прохождению.'
-      : shouldRepeat
-        ? 'Пройдите ассессмент снова, чтобы получить новый набор кейсов и сравнить результаты с предыдущими попытками.'
-        : 'Пройдите первый ассессмент, чтобы получить ваш профиль компетенций и персонализированные рекомендации от искусственного интеллекта.';
+        : shouldRepeat
+          ? 'Пройдите ассессмент снова, чтобы получить новый набор кейсов и сравнить результаты с предыдущими попытками.'
+          : 'Пройдите первый ассессмент, чтобы получить ваш профиль компетенций и персонализированные рекомендации от искусственного интеллекта.';
   }
   renderAssessmentPreparationState();
 };
@@ -7177,36 +8094,121 @@ const buildArtifactHint = (skill) => {
   return parts.join(' • ');
 };
 
-const normalizeSkillDescriptionKey = (value) => String(value || '').replace(/\s+/g, ' ').trim().toLowerCase();
+const normalizeSkillDescriptionKey = (value) =>
+  String(value || '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
 
 const reportSkillDescriptions = new Map([
-  ['k1.1', 'Умении четко, точно и понятно выражать мысли, эмоции и факты в устной, письменной и невербальной форме. Это предполагает создание сообщений, соответствующих восприятию и уровню знаний получателя, а также использование различных средств (жесты, мимика, интонация) для передачи смысла. Ясная коммуникация обеспечивает отсутствие двусмысленностей и недоразумений, что способствует эффективному достижению поставленных целей'],
-  ['ясность коммуникации и сообщений', 'Умении четко, точно и понятно выражать мысли, эмоции и факты в устной, письменной и невербальной форме. Это предполагает создание сообщений, соответствующих восприятию и уровню знаний получателя, а также использование различных средств (жесты, мимика, интонация) для передачи смысла. Ясная коммуникация обеспечивает отсутствие двусмысленностей и недоразумений, что способствует эффективному достижению поставленных целей'],
-  ['k1.2', 'Способность слушать и понимать не только вербальное содержание сообщения, но и эмоциональный контекст и скрытые намерения собеседника. Эффективное активное слушание и эмпатия способствуют формированию доверия и взаимопонимания, позволяя точнее реагировать на получаемую информацию.'],
-  ['активное слушание и эмпатия', 'Способность слушать и понимать не только вербальное содержание сообщения, но и эмоциональный контекст и скрытые намерения собеседника. Эффективное активное слушание и эмпатия способствуют формированию доверия и взаимопонимания, позволяя точнее реагировать на получаемую информацию.'],
-  ['k1.3', 'Способность эффективно использовать вопросы как инструмент познания, анализа ситуации и улучшения взаимопонимания. Это включает выбор подходящих формулировок, определение момента для задавания вопросов и использование ответов для углубления знаний и достижения целей.'],
-  ['вопрошание (умение задавать вопросы)', 'Способность эффективно использовать вопросы как инструмент познания, анализа ситуации и улучшения взаимопонимания. Это включает выбор подходящих формулировок, определение момента для задавания вопросов и использование ответов для углубления знаний и достижения целей.'],
-  ['k2.1', 'Умение создавать атмосферу, в которой участники команды чувствуют себя принятыми, услышанными и в безопасности. Основано на открытости, эмпатии, честности и уважении. Команда может открыто делиться мнениями и ошибками без страха осуждения.'],
-  ['формирование доверия и безопасной среды', 'Умение создавать атмосферу, в которой участники команды чувствуют себя принятыми, услышанными и в безопасности. Основано на открытости, эмпатии, честности и уважении. Команда может открыто делиться мнениями и ошибками без страха осуждения.'],
-  ['k2.2', 'Способность структурировать совместную деятельность команды: формулировать цели, планировать шаги, распределять роли и отслеживать прогресс. Обеспечивает прозрачность, предсказуемость и слаженность в работе.'],
-  ['организация и взаимодействие в команде', 'Способность структурировать совместную деятельность команды: формулировать цели, планировать шаги, распределять роли и отслеживать прогресс. Обеспечивает прозрачность, предсказуемость и слаженность в работе.'],
-  ['k2.3', 'Инициирование развития команды и её участников, даже без формальной власти. Включает наставничество, развитие инициативы и поддержку обучения. Способность вдохновлять команду, мотивировать членов команды, направлять их на достижение общих целей и обеспечивать их вовлеченность в командный процесс.'],
-  ['лидерство и поддержка роста команды', 'Инициирование развития команды и её участников, даже без формальной власти. Включает наставничество, развитие инициативы и поддержку обучения. Способность вдохновлять команду, мотивировать членов команды, направлять их на достижение общих целей и обеспечивать их вовлеченность в командный процесс.'],
-  ['k3.1', 'Навык воспринимать новые и непривычные идеи, рассматривать альтернативные подходы, допускать неоднозначность, быстро переключаться между различными точками зрения, уметь пересмотреть ранее полученный опыт.'],
-  ['гибкость мышления', 'Навык воспринимать новые и непривычные идеи, рассматривать альтернативные подходы, допускать неоднозначность, быстро переключаться между различными точками зрения, уметь пересмотреть ранее полученный опыт.'],
-  ['k3.2', 'Способность создавать новые, нестандартные идеи и решения, а также развивать «сырые» замыслы до работоспособного уровня, чтобы решить существующие проблемы или улучшить текущие процессы.'],
-  ['создание и видение идей', 'Способность создавать новые, нестандартные идеи и решения, а также развивать «сырые» замыслы до работоспособного уровня, чтобы решить существующие проблемы или улучшить текущие процессы.'],
-  ['k3.3', 'Способность творчески оценивать и дорабатывать идеи с учётом целей, ограничений и обратной связи, превращая их в реализуемые и ценные решения.'],
-  ['оценка и реализация идей', 'Способность творчески оценивать и дорабатывать идеи с учётом целей, ограничений и обратной связи, превращая их в реализуемые и ценные решения.'],
-  ['k4.1', 'Способность выявлять проблемы, анализировать их корни и искать оптимальные решения. Это включает в себя умение анализировать ситуации и выбирать такие методы, которые приведут к наиболее эффективному решению.'],
-  ['решение проблем', 'Способность выявлять проблемы, анализировать их корни и искать оптимальные решения. Это включает в себя умение анализировать ситуации и выбирать такие методы, которые приведут к наиболее эффективному решению.'],
-  ['k4.2', 'Способность собирать и систематизировать данные из различных источников, отделяя существенную информацию от незначимой. Важно уметь проводить анализ, выявлять паттерны и связи между различными данными для формирования более глубокой картины ситуации.'],
-  ['анализ информации', 'Способность собирать и систематизировать данные из различных источников, отделяя существенную информацию от незначимой. Важно уметь проводить анализ, выявлять паттерны и связи между различными данными для формирования более глубокой картины ситуации.'],
-  ['k4.3', 'Способность выстраивать логические цепочки для формирования обоснованных выводов. Это включает в себя умение работать с доказательствами и аргументами, а также умение структурировать информацию так, чтобы она вела к правильным выводам.'],
-  ['логическое мышление', 'Способность выстраивать логические цепочки для формирования обоснованных выводов. Это включает в себя умение работать с доказательствами и аргументами, а также умение структурировать информацию так, чтобы она вела к правильным выводам.'],
-  ['k4.4', 'Способность принимать решения на основе ограниченной или неполной информации, используя анализ рисков и интуицию. Это включает в себя способность действовать в условиях неопределенности и неполных данных, при этом минимизируя возможные негативные последствия.'],
-  ['принятие решений', 'Способность принимать решения на основе ограниченной или неполной информации, используя анализ рисков и интуицию. Это включает в себя способность действовать в условиях неопределенности и неполных данных, при этом минимизируя возможные негативные последствия.'],
-  ['взаимодействие в команде', 'Способность эффективно работать в группе и команде: соблюдение договорённостей, синхронизация действий, взаимопомощь, готовность делегировать и принимать обратную связь. Обеспечивает согласованность действий и взаимную ответственность.'],
+  [
+    'k1.1',
+    'Умении четко, точно и понятно выражать мысли, эмоции и факты в устной, письменной и невербальной форме. Это предполагает создание сообщений, соответствующих восприятию и уровню знаний получателя, а также использование различных средств (жесты, мимика, интонация) для передачи смысла. Ясная коммуникация обеспечивает отсутствие двусмысленностей и недоразумений, что способствует эффективному достижению поставленных целей',
+  ],
+  [
+    'ясность коммуникации и сообщений',
+    'Умении четко, точно и понятно выражать мысли, эмоции и факты в устной, письменной и невербальной форме. Это предполагает создание сообщений, соответствующих восприятию и уровню знаний получателя, а также использование различных средств (жесты, мимика, интонация) для передачи смысла. Ясная коммуникация обеспечивает отсутствие двусмысленностей и недоразумений, что способствует эффективному достижению поставленных целей',
+  ],
+  [
+    'k1.2',
+    'Способность слушать и понимать не только вербальное содержание сообщения, но и эмоциональный контекст и скрытые намерения собеседника. Эффективное активное слушание и эмпатия способствуют формированию доверия и взаимопонимания, позволяя точнее реагировать на получаемую информацию.',
+  ],
+  [
+    'активное слушание и эмпатия',
+    'Способность слушать и понимать не только вербальное содержание сообщения, но и эмоциональный контекст и скрытые намерения собеседника. Эффективное активное слушание и эмпатия способствуют формированию доверия и взаимопонимания, позволяя точнее реагировать на получаемую информацию.',
+  ],
+  [
+    'k1.3',
+    'Способность эффективно использовать вопросы как инструмент познания, анализа ситуации и улучшения взаимопонимания. Это включает выбор подходящих формулировок, определение момента для задавания вопросов и использование ответов для углубления знаний и достижения целей.',
+  ],
+  [
+    'вопрошание (умение задавать вопросы)',
+    'Способность эффективно использовать вопросы как инструмент познания, анализа ситуации и улучшения взаимопонимания. Это включает выбор подходящих формулировок, определение момента для задавания вопросов и использование ответов для углубления знаний и достижения целей.',
+  ],
+  [
+    'k2.1',
+    'Умение создавать атмосферу, в которой участники команды чувствуют себя принятыми, услышанными и в безопасности. Основано на открытости, эмпатии, честности и уважении. Команда может открыто делиться мнениями и ошибками без страха осуждения.',
+  ],
+  [
+    'формирование доверия и безопасной среды',
+    'Умение создавать атмосферу, в которой участники команды чувствуют себя принятыми, услышанными и в безопасности. Основано на открытости, эмпатии, честности и уважении. Команда может открыто делиться мнениями и ошибками без страха осуждения.',
+  ],
+  [
+    'k2.2',
+    'Способность структурировать совместную деятельность команды: формулировать цели, планировать шаги, распределять роли и отслеживать прогресс. Обеспечивает прозрачность, предсказуемость и слаженность в работе.',
+  ],
+  [
+    'организация и взаимодействие в команде',
+    'Способность структурировать совместную деятельность команды: формулировать цели, планировать шаги, распределять роли и отслеживать прогресс. Обеспечивает прозрачность, предсказуемость и слаженность в работе.',
+  ],
+  [
+    'k2.3',
+    'Инициирование развития команды и её участников, даже без формальной власти. Включает наставничество, развитие инициативы и поддержку обучения. Способность вдохновлять команду, мотивировать членов команды, направлять их на достижение общих целей и обеспечивать их вовлеченность в командный процесс.',
+  ],
+  [
+    'лидерство и поддержка роста команды',
+    'Инициирование развития команды и её участников, даже без формальной власти. Включает наставничество, развитие инициативы и поддержку обучения. Способность вдохновлять команду, мотивировать членов команды, направлять их на достижение общих целей и обеспечивать их вовлеченность в командный процесс.',
+  ],
+  [
+    'k3.1',
+    'Навык воспринимать новые и непривычные идеи, рассматривать альтернативные подходы, допускать неоднозначность, быстро переключаться между различными точками зрения, уметь пересмотреть ранее полученный опыт.',
+  ],
+  [
+    'гибкость мышления',
+    'Навык воспринимать новые и непривычные идеи, рассматривать альтернативные подходы, допускать неоднозначность, быстро переключаться между различными точками зрения, уметь пересмотреть ранее полученный опыт.',
+  ],
+  [
+    'k3.2',
+    'Способность создавать новые, нестандартные идеи и решения, а также развивать «сырые» замыслы до работоспособного уровня, чтобы решить существующие проблемы или улучшить текущие процессы.',
+  ],
+  [
+    'создание и видение идей',
+    'Способность создавать новые, нестандартные идеи и решения, а также развивать «сырые» замыслы до работоспособного уровня, чтобы решить существующие проблемы или улучшить текущие процессы.',
+  ],
+  [
+    'k3.3',
+    'Способность творчески оценивать и дорабатывать идеи с учётом целей, ограничений и обратной связи, превращая их в реализуемые и ценные решения.',
+  ],
+  [
+    'оценка и реализация идей',
+    'Способность творчески оценивать и дорабатывать идеи с учётом целей, ограничений и обратной связи, превращая их в реализуемые и ценные решения.',
+  ],
+  [
+    'k4.1',
+    'Способность выявлять проблемы, анализировать их корни и искать оптимальные решения. Это включает в себя умение анализировать ситуации и выбирать такие методы, которые приведут к наиболее эффективному решению.',
+  ],
+  [
+    'решение проблем',
+    'Способность выявлять проблемы, анализировать их корни и искать оптимальные решения. Это включает в себя умение анализировать ситуации и выбирать такие методы, которые приведут к наиболее эффективному решению.',
+  ],
+  [
+    'k4.2',
+    'Способность собирать и систематизировать данные из различных источников, отделяя существенную информацию от незначимой. Важно уметь проводить анализ, выявлять паттерны и связи между различными данными для формирования более глубокой картины ситуации.',
+  ],
+  [
+    'анализ информации',
+    'Способность собирать и систематизировать данные из различных источников, отделяя существенную информацию от незначимой. Важно уметь проводить анализ, выявлять паттерны и связи между различными данными для формирования более глубокой картины ситуации.',
+  ],
+  [
+    'k4.3',
+    'Способность выстраивать логические цепочки для формирования обоснованных выводов. Это включает в себя умение работать с доказательствами и аргументами, а также умение структурировать информацию так, чтобы она вела к правильным выводам.',
+  ],
+  [
+    'логическое мышление',
+    'Способность выстраивать логические цепочки для формирования обоснованных выводов. Это включает в себя умение работать с доказательствами и аргументами, а также умение структурировать информацию так, чтобы она вела к правильным выводам.',
+  ],
+  [
+    'k4.4',
+    'Способность принимать решения на основе ограниченной или неполной информации, используя анализ рисков и интуицию. Это включает в себя способность действовать в условиях неопределенности и неполных данных, при этом минимизируя возможные негативные последствия.',
+  ],
+  [
+    'принятие решений',
+    'Способность принимать решения на основе ограниченной или неполной информации, используя анализ рисков и интуицию. Это включает в себя способность действовать в условиях неопределенности и неполных данных, при этом минимизируя возможные негативные последствия.',
+  ],
+  [
+    'взаимодействие в команде',
+    'Способность эффективно работать в группе и команде: соблюдение договорённостей, синхронизация действий, взаимопомощь, готовность делегировать и принимать обратную связь. Обеспечивает согласованность действий и взаимную ответственность.',
+  ],
 ]);
 
 const getReportSkillDescription = (skill) => {
@@ -7217,6 +8219,134 @@ const getReportSkillDescription = (skill) => {
   return reportSkillDescriptions.get(normalizeSkillDescriptionKey(skill.skill_name)) || '';
 };
 
+const getReportEvidenceLabel = (item) => {
+  if (typeof item === 'string') {
+    return item.trim();
+  }
+  if (!item || typeof item !== 'object') {
+    return '';
+  }
+  return String(
+    item.evidence_description ||
+      item.expected_signal ||
+      item.related_response_block_name ||
+      item.related_response_block_code ||
+      '',
+  ).trim();
+};
+
+const getReportSkillEvidenceExcerpt = (skill) =>
+  String(skill?.evidence_excerpt || '')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+const openReportInfoModal = ({ eyebrow = 'Детали', title = 'Информация', bodyMarkup = '' }) => {
+  if (!reportInfoModal || !reportInfoModalTitle || !reportInfoModalBody) {
+    return;
+  }
+  if (reportInfoModalCloseTimer) {
+    window.clearTimeout(reportInfoModalCloseTimer);
+    reportInfoModalCloseTimer = null;
+  }
+  if (reportInfoModalEyebrow) {
+    reportInfoModalEyebrow.textContent = eyebrow;
+  }
+  reportInfoModalTitle.textContent = title;
+  reportInfoModalBody.innerHTML = bodyMarkup || '<p>Детали пока недоступны.</p>';
+  reportInfoModal.classList.remove('hidden');
+  reportInfoModal.classList.remove('is-closing');
+  reportInfoModal.setAttribute('aria-hidden', 'false');
+  document.body.classList.add('report-info-modal-open');
+  window.requestAnimationFrame(() => {
+    if (!reportInfoModal.classList.contains('is-closing')) {
+      reportInfoModal.classList.add('is-open');
+    }
+  });
+  if (reportInfoModalClose) {
+    reportInfoModalClose.focus();
+  }
+};
+
+const closeReportInfoModal = () => {
+  if (
+    !reportInfoModal ||
+    reportInfoModal.classList.contains('hidden') ||
+    reportInfoModal.classList.contains('is-closing')
+  ) {
+    return;
+  }
+  reportInfoModal.setAttribute('aria-hidden', 'true');
+  reportInfoModal.classList.remove('is-open');
+  reportInfoModal.classList.add('is-closing');
+  reportInfoModalCloseTimer = window.setTimeout(() => {
+    reportInfoModal.classList.add('hidden');
+    reportInfoModal.classList.remove('is-closing');
+    document.body.classList.remove('report-info-modal-open');
+    reportInfoModalCloseTimer = null;
+  }, 180);
+};
+
+const buildReportRationaleMarkup = (rationale) => {
+  const match = rationale.match(/^(.*?уровню\s+)(L[123])(\.|\s|$)(.*)$/i);
+  if (!match) {
+    return escapeHtml(rationale);
+  }
+  const [, prefix, levelCode, delimiter, rest = ''] = match;
+  return (
+    escapeHtml(prefix) +
+    '<span class="report-evidence-level-pill">' +
+    escapeHtml(levelCode.toUpperCase()) +
+    '</span>' +
+    escapeHtml(delimiter + rest)
+  );
+};
+
+const getReportSkillScoreDetails = (skill) => {
+  const evidenceLabels = parseJsonArrayField(skill.found_evidence)
+    .map(getReportEvidenceLabel)
+    .filter(Boolean)
+    .slice(0, 3);
+  const rationale = String(skill?.rationale || '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const excerpt = getReportSkillEvidenceExcerpt(skill);
+  const signalsMarkup = evidenceLabels.length
+    ? '<span class="report-evidence-signals">' +
+      evidenceLabels.map((label) => '<span>' + escapeHtml(label) + '</span>').join('') +
+      '</span>'
+    : '';
+  const rationaleMarkup = rationale
+    ? '<span class="report-evidence-rationale">' + buildReportRationaleMarkup(rationale) + '</span>'
+    : '';
+  const excerptMarkup =
+    !evidenceLabels.length && !rationale && excerpt
+      ? '<span class="report-evidence-quote">' + escapeHtml(excerpt) + '</span>'
+      : '';
+  return {
+    hasDetails: Boolean(evidenceLabels.length || rationale || excerpt),
+    markup: signalsMarkup + rationaleMarkup + excerptMarkup,
+  };
+};
+
+const buildReportSkillScoreMarkup = (skill, percent) => {
+  const scoreText = escapeHtml(percent + '%');
+  const details = getReportSkillScoreDetails(skill);
+  if (!details.hasDetails) {
+    return '<span>' + scoreText + '</span>';
+  }
+
+  const ariaLabel = (skill.skill_name || 'Навык') + ': что повлияло на оценку ' + percent + '%';
+
+  return (
+    '<span class="report-skill-score-value">' +
+    scoreText +
+    '</span>' +
+    '<button type="button" class="report-skill-score-text" aria-label="' +
+    escapeHtml(ariaLabel) +
+    '">?</button>'
+  );
+};
+
 const buildReportSkillNameMarkup = (skill) => {
   const skillName = escapeHtml(skill.skill_name || 'Навык');
   const description = getReportSkillDescription(skill);
@@ -7224,12 +8354,13 @@ const buildReportSkillNameMarkup = (skill) => {
     return '<strong>' + skillName + '</strong>';
   }
   return (
-    '<strong class="report-skill-name-text" tabindex="0" aria-label="' +
-    escapeHtml((skill.skill_name || 'Навык') + ': ' + description) +
+    '<button type="button" class="report-skill-name-text" aria-label="' +
+    escapeHtml('Описание навыка: ' + (skill.skill_name || 'Навык')) +
     '">' +
-    '<span class="report-skill-name-label">' + skillName + '</span>' +
-    '<span class="report-score-tooltip" role="tooltip">' + escapeHtml(description) + '</span>' +
-    '</strong>'
+    '<span class="report-skill-name-label">' +
+    skillName +
+    '</span>' +
+    '</button>'
   );
 };
 
@@ -7245,25 +8376,37 @@ const buildProfileSkillsMarkup = (skills) => {
     '<span class="report-detail-column-progress">Прогресс</span>' +
     '</div>';
 
-  const rows = skills.map((skill) => {
-    const percent = getLevelPercent(skill.assessed_level_code);
-    return (
-      '<article class="profile-skill-row">' +
-      '<div class="profile-skill-main">' +
-      '<strong>' + skill.skill_name + '</strong>' +
-      '<span>' + (skill.competency_name || 'Без категории') + '</span>' +
-      (buildArtifactHint(skill) ? '<span class="skill-artifact-hint">' + buildArtifactHint(skill) + '</span>' : '') +
-      '</div>' +
-      '<div class="profile-skill-level">' + skill.assessed_level_name + '</div>' +
-      '<div class="profile-skill-progress">' +
-      '<div class="report-skill-progress-track"><div class="report-skill-progress-fill" style="width:' + percent + '%"></div></div>' +
-      '<span>' + percent + '%</span>' +
-      '</div>' +
-      '</article>'
-    );
-  }).join('');
+  const rows = skills
+    .map((skill) => {
+      const percent = getLevelPercent(skill.assessed_level_code);
+      return (
+        '<article class="profile-skill-row">' +
+        '<div class="profile-skill-main">' +
+        '<strong>' +
+        skill.skill_name +
+        '</strong>' +
+        '<span>' +
+        (skill.competency_name || 'Без категории') +
+        '</span>' +
+        (buildArtifactHint(skill) ? '<span class="skill-artifact-hint">' + buildArtifactHint(skill) + '</span>' : '') +
+        '</div>' +
+        '<div class="profile-skill-level">' +
+        skill.assessed_level_name +
+        '</div>' +
+        '<div class="profile-skill-progress">' +
+        '<div class="report-skill-progress-track"><div class="report-skill-progress-fill" style="width:' +
+        percent +
+        '%"></div></div>' +
+        '<span>' +
+        percent +
+        '%</span>' +
+        '</div>' +
+        '</article>'
+      );
+    })
+    .join('');
 
-  return header + rows;
+  return '<div class="profile-skill-grid">' + header + rows + '</div>';
 };
 
 const renderProfile = () => {
@@ -7394,35 +8537,58 @@ const renderReportsPage = () => {
       const expanded = state.profileSelectedSessionId === item.session_id;
       const card = document.createElement('article');
       card.className = 'profile-history-accordion' + (expanded ? ' active' : '');
+      const statusVariant = item.status === 'completed' ? 'done' : item.status === 'active' ? 'active' : 'draft';
+      const statusLabel =
+        item.status === 'completed' ? 'Завершена' : item.status === 'active' ? 'В процессе' : 'Черновик';
+      const scoreText = item.overall_score_percent != null ? item.overall_score_percent + '%' : '—';
+      const scoreClass = item.overall_score_percent != null ? '' : ' empty';
       card.innerHTML =
-        '<button type="button" class="profile-history-item' + (expanded ? ' active' : '') + '">' +
-          '<div class="profile-history-copy">' +
-            '<strong>Сессия #' + item.session_id + '</strong>' +
-            '<span>' + formatProfileDate(item.started_at) + ' • ' + item.completed_cases + '/' + item.total_cases + ' кейсов</span>' +
-          '</div>' +
-          '<div class="profile-history-meta">' +
-            '<span class="profile-history-status">' + (item.status === 'completed' ? 'Завершена' : item.status === 'active' ? 'В процессе' : 'Черновик') + '</span>' +
-            '<strong>' + item.progress_percent + '%</strong>' +
-            '<span class="profile-history-toggle">' + (expanded ? 'Свернуть' : 'Раскрыть') + '</span>' +
-          '</div>' +
+        '<button type="button" class="profile-history-item" aria-expanded="' +
+        (expanded ? 'true' : 'false') +
+        '">' +
+        '<div class="profile-history-item-main">' +
+        '<span class="profile-history-item-title">Сессия #' +
+        item.session_id +
+        '</span>' +
+        '<span class="profile-history-item-sub">' +
+        formatProfileDate(item.started_at) +
+        ' · ' +
+        item.completed_cases +
+        '/' +
+        item.total_cases +
+        ' кейсов</span>' +
+        '</div>' +
+        '<span class="profile-history-item-status ' +
+        statusVariant +
+        '">' +
+        statusLabel +
+        '</span>' +
+        '<span class="profile-history-item-score' +
+        scoreClass +
+        '">' +
+        scoreText +
+        '</span>' +
+        '<span class="profile-history-item-chevron" aria-hidden="true"></span>' +
         '</button>' +
-        '<div class="profile-history-panel' + (expanded ? ' expanded' : '') + '">' +
-          '<div class="profile-history-panel-head">' +
-            '<div class="profile-history-panel-summary">' +
-              '<span>Результат попытки</span>' +
-              '<strong>' + (item.overall_score_percent != null ? item.overall_score_percent + '%' : 'Нет данных') + '</strong>' +
-            '</div>' +
-            '<div class="profile-history-panel-actions">' +
-              '<button type="button" class="profile-history-pdf-button profile-history-report-button" data-session-id="' + item.session_id + '">Открыть отчет</button>' +
-              '<button type="button" class="profile-history-pdf-button profile-history-download-button" data-session-id="' + item.session_id + '">Скачать PDF</button>' +
-            '</div>' +
-          '</div>' +
-          '<div class="profile-history-panel-body">' +
-            (item.expert_comment
-              ? '<div class="profile-history-expert-comment"><span>Комментарий эксперта</span><p>' + escapeHtml(item.expert_comment) + '</p></div>'
-              : '') +
-            (expanded ? buildProfileSkillsMarkup(skills) : '') +
-          '</div>' +
+        '<div class="profile-history-panel' +
+        (expanded ? ' expanded' : '') +
+        '">' +
+        '<div class="profile-history-panel-body">' +
+        (item.expert_comment
+          ? '<div class="profile-history-expert-comment"><span>Комментарий эксперта</span><p>' +
+            escapeHtml(item.expert_comment) +
+            '</p></div>'
+          : '') +
+        (expanded ? buildProfileSkillsMarkup(skills) : '') +
+        '</div>' +
+        '<div class="profile-history-panel-actions">' +
+        '<button type="button" class="ghost-button compact-ghost profile-history-report-button" data-session-id="' +
+        item.session_id +
+        '">Открыть отчет</button>' +
+        '<button type="button" class="primary-button compact-primary profile-history-download-button" data-session-id="' +
+        item.session_id +
+        '">Скачать PDF</button>' +
+        '</div>' +
         '</div>';
       card.querySelector('.profile-history-item').addEventListener('click', () => {
         if (expanded) {
@@ -7448,8 +8614,7 @@ const renderReportsPage = () => {
           if (!state.pendingUser?.id) {
             return;
           }
-          window.location.href =
-            '/users/' + state.pendingUser.id + '/assessment/' + item.session_id + '/report.pdf';
+          window.location.href = '/users/' + state.pendingUser.id + '/assessment/' + item.session_id + '/report.pdf';
         });
       }
       profileHistoryList.appendChild(card);
@@ -7459,9 +8624,17 @@ const renderReportsPage = () => {
       const pagination = document.createElement('div');
       pagination.className = 'profile-history-pagination';
       pagination.innerHTML =
-        '<button type="button" class="ghost-button compact-ghost profile-history-page-button prev"' + (state.profileHistoryPage <= 1 ? ' disabled' : '') + '>Назад</button>' +
-        '<span class="profile-history-page-indicator">Страница ' + state.profileHistoryPage + ' из ' + totalPages + '</span>' +
-        '<button type="button" class="ghost-button compact-ghost profile-history-page-button next"' + (state.profileHistoryPage >= totalPages ? ' disabled' : '') + '>Вперед</button>';
+        '<button type="button" class="ghost-button compact-ghost profile-history-page-button prev"' +
+        (state.profileHistoryPage <= 1 ? ' disabled' : '') +
+        '>Назад</button>' +
+        '<span class="profile-history-page-indicator">Страница ' +
+        state.profileHistoryPage +
+        ' из ' +
+        totalPages +
+        '</span>' +
+        '<button type="button" class="ghost-button compact-ghost profile-history-page-button next"' +
+        (state.profileHistoryPage >= totalPages ? ' disabled' : '') +
+        '>Вперед</button>';
 
       const prevButton = pagination.querySelector('.profile-history-page-button.prev');
       const nextButton = pagination.querySelector('.profile-history-page-button.next');
@@ -7480,7 +8653,6 @@ const renderReportsPage = () => {
       profileHistoryList.appendChild(pagination);
     }
   }
-
 };
 
 const loadProfileSummary = async () => {
@@ -7514,7 +8686,8 @@ const openProfile = async () => {
   profilePanel.classList.remove('hidden');
   try {
     await loadProfileSummary();
-    state.profileAvatarDraft = state.profileSummary?.user?.avatar_data_url || state.pendingUser?.avatar_data_url || null;
+    state.profileAvatarDraft =
+      state.profileSummary?.user?.avatar_data_url || state.pendingUser?.avatar_data_url || null;
     setProfileStatus('', '');
     renderProfile();
   } catch (error) {
@@ -7545,10 +8718,8 @@ const openReports = async () => {
   }
 };
 
-const shouldRedirectToProfileOnAssessmentError = (message) => (
-  typeof message === 'string'
-  && message.includes('не осталось непройденных кейсов')
-);
+const shouldRedirectToProfileOnAssessmentError = (message) =>
+  typeof message === 'string' && message.includes('не осталось непройденных кейсов');
 
 const openInterview = () => {
   state.newUserSequenceStep = 'interview';
@@ -7646,7 +8817,9 @@ const getCompetencySummary = () => {
         .map((skill) => (skill.block_coverage_percent != null ? Number(skill.block_coverage_percent) || 0 : null))
         .filter((value) => value != null);
       const artifactValues = skills
-        .map((skill) => (skill.artifact_compliance_percent != null ? Number(skill.artifact_compliance_percent) || 0 : null))
+        .map((skill) =>
+          skill.artifact_compliance_percent != null ? Number(skill.artifact_compliance_percent) || 0 : null,
+        )
         .filter((value) => value != null);
       const redFlagCounts = skills.map((skill) => parseJsonArrayField(skill.red_flags).length);
       const metrics = {
@@ -7668,10 +8841,10 @@ const getCompetencySummary = () => {
         metrics,
         insightScore: Math.round(
           avgPercent * 0.5 +
-          metrics.evidenceHitRate * 100 * 0.2 +
-          metrics.avgBlockCoverage * 0.15 +
-          metrics.avgArtifactCompliance * 0.15 -
-          Math.min(metrics.avgRedFlagCount * 10, 40)
+            metrics.evidenceHitRate * 100 * 0.2 +
+            metrics.avgBlockCoverage * 0.15 +
+            metrics.avgArtifactCompliance * 0.15 -
+            Math.min(metrics.avgRedFlagCount * 10, 40),
         ),
       };
     });
@@ -7759,40 +8932,56 @@ const selectStrongestCompetency = (summary) => {
 
 const COMPETENCY_GROWTH_RECOMMENDATIONS = {
   'Коммуникация': {
-    structure: 'По коммуникации стоит усилить структуру ответа: фиксировать контекст, уточняющие вопросы, договоренности и следующий шаг.',
-    artifact: 'По коммуникации важно точнее попадать в ожидаемый формат артефакта: сообщение стейкхолдеру должно содержать статус, срок и понятный следующий шаг.',
-    evidence: 'По коммуникации полезно делать ответы более наблюдаемыми: явно формулировать позицию, вопросы и договоренности, чтобы навык проявлялся в тексте.',
-    redflags: 'По коммуникации стоит снизить число типовых ошибок: не игнорировать ограничения, не пропускать резюме и не оставлять ответ без следующего шага.',
-    generic: 'Усилить коммуникацию: чаще фиксировать позицию, вопросы и договоренности в явном виде.'
+    structure:
+      'По коммуникации стоит усилить структуру ответа: фиксировать контекст, уточняющие вопросы, договоренности и следующий шаг.',
+    artifact:
+      'По коммуникации важно точнее попадать в ожидаемый формат артефакта: сообщение стейкхолдеру должно содержать статус, срок и понятный следующий шаг.',
+    evidence:
+      'По коммуникации полезно делать ответы более наблюдаемыми: явно формулировать позицию, вопросы и договоренности, чтобы навык проявлялся в тексте.',
+    redflags:
+      'По коммуникации стоит снизить число типовых ошибок: не игнорировать ограничения, не пропускать резюме и не оставлять ответ без следующего шага.',
+    generic: 'Усилить коммуникацию: чаще фиксировать позицию, вопросы и договоренности в явном виде.',
   },
   'Командная работа': {
-    structure: 'По командной работе стоит делать ответ более структурным: явно показывать роли, точки синхронизации и контроль исполнения.',
-    artifact: 'По командной работе важно точнее попадать в артефакт плана действий: кто делает, в какой последовательности, по каким контрольным точкам.',
-    evidence: 'По командной работе полезно явнее проявлять координацию: показывать распределение ролей, поддержку участников и согласование действий.',
-    redflags: 'По командной работе стоит уменьшить число red flags: не пропускать роли, контрольные точки и критерии взаимодействия.',
-    generic: 'Усилить командную работу: показывать распределение ролей, синхронизацию и поддержку участников.'
+    structure:
+      'По командной работе стоит делать ответ более структурным: явно показывать роли, точки синхронизации и контроль исполнения.',
+    artifact:
+      'По командной работе важно точнее попадать в артефакт плана действий: кто делает, в какой последовательности, по каким контрольным точкам.',
+    evidence:
+      'По командной работе полезно явнее проявлять координацию: показывать распределение ролей, поддержку участников и согласование действий.',
+    redflags:
+      'По командной работе стоит уменьшить число red flags: не пропускать роли, контрольные точки и критерии взаимодействия.',
+    generic: 'Усилить командную работу: показывать распределение ролей, синхронизацию и поддержку участников.',
   },
   'Креативность': {
-    structure: 'По креативности стоит лучше структурировать ответ: выделять альтернативы, критерии отбора и следующий шаг по проверке идеи.',
-    artifact: 'По креативности важно точнее попадать в формат артефакта: идеи, пилоты и варианты должны быть оформлены как проверяемый план, а не как общее рассуждение.',
-    evidence: 'По креативности полезно явнее проявлять генерацию вариантов: предлагать альтернативы, пилоты и нестандартные решения в явном виде.',
-    redflags: 'По креативности стоит снизить число red flags: не оставлять ответ без альтернатив, критериев выбора и ограничений для проверки идеи.',
-    generic: 'Усилить креативность: предлагать альтернативы, пилоты и нестандартные варианты решений.'
+    structure:
+      'По креативности стоит лучше структурировать ответ: выделять альтернативы, критерии отбора и следующий шаг по проверке идеи.',
+    artifact:
+      'По креативности важно точнее попадать в формат артефакта: идеи, пилоты и варианты должны быть оформлены как проверяемый план, а не как общее рассуждение.',
+    evidence:
+      'По креативности полезно явнее проявлять генерацию вариантов: предлагать альтернативы, пилоты и нестандартные решения в явном виде.',
+    redflags:
+      'По креативности стоит снизить число red flags: не оставлять ответ без альтернатив, критериев выбора и ограничений для проверки идеи.',
+    generic: 'Усилить креативность: предлагать альтернативы, пилоты и нестандартные варианты решений.',
   },
   'Критическое мышление': {
-    structure: 'По критическому мышлению стоит лучше структурировать ответ: выделять критерии, риски, гипотезы и проверку решения.',
-    artifact: 'По критическому мышлению важно точнее попадать в формат артефакта: решение должно быть оформлено через критерии, риски и обоснованный выбор.',
-    evidence: 'По критическому мышлению полезно делать анализ наблюдаемым: явно показывать логику выбора, допущения и проверку гипотез.',
-    redflags: 'По критическому мышлению стоит снизить число red flags: не пропускать критерии, ограничения, риски и контроль решения.',
-    generic: 'Усилить критическое мышление: добавлять критерии, риски, гипотезы и проверку решений.'
-  }
+    structure:
+      'По критическому мышлению стоит лучше структурировать ответ: выделять критерии, риски, гипотезы и проверку решения.',
+    artifact:
+      'По критическому мышлению важно точнее попадать в формат артефакта: решение должно быть оформлено через критерии, риски и обоснованный выбор.',
+    evidence:
+      'По критическому мышлению полезно делать анализ наблюдаемым: явно показывать логику выбора, допущения и проверку гипотез.',
+    redflags:
+      'По критическому мышлению стоит снизить число red flags: не пропускать критерии, ограничения, риски и контроль решения.',
+    generic: 'Усилить критическое мышление: добавлять критерии, риски, гипотезы и проверку решений.',
+  },
 };
 
 const WEAK_SIGNAL_RECOMMENDATIONS = [
   'По последней сессии сигнал слишком слабый для корректной персональной интерпретации зон роста.',
   'Сначала стоит усилить структурность ответов: фиксировать вопросы, критерии, договоренности и следующий шаг.',
   'Важно попадать в ожидаемый формат ответа кейса: план, список вопросов, сообщение стейкхолдеру или приоритизация.',
-  'Рекомендуется пройти ассессмент повторно и давать более содержательные ответы, чтобы в них проявлялись наблюдаемые действия и решения.'
+  'Рекомендуется пройти ассессмент повторно и давать более содержательные ответы, чтобы в них проявлялись наблюдаемые действия и решения.',
 ];
 
 const buildResponsePatternText = (metrics, hasInterpretationSignal) => {
@@ -7855,7 +9044,8 @@ const getCompetencyDominantDeficit = (item) => {
 const buildCompetencyGrowthRecommendation = (item) => {
   const competency = item.competency;
   const deficit = getCompetencyDominantDeficit(item);
-  const mapping = COMPETENCY_GROWTH_RECOMMENDATIONS[competency] || COMPETENCY_GROWTH_RECOMMENDATIONS['Критическое мышление'];
+  const mapping =
+    COMPETENCY_GROWTH_RECOMMENDATIONS[competency] || COMPETENCY_GROWTH_RECOMMENDATIONS['Критическое мышление'];
   return mapping[deficit] || mapping.generic;
 };
 
@@ -7901,7 +9091,9 @@ const drawCanvasRoundedRect = (context, x, y, width, height, radius) => {
 };
 
 const drawWrappedCanvasText = (context, text, x, y, maxWidth, lineHeight) => {
-  const words = String(text || '').split(/\s+/).filter(Boolean);
+  const words = String(text || '')
+    .split(/\s+/)
+    .filter(Boolean);
   const lines = [];
   let currentLine = '';
 
@@ -7963,20 +9155,15 @@ const reportCompetencyCardsPlugin = {
 
     const context = chart.ctx;
     const items = Array.isArray(pluginOptions?.items) ? pluginOptions.items : [];
-    const {
-      cardWidth,
-      trackWidth,
-      cardTop,
-      cardHeight,
-      trackTop,
-      trackHeight,
-    } = getReportCompetencyCardMetrics(chart, meta, items);
+    const { cardWidth, trackWidth, cardTop, cardHeight, trackTop, trackHeight } = getReportCompetencyCardMetrics(
+      chart,
+      meta,
+      items,
+    );
 
     context.save();
     meta.data.forEach((bar, index) => {
-      const centerX = typeof xScale.getPixelForValue === 'function'
-        ? xScale.getPixelForValue(index)
-        : bar.x;
+      const centerX = typeof xScale.getPixelForValue === 'function' ? xScale.getPixelForValue(index) : bar.x;
       const cardLeft = centerX - cardWidth / 2;
       const cardGradient = context.createLinearGradient(0, cardTop, 0, cardTop + cardHeight);
       cardGradient.addColorStop(0, '#f1efff');
@@ -7987,14 +9174,7 @@ const reportCompetencyCardsPlugin = {
       context.fill();
 
       context.fillStyle = 'rgba(255, 255, 255, 0.78)';
-      drawCanvasRoundedRect(
-        context,
-        centerX - trackWidth / 2,
-        trackTop,
-        trackWidth,
-        trackHeight,
-        trackWidth / 2,
-      );
+      drawCanvasRoundedRect(context, centerX - trackWidth / 2, trackTop, trackWidth, trackHeight, trackWidth / 2);
       context.fill();
     });
     context.restore();
@@ -8026,9 +9206,7 @@ const reportCompetencyCardsPlugin = {
     context.textBaseline = 'middle';
     meta.data.forEach((bar, index) => {
       const value = Number(dataset.data[index]) || 0;
-      const centerX = typeof xScale.getPixelForValue === 'function'
-        ? xScale.getPixelForValue(index)
-        : bar.x;
+      const centerX = typeof xScale.getPixelForValue === 'function' ? xScale.getPixelForValue(index) : bar.x;
       const item = items[index] || {};
 
       if (value > 0) {
@@ -8039,14 +9217,7 @@ const reportCompetencyCardsPlugin = {
         fillGradient.addColorStop(0.54, '#6757f0');
         fillGradient.addColorStop(1, '#8d84ff');
         context.fillStyle = fillGradient;
-        drawCanvasRoundedRect(
-          context,
-          centerX - fillWidth / 2,
-          fillTop,
-          fillWidth,
-          fillHeight,
-          fillWidth / 2,
-        );
+        drawCanvasRoundedRect(context, centerX - fillWidth / 2, fillTop, fillWidth, fillHeight, fillWidth / 2);
         context.fill();
       }
 
@@ -8077,13 +9248,22 @@ const getReportCompetencyGradient = (context) => {
 };
 
 const buildReportCompetencyFallbackMarkup = (summary) =>
-  summary.map((item) => (
-    '<article class="report-competency-bar-card">' +
-      '<strong>' + item.avgPercent + '%</strong>' +
-      '<span>' + escapeHtml(item.competency) + '</span>' +
-      '<div class="report-competency-meter"><div class="report-competency-meter-fill" style="height:' + item.avgPercent + '%"></div></div>' +
-    '</article>'
-  )).join('');
+  summary
+    .map(
+      (item) =>
+        '<article class="card card--inset report-competency-bar-card">' +
+        '<strong>' +
+        item.avgPercent +
+        '%</strong>' +
+        '<span>' +
+        escapeHtml(item.competency) +
+        '</span>' +
+        '<div class="report-competency-meter"><div class="report-competency-meter-fill" style="height:' +
+        item.avgPercent +
+        '%"></div></div>' +
+        '</article>',
+    )
+    .join('');
 
 const renderReportCompetencyBarChart = (summary = []) => {
   if (!reportCompetencyBars) {
@@ -8092,11 +9272,10 @@ const renderReportCompetencyBarChart = (summary = []) => {
 
   destroyReportCompetencyBarChart();
 
-  const items = (Array.isArray(summary) ? summary : [])
-    .map((item) => ({
-      competency: String(item.competency || 'Компетенция'),
-      avgPercent: Math.max(0, Math.min(100, Number(item.avgPercent) || 0)),
-    }));
+  const items = (Array.isArray(summary) ? summary : []).map((item) => ({
+    competency: String(item.competency || 'Компетенция'),
+    avgPercent: Math.max(0, Math.min(100, Number(item.avgPercent) || 0)),
+  }));
 
   if (reportCompetencyBarChartCanvas) {
     reportCompetencyBarChartCanvas.classList.add('hidden');
@@ -8240,10 +9419,12 @@ const renderReport = () => {
   const interpretation = state.reportInterpretation || null;
 
   reportOverallScore.textContent = totalScore + '%';
-  reportSummaryText.textContent = 'Глубокий анализ оценок по четырем направлениям и детализация результатов по каждому навыку пользователя.';
+  reportSummaryText.textContent =
+    'Глубокий анализ оценок по четырем направлениям и детализация результатов по каждому навыку пользователя.';
   reportProfileAvatar.textContent = buildInitials(state.pendingUser ? state.pendingUser.full_name : 'Пользователь');
   reportProfileName.textContent = state.pendingUser?.full_name || 'Пользователь';
-  reportProfileRole.textContent = sanitizeDisplayRole(state.pendingUser?.job_description || '') || 'Должность не указана';
+  reportProfileRole.textContent =
+    sanitizeDisplayRole(state.pendingUser?.job_description || '') || 'Должность не указана';
 
   reportRecommendations.innerHTML = '';
   getReportRecommendations(summary).forEach((text) => {
@@ -8301,12 +9482,42 @@ const renderReport = () => {
       buildReportSkillNameMarkup(skill) +
       (artifactHint ? '<span class="skill-artifact-hint">' + escapeHtml(artifactHint) + '</span>' : '') +
       '</div>' +
-      '<div class="report-skill-level">' + escapeHtml(skill.assessed_level_name) + '</div>' +
+      '<div class="report-skill-level">' +
+      escapeHtml(skill.assessed_level_name) +
+      '</div>' +
       '<div class="report-skill-progress">' +
-      '<div class="report-skill-progress-track"><div class="report-skill-progress-fill" style="width:' + percent + '%"></div></div>' +
-      '<span>' + percent + '%</span>' +
+      '<div class="report-skill-progress-track"><div class="report-skill-progress-fill" style="width:' +
+      percent +
+      '%"></div></div>' +
+      buildReportSkillScoreMarkup(skill, percent) +
       '</div>';
     reportDetailList.appendChild(item);
+
+    const descriptionButton = item.querySelector('.report-skill-name-text');
+    const description = getReportSkillDescription(skill);
+    if (descriptionButton && description) {
+      descriptionButton.addEventListener('click', (event) => {
+        event.stopPropagation();
+        openReportInfoModal({
+          eyebrow: 'Описание навыка',
+          title: skill.skill_name || 'Навык',
+          bodyMarkup: '<p class="report-info-text">' + escapeHtml(description) + '</p>',
+        });
+      });
+    }
+
+    const scoreButton = item.querySelector('.report-skill-score-text');
+    const scoreDetails = getReportSkillScoreDetails(skill);
+    if (scoreButton && scoreDetails.hasDetails) {
+      scoreButton.addEventListener('click', (event) => {
+        event.stopPropagation();
+        openReportInfoModal({
+          eyebrow: 'Объяснение оценки',
+          title: (skill.skill_name || 'Навык') + ' · ' + percent + '%',
+          bodyMarkup: scoreDetails.markup || '<p class="report-info-text">Детали оценки пока недоступны.</p>',
+        });
+      });
+    }
   });
 };
 
@@ -8381,10 +9592,7 @@ const loadSkillAssessments = async () => {
     fetch('/users/' + state.pendingUser.id + '/assessment/' + state.assessmentSessionId + '/report-interpretation'),
   ]);
 
-  if (
-    (skillsResponse.status === 404 || interpretationResponse.status === 404)
-    && state.assessmentSessionCode
-  ) {
+  if ((skillsResponse.status === 404 || interpretationResponse.status === 404) && state.assessmentSessionCode) {
     const previousSessionId = state.assessmentSessionId;
     const resolvedSessionId = await resolveAssessmentSessionIdByCode();
     if (resolvedSessionId && resolvedSessionId !== previousSessionId) {
@@ -8396,17 +9604,16 @@ const loadSkillAssessments = async () => {
   }
 
   const data = await readApiResponse(skillsResponse, 'Не удалось загрузить профиль компетенций.');
-  const interpretation = await readApiResponse(interpretationResponse, 'Не удалось загрузить интерпретацию результатов.');
+  const interpretation = await readApiResponse(
+    interpretationResponse,
+    'Не удалось загрузить интерпретацию результатов.',
+  );
   state.skillAssessments = data;
   state.reportInterpretation = interpretation;
 };
 
 const tryOpenReportAfterProcessing = () => {
-  if (
-    state.processingAnimationDone &&
-    state.processingDataLoaded &&
-    !state.processingAutoTransitionStarted
-  ) {
+  if (state.processingAnimationDone && state.processingDataLoaded && !state.processingAutoTransitionStarted) {
     state.processingAutoTransitionStarted = true;
     window.setTimeout(() => {
       navigateToScreen('report');
@@ -8448,9 +9655,11 @@ const renderProcessingProgress = () => {
   processingPhaseLabel.textContent = 'Этап ' + currentPhase + ' из ' + processingPhases.length;
 
   if (activeAgent) {
-    processingStatusText.textContent = activeAgent.title + ': ' + processingPhases[Math.min(state.processingStepIndex, processingPhases.length - 1)];
+    processingStatusText.textContent =
+      activeAgent.title + ': ' + processingPhases[Math.min(state.processingStepIndex, processingPhases.length - 1)];
   } else if (totalProgress >= 100) {
-    processingStatusText.textContent = 'Анализ завершен. Все четыре агента сформировали итоговую оценку по компетенциям.';
+    processingStatusText.textContent =
+      'Анализ завершен. Все четыре агента сформировали итоговую оценку по компетенциям.';
   } else {
     processingStatusText.textContent = 'Подготавливаем мульти-агентную оценку по результатам кейсов.';
   }
@@ -8458,22 +9667,32 @@ const renderProcessingProgress = () => {
   processingAgentsList.innerHTML = '';
   state.processingAgents.forEach((agent) => {
     const item = document.createElement('article');
-    item.className = 'processing-agent-card ' + agent.status;
+    item.className = 'card card--inset processing-agent-card ' + agent.status;
     item.innerHTML =
       '<div class="processing-agent-main">' +
-      '<div class="processing-agent-order">' + String(agent.order).padStart(2, '0') + '</div>' +
+      '<div class="processing-agent-order">' +
+      String(agent.order).padStart(2, '0') +
+      '</div>' +
       '<div class="processing-agent-copy">' +
-      '<strong>' + agent.title + '</strong>' +
-      '<p>' + agent.focus + '</p>' +
+      '<strong>' +
+      agent.title +
+      '</strong>' +
+      '<p>' +
+      agent.focus +
+      '</p>' +
       '</div>' +
       '</div>' +
       '<div class="processing-agent-meta">' +
       '<span class="processing-agent-status">' +
       (agent.status === 'done' ? 'Завершен' : agent.status === 'running' ? 'В работе' : 'Ожидание') +
       '</span>' +
-      '<span class="processing-agent-percent">' + agent.progress + '%</span>' +
+      '<span class="processing-agent-percent">' +
+      agent.progress +
+      '%</span>' +
       '</div>' +
-      '<div class="processing-agent-track"><div class="processing-agent-fill" style="width:' + agent.progress + '%"></div></div>';
+      '<div class="processing-agent-track"><div class="processing-agent-fill" style="width:' +
+      agent.progress +
+      '%"></div></div>';
     processingAgentsList.appendChild(item);
   });
 
@@ -8513,11 +9732,9 @@ const runProcessingStep = (stepIndex = 0) => {
   renderProcessingProgress();
 
   state.processingTimerId = window.setTimeout(() => {
-    state.processingAgents = state.processingAgents.map((agent, index) => (
-      index === stepIndex
-        ? { ...agent, progress: 100, status: 'done' }
-        : agent
-    ));
+    state.processingAgents = state.processingAgents.map((agent, index) =>
+      index === stepIndex ? { ...agent, progress: 100, status: 'done' } : agent,
+    );
     renderProcessingProgress();
     state.processingTimerId = window.setTimeout(() => {
       runProcessingStep(stepIndex + 1);
@@ -8569,7 +9786,10 @@ const parseInterviewAssistantMessage = (text) => {
     }
   }
 
-  const parts = normalized.split(/\n\s*\n/).map((part) => part.trim()).filter(Boolean);
+  const parts = normalized
+    .split(/\n\s*\n/)
+    .map((part) => part.trim())
+    .filter(Boolean);
   if (parts.length >= 2) {
     const task = parts[parts.length - 1];
     const context = parts.slice(0, -1).join('\n\n').trim();
@@ -8578,7 +9798,11 @@ const parseInterviewAssistantMessage = (text) => {
     }
   }
 
-  const sentences = normalized.match(/[^.!?]+[.!?]+|[^.!?]+$/g)?.map((part) => part.trim()).filter(Boolean) || [];
+  const sentences =
+    normalized
+      .match(/[^.!?]+[.!?]+|[^.!?]+$/g)
+      ?.map((part) => part.trim())
+      .filter(Boolean) || [];
   if (sentences.length >= 2) {
     const task = sentences[sentences.length - 1];
     const context = sentences.slice(0, -1).join(' ').trim();
@@ -8627,7 +9851,9 @@ const normalizeInterviewSituationText = (text) => {
 };
 
 const extractInterviewIncidentTitle = (text) => {
-  const normalized = String(text || '').replace(/\r\n/g, '\n').trim();
+  const normalized = String(text || '')
+    .replace(/\r\n/g, '\n')
+    .trim();
   if (!normalized) {
     return '';
   }
@@ -8667,11 +9893,15 @@ const parseInterviewStructuredSections = (text) => {
   const contentBoundary = taskBoundary >= 0 ? taskBoundary : normalized.length;
   const contentOnly = normalized.slice(0, contentBoundary).trim();
 
-  const situationMatch = contentOnly.match(/Ситуация:\s*\*\*[^*]+\*\*[.:]?\s*([\s\S]*?)(?=\n\s*\*\*Что известно\*\*[.:]?|\n\s*\*\*Что ограничивает\*\*[.:]?|$)/i);
+  const situationMatch = contentOnly.match(
+    /Ситуация:\s*\*\*[^*]+\*\*[.:]?\s*([\s\S]*?)(?=\n\s*\*\*Что известно\*\*[.:]?|\n\s*\*\*Что ограничивает\*\*[.:]?|$)/i,
+  );
   if (situationMatch) {
     sections.situation = situationMatch[1].trim();
   } else {
-    const markdownSituationMatch = contentOnly.match(/\*\*Ситуация\*\*[.:]?\s*([\s\S]*?)(?=\n\s*\*\*Что известно\*\*[.:]?|\n\s*\*\*Что ограничивает\*\*[.:]?|$)/i);
+    const markdownSituationMatch = contentOnly.match(
+      /\*\*Ситуация\*\*[.:]?\s*([\s\S]*?)(?=\n\s*\*\*Что известно\*\*[.:]?|\n\s*\*\*Что ограничивает\*\*[.:]?|$)/i,
+    );
     if (markdownSituationMatch) {
       sections.situation = markdownSituationMatch[1].trim();
     }
@@ -8683,7 +9913,12 @@ const parseInterviewStructuredSections = (text) => {
       .split('\n')
       .map((line) => line.trim())
       .filter(Boolean)
-      .map((line) => line.replace(/^[-*]\s+/, '').replace(/^\d+[.)]\s+/, '').trim())
+      .map((line) =>
+        line
+          .replace(/^[-*]\s+/, '')
+          .replace(/^\d+[.)]\s+/, '')
+          .trim(),
+      )
       .filter((line) => !/^\*\*(?:Что известно|Что ограничивает)\*\*[.:]?$/i.test(line))
       .filter(Boolean)
       .filter((line) => {
@@ -8711,9 +9946,10 @@ const parseInterviewStructuredSections = (text) => {
 
   if (knownHeaderMatch) {
     const knownStart = knownHeaderMatch.index + knownHeaderMatch[0].length;
-    const knownEnd = limitingHeaderMatch && limitingHeaderMatch.index > knownHeaderMatch.index
-      ? limitingHeaderMatch.index
-      : contentOnly.length;
+    const knownEnd =
+      limitingHeaderMatch && limitingHeaderMatch.index > knownHeaderMatch.index
+        ? limitingHeaderMatch.index
+        : contentOnly.length;
     sections.known = extractListItems(contentOnly.slice(knownStart, knownEnd));
   }
 
@@ -8723,10 +9959,13 @@ const parseInterviewStructuredSections = (text) => {
   }
 
   if (!sections.situation) {
-    const blocks = contentOnly.split(/\n\s*\n/).map((part) => part.trim()).filter(Boolean);
+    const blocks = contentOnly
+      .split(/\n\s*\n/)
+      .map((part) => part.trim())
+      .filter(Boolean);
     const firstBlock = blocks[0] || '';
-    const isTitleOnlySituation = /^Ситуация:\s*\*\*[^*]+\*\*[.:]?$/i.test(firstBlock)
-      || /^\*\*Ситуация\*\*[.:]?$/i.test(firstBlock);
+    const isTitleOnlySituation =
+      /^Ситуация:\s*\*\*[^*]+\*\*[.:]?$/i.test(firstBlock) || /^\*\*Ситуация\*\*[.:]?$/i.test(firstBlock);
     if (isTitleOnlySituation) {
       sections.situation = blocks[1] || '';
       if (!knownHeaderMatch && !limitingHeaderMatch) {
@@ -8802,20 +10041,20 @@ const addInterviewMessage = (role, text) => {
       const contextLeadSection = document.createElement('div');
       contextLeadSection.className = 'interview-bubble-section lead';
       contextLeadSection.innerHTML =
-        '<div class="interview-bubble-label">Вводные данные</div>' +
-        '<div class="interview-bubble-text"></div>';
+        '<div class="interview-bubble-label">Вводные данные</div>' + '<div class="interview-bubble-text"></div>';
       const leadTarget = contextLeadSection.querySelector('.interview-bubble-text');
-      leadTarget.appendChild(renderInterviewStructuredBlock({
-        label: 'Ситуация',
-        body: normalizeInterviewSituationText(parsed.context) || parsed.context,
-      }));
+      leadTarget.appendChild(
+        renderInterviewStructuredBlock({
+          label: 'Ситуация',
+          body: normalizeInterviewSituationText(parsed.context) || parsed.context,
+        }),
+      );
       bubble.appendChild(contextLeadSection);
 
       const taskSection = document.createElement('div');
       taskSection.className = 'interview-bubble-section task';
       taskSection.innerHTML =
-        '<div class="interview-bubble-label">Что нужно сделать</div>' +
-        '<div class="interview-bubble-task"></div>';
+        '<div class="interview-bubble-label">Что нужно сделать</div>' + '<div class="interview-bubble-task"></div>';
       taskSection.querySelector('.interview-bubble-task').textContent = parsed.task;
       bubble.appendChild(taskSection);
     } else {
@@ -8824,15 +10063,53 @@ const addInterviewMessage = (role, text) => {
   }
   row.appendChild(bubble);
   interviewMessages.appendChild(row);
-  interviewMessages.scrollTop = interviewMessages.scrollHeight;
+  scrollInterviewToBottom();
 };
+
+const scrollInterviewToBottom = () => {
+  if (interviewScrollArea) {
+    interviewScrollArea.scrollTop = interviewScrollArea.scrollHeight;
+  }
+  updateInterviewMessagesScrollIndicator();
+};
+
+const updateInterviewMessagesScrollIndicator = () => {
+  if (!interviewScrollArea) return;
+  const distanceFromBottom =
+    interviewScrollArea.scrollHeight - interviewScrollArea.scrollTop - interviewScrollArea.clientHeight;
+  const hasOverflow = interviewScrollArea.scrollHeight - interviewScrollArea.clientHeight > 8;
+  const canScrollUp = hasOverflow && interviewScrollArea.scrollTop > 8;
+  const canScrollDown = hasOverflow && distanceFromBottom > 8;
+  interviewScrollArea
+    .closest('.interview-messages-shell')
+    ?.classList.toggle('can-scroll-up', canScrollUp);
+  interviewScrollArea
+    .closest('.interview-messages-shell')
+    ?.classList.toggle('can-scroll-down', canScrollDown);
+  if (interviewMessagesScroll) {
+    interviewMessagesScroll.hidden = !(hasOverflow && distanceFromBottom > 24);
+  }
+};
+
+if (interviewMessagesScroll && interviewScrollArea) {
+  interviewMessagesScroll.addEventListener('click', () => {
+    interviewScrollArea.scrollTo({ top: interviewScrollArea.scrollHeight, behavior: 'smooth' });
+  });
+}
+
+if (interviewScrollArea) {
+  interviewScrollArea.addEventListener('scroll', updateInterviewMessagesScrollIndicator, { passive: true });
+  window.addEventListener('resize', updateInterviewMessagesScrollIndicator);
+  const messagesObserver = new MutationObserver(updateInterviewMessagesScrollIndicator);
+  messagesObserver.observe(interviewScrollArea, { childList: true, subtree: true });
+}
 
 const addInterviewHint = (text) => {
   const item = document.createElement('div');
   item.className = 'interview-hint';
   item.textContent = text;
   interviewMessages.appendChild(item);
-  interviewMessages.scrollTop = interviewMessages.scrollHeight;
+  scrollInterviewToBottom();
 };
 
 const renderSingleTurnCaseCard = (text) => {
@@ -8840,14 +10117,18 @@ const renderSingleTurnCaseCard = (text) => {
   const parsed = parseInterviewAssistantMessage(text);
 
   if (parsed) {
-    interviewSummary.appendChild(renderInterviewStructuredBlock({
-      label: 'Ситуация',
-      body: normalizeInterviewSituationText(parsed.context) || parsed.context,
-    }));
-    interviewSummary.appendChild(renderInterviewStructuredBlock({
-      label: 'Что нужно сделать',
-      body: parsed.task,
-    }));
+    interviewSummary.appendChild(
+      renderInterviewStructuredBlock({
+        label: 'Ситуация',
+        body: normalizeInterviewSituationText(parsed.context) || parsed.context,
+      }),
+    );
+    interviewSummary.appendChild(
+      renderInterviewStructuredBlock({
+        label: 'Что нужно сделать',
+        body: parsed.task,
+      }),
+    );
   } else {
     interviewSummary.textContent = text;
   }
@@ -8869,9 +10150,7 @@ const renderCaseProgress = (assessmentCompleted = false) => {
     return;
   }
 
-  interviewRouteLabel.textContent = assessmentCompleted
-    ? 'Завершено'
-    : 'Текущий кейс: ' + state.assessmentCaseNumber;
+  interviewRouteLabel.textContent = assessmentCompleted ? 'Завершено' : 'Текущий кейс: ' + state.assessmentCaseNumber;
 
   for (let index = 1; index <= state.assessmentTotalCases; index += 1) {
     const item = document.createElement('div');
@@ -8884,21 +10163,34 @@ const renderCaseProgress = (assessmentCompleted = false) => {
       statusLabel = outcome || 'Завершен';
     } else if (index === state.assessmentCaseNumber) {
       status = 'active';
-      const remainingMs = getRemainingCaseTimeMs();
-      statusLabel = remainingMs === null ? 'Текущий' : 'Осталось ' + formatRemainingTime(remainingMs);
+      statusLabel = 'Текущий';
     }
 
     item.className = 'case-progress-item ' + status;
     const outcomeClass =
-      outcome === 'Пройден' || outcome === 'Пройден по тайм-ауту' ? ' outcome-success' :
-      outcome === 'Пропущен' ? ' outcome-failed' :
-      outcome === 'Тайм-аут без ответа' ? ' outcome-timeout' : '';
+      outcome === 'Пройден' || outcome === 'Пройден по тайм-ауту'
+        ? ' outcome-success'
+        : outcome === 'Пропущен'
+          ? ' outcome-failed'
+          : outcome === 'Тайм-аут без ответа'
+            ? ' outcome-timeout'
+            : '';
 
     item.innerHTML =
-      '<div class="case-progress-index">' + String(index).padStart(2, '0') + '</div>' +
-      '<div class="case-progress-copy' + outcomeClass + '">' +
-      '<strong>' + (index === state.assessmentCaseNumber && state.assessmentCaseTitle ? state.assessmentCaseTitle : 'Кейс ' + index) + '</strong>' +
-      '<span>' + statusLabel + '</span>' +
+      '<div class="case-progress-index">' +
+      String(index).padStart(2, '0') +
+      '</div>' +
+      '<div class="case-progress-copy' +
+      outcomeClass +
+      '">' +
+      '<strong>' +
+      (index === state.assessmentCaseNumber && state.assessmentCaseTitle
+        ? state.assessmentCaseTitle
+        : 'Кейс ' + index) +
+      '</strong>' +
+      '<span>' +
+      statusLabel +
+      '</span>' +
       '</div>';
     caseProgressList.appendChild(item);
   }
@@ -8914,10 +10206,10 @@ const clearInterviewTimer = () => {
 
 const pauseAssessmentTimerIfNeeded = async () => {
   if (
-    !state.assessmentSessionCode
-    || state.assessmentPauseInFlight
-    || state.assessmentTimeoutInFlight
-    || !state.activeInterviewCaseKey
+    !state.assessmentSessionCode ||
+    state.assessmentPauseInFlight ||
+    state.assessmentTimeoutInFlight ||
+    !state.activeInterviewCaseKey
   ) {
     return;
   }
@@ -8975,24 +10267,16 @@ const updateInterviewTimer = () => {
   const remainingMs = getRemainingCaseTimeMs();
   if (remainingMs === null) {
     interviewTimerBadge.textContent = 'Без лимита';
-    interviewFooterText.textContent = 'Ответы анализируются алгоритмами AI для оценки компетенций';
-    renderCaseProgress(false);
     return false;
   }
 
   if (remainingMs <= 0) {
     interviewTimerBadge.textContent = '00:00';
-    interviewFooterText.textContent = 'Время по текущему кейсу истекло. Фиксируем результат.';
     interviewCaseStatus.textContent = 'Кейс завершается автоматически из-за окончания времени.';
-    renderCaseProgress(false);
     return true;
   }
 
   interviewTimerBadge.textContent = formatRemainingTime(remainingMs);
-  interviewFooterText.textContent =
-    'Осталось времени на кейс: ' + formatRemainingTime(remainingMs) +
-    ' из ' + state.assessmentTimeLimitMinutes + ' мин.';
-  renderCaseProgress(false);
   return false;
 };
 
@@ -9003,16 +10287,16 @@ const handleAssessmentResponse = (data) => {
   const caseChanged = previousCaseKey && nextCaseKey && previousCaseKey !== nextCaseKey;
   const isDialogCase = Boolean(data.is_dialog_case);
 
-    if (data.case_completed && data.result_status) {
-      const completedCaseNumber = caseChanged ? previousCaseNumber : data.case_number;
-      if (completedCaseNumber) {
-        let outcomeLabel = data.result_status === 'passed' ? 'Пройден' : 'Пропущен';
-        if (data.time_expired) {
-          outcomeLabel = data.result_status === 'passed' ? 'Пройден по тайм-ауту' : 'Тайм-аут без ответа';
-        }
-        state.caseOutcomeByNumber[completedCaseNumber] = outcomeLabel;
+  if (data.case_completed && data.result_status) {
+    const completedCaseNumber = caseChanged ? previousCaseNumber : data.case_number;
+    if (completedCaseNumber) {
+      let outcomeLabel = data.result_status === 'passed' ? 'Пройден' : 'Пропущен';
+      if (data.time_expired) {
+        outcomeLabel = data.result_status === 'passed' ? 'Пройден по тайм-ауту' : 'Тайм-аут без ответа';
       }
+      state.caseOutcomeByNumber[completedCaseNumber] = outcomeLabel;
     }
+  }
 
   state.assessmentSessionCode = data.session_code;
   state.assessmentSessionId = data.session_id;
@@ -9021,9 +10305,8 @@ const handleAssessmentResponse = (data) => {
   state.assessmentCaseTitle = data.case_title;
   state.assessmentTimeLimitMinutes = data.case_time_limit_minutes || null;
   state.assessmentCaseStartedAt = data.case_started_at || null;
-  state.assessmentRemainingSeconds = typeof data.case_time_remaining_seconds === 'number'
-    ? data.case_time_remaining_seconds
-    : null;
+  state.assessmentRemainingSeconds =
+    typeof data.case_time_remaining_seconds === 'number' ? data.case_time_remaining_seconds : null;
   state.activeInterviewCaseKey = nextCaseKey;
 
   if (caseChanged) {
@@ -9035,8 +10318,8 @@ const handleAssessmentResponse = (data) => {
     assistantMessage = assistantMessage.split('\n\nСледующий кейс:\n')[1];
   }
   const suppressAssistantBubble =
-    Boolean(data.pending_auto_finish)
-    && assistantMessage.trim() === 'Ответ зафиксирован. Завершаем кейс автоматически.';
+    Boolean(data.pending_auto_finish) &&
+    assistantMessage.trim() === 'Ответ зафиксирован. Завершаем кейс автоматически.';
   const incidentTitle = extractInterviewIncidentTitle(assistantMessage);
   if (incidentTitle) {
     state.assessmentCaseTitle = incidentTitle;
@@ -9087,8 +10370,8 @@ const handleAssessmentResponse = (data) => {
     interviewFooterText.textContent = !isDialogCase
       ? 'Ответ сохранен. Автоматически завершаем кейс и переходим дальше.'
       : suppressAssistantBubble
-      ? 'Ответ сохранен. Автоматически завершаем кейс и переходим дальше.'
-      : 'Показываем итоговое сообщение и затем завершаем кейс.';
+        ? 'Ответ сохранен. Автоматически завершаем кейс и переходим дальше.'
+        : 'Показываем итоговое сообщение и затем завершаем кейс.';
     const delayMs = Math.max(800, Number(data.auto_finish_delay_ms || 2200));
     state.assessmentAutoFinishTimerId = window.setTimeout(() => {
       state.assessmentAutoFinishTimerId = null;
@@ -9189,7 +10472,10 @@ const startAssessmentInterview = async () => {
 
 const renderOnboarding = () => {
   const step = onboardingSteps[state.onboardingIndex];
-  stepBadge.textContent = step.step;
+  stepBadgeLabel.textContent = step.step;
+  if (onboardingStepBackButton) {
+    onboardingStepBackButton.hidden = state.onboardingIndex === 0;
+  }
   onboardingTitle.textContent = step.title;
   onboardingDescription.textContent = step.description;
   featureList.innerHTML = '';
@@ -9201,6 +10487,7 @@ const renderOnboarding = () => {
   });
   onboardingVisual.innerHTML = step.visual;
   onboardingNext.textContent = step.finalButton || 'Далее';
+  window.scrollTo({ top: 0, left: 0 });
 };
 
 const openOnboarding = () => {
@@ -9290,7 +10577,7 @@ phoneForm.addEventListener('submit', async (event) => {
     state.isNewUserFlow = !data.exists;
     state.pendingAgentMessage = data.exists
       ? buildExistingUserAgentMessage(data.user, agent?.message || data.message || '')
-      : (agent?.message || data.message || null);
+      : agent?.message || data.message || null;
     state.pendingNoChangesQuickReply = data.exists && shouldOfferNoChangesQuickReply(state.pendingAgentMessage);
 
     if (state.isAdmin) {
@@ -9333,21 +10620,18 @@ onboardingSkip.addEventListener('click', () => {
   returnToStart();
 });
 
-if (onboardingBackButton) {
-  onboardingBackButton.addEventListener('click', () => {
-    if (state.onboardingIndex > 0) {
-      state.onboardingIndex -= 1;
-      renderOnboarding();
-      return;
-    }
-    returnToStart();
-  });
-}
+const goBackInOnboarding = () => {
+  if (state.onboardingIndex > 0) {
+    state.onboardingIndex -= 1;
+    renderOnboarding();
+    return;
+  }
 
-if (onboardingExitButton) {
-  onboardingExitButton.addEventListener('click', () => {
-    returnToStart();
-  });
+  returnToStart();
+};
+
+if (onboardingStepBackButton) {
+  onboardingStepBackButton.addEventListener('click', goBackInOnboarding);
 }
 
 chatForm.addEventListener('submit', async (event) => {
@@ -9462,7 +10746,14 @@ if (adminPromptLabUserSelect) {
   });
 }
 
-[adminPromptLabUserName, adminPromptLabRoleSelect, adminPromptLabPosition, adminPromptLabCompanyIndustry, adminPromptLabDuties, adminPromptLabProfileJson]
+[
+  adminPromptLabUserName,
+  adminPromptLabRoleSelect,
+  adminPromptLabPosition,
+  adminPromptLabCompanyIndustry,
+  adminPromptLabDuties,
+  adminPromptLabProfileJson,
+]
   .filter(Boolean)
   .forEach((node) => {
     node.addEventListener('input', () => {
@@ -9776,7 +11067,8 @@ if (adminReportDetailPdfButton) {
     if (!state.adminReportDetail?.user_id || !state.adminReportDetail?.session_id) {
       return;
     }
-    window.location.href = '/users/' + state.adminReportDetail.user_id + '/assessment/' + state.adminReportDetail.session_id + '/report.pdf';
+    window.location.href =
+      '/users/' + state.adminReportDetail.user_id + '/assessment/' + state.adminReportDetail.session_id + '/report.pdf';
   });
 }
 
@@ -9823,7 +11115,9 @@ if (adminReportDetailExpertComment) {
     }
     updateAdminExpertCommentDirtyState();
     if (adminReportDetailExpertCommentStatus) {
-      adminReportDetailExpertCommentStatus.textContent = state.adminReportDetailExpertCommentDirty ? 'Изменения не сохранены.' : '';
+      adminReportDetailExpertCommentStatus.textContent = state.adminReportDetailExpertCommentDirty
+        ? 'Изменения не сохранены.'
+        : '';
     }
   });
 }
@@ -9837,12 +11131,11 @@ const updateAdminExpertCommentDirtyState = () => {
     expert_assessed_at: adminReportDetailExpertAssessedAt?.value || '',
   };
   const originalMeta = state.adminReportDetailExpertMetaOriginal || {};
-  state.adminReportDetailExpertCommentDirty = (
-    currentComment !== originalComment
-    || currentMeta.expert_name !== String(originalMeta.expert_name || '').trim()
-    || currentMeta.expert_contacts !== String(originalMeta.expert_contacts || '').trim()
-    || currentMeta.expert_assessed_at !== String(originalMeta.expert_assessed_at || '')
-  );
+  state.adminReportDetailExpertCommentDirty =
+    currentComment !== originalComment ||
+    currentMeta.expert_name !== String(originalMeta.expert_name || '').trim() ||
+    currentMeta.expert_contacts !== String(originalMeta.expert_contacts || '').trim() ||
+    currentMeta.expert_assessed_at !== String(originalMeta.expert_assessed_at || '');
 };
 
 if (adminReportDetailExpertName) {
@@ -9852,7 +11145,9 @@ if (adminReportDetailExpertName) {
     }
     updateAdminExpertCommentDirtyState();
     if (adminReportDetailExpertCommentStatus) {
-      adminReportDetailExpertCommentStatus.textContent = state.adminReportDetailExpertCommentDirty ? 'Изменения не сохранены.' : '';
+      adminReportDetailExpertCommentStatus.textContent = state.adminReportDetailExpertCommentDirty
+        ? 'Изменения не сохранены.'
+        : '';
     }
   });
 }
@@ -9864,7 +11159,9 @@ if (adminReportDetailExpertContacts) {
     }
     updateAdminExpertCommentDirtyState();
     if (adminReportDetailExpertCommentStatus) {
-      adminReportDetailExpertCommentStatus.textContent = state.adminReportDetailExpertCommentDirty ? 'Изменения не сохранены.' : '';
+      adminReportDetailExpertCommentStatus.textContent = state.adminReportDetailExpertCommentDirty
+        ? 'Изменения не сохранены.'
+        : '';
     }
   });
 }
@@ -9876,7 +11173,9 @@ if (adminReportDetailExpertAssessedAt) {
     }
     updateAdminExpertCommentDirtyState();
     if (adminReportDetailExpertCommentStatus) {
-      adminReportDetailExpertCommentStatus.textContent = state.adminReportDetailExpertCommentDirty ? 'Изменения не сохранены.' : '';
+      adminReportDetailExpertCommentStatus.textContent = state.adminReportDetailExpertCommentDirty
+        ? 'Изменения не сохранены.'
+        : '';
     }
   });
 }
@@ -10035,6 +11334,26 @@ if (reportBackButton) {
   });
 }
 
+if (reportInfoModal) {
+  reportInfoModal.addEventListener('click', (event) => {
+    if (event.target === reportInfoModal) {
+      closeReportInfoModal();
+    }
+  });
+}
+
+if (reportInfoModalClose) {
+  reportInfoModalClose.addEventListener('click', () => {
+    closeReportInfoModal();
+  });
+}
+
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape' && reportInfoModal && !reportInfoModal.classList.contains('hidden')) {
+    closeReportInfoModal();
+  }
+});
+
 profileBackButton.addEventListener('click', () => {
   openWelcomeScreen();
 });
@@ -10095,8 +11414,7 @@ reportDownloadButton.addEventListener('click', () => {
   if (!state.pendingUser?.id || !state.assessmentSessionId) {
     return;
   }
-  window.location.href =
-    '/users/' + state.pendingUser.id + '/assessment/' + state.assessmentSessionId + '/report.pdf';
+  window.location.href = '/users/' + state.pendingUser.id + '/assessment/' + state.assessmentSessionId + '/report.pdf';
 });
 
 const bootApp = async () => {

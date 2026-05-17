@@ -305,3 +305,29 @@
     white-space: nowrap;
 }
 
+@media (max-width: 900px) {
+    .admin-shell {
+        padding: var(--space-3) var(--space-4) 0;
+    }
+
+    .admin-hero-card {
+        flex-direction: column;
+        align-items: stretch;
+        gap: var(--space-3);
+    }
+
+    .admin-hero-card h2 {
+        white-space: normal;
+    }
+
+    .admin-hero-actions {
+        flex-direction: column;
+        align-items: stretch;
+        justify-content: flex-start;
+    }
+
+    .admin-hero-actions > * {
+        width: 100%;
+    }
+}
+

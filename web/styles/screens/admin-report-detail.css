@@ -1,7 +1,3 @@
-.admin-report-detail-shell {
-    gap: var(--space-4);
-}
-
 .admin-report-mbti-card {
     display: grid;
     gap: var(--space-3);
@@ -273,6 +269,13 @@
 .admin-report-detail-shell {
     gap: var(--space-4);
     justify-items: stretch;
+    padding-left: var(--space-7);
+    padding-right: var(--space-7);
+    grid-template-columns: 1fr;
+}
+
+.admin-report-detail-shell > .report-competencies-card {
+    grid-area: auto;
 }
 
 .admin-detail-user-card,
@@ -910,6 +913,18 @@
     .admin-methodology-personalization-editor-head {
         display: none;
     }
+
+    .admin-detail-case-summary {
+        flex-direction: column;
+        align-items: stretch;
+        gap: var(--space-2);
+    }
+
+    .admin-detail-case-summary-meta {
+        text-align: left;
+        justify-items: start;
+        gap: var(--space-1);
+    }
 }
 
 @media (max-width: 720px) {
@@ -936,3 +951,41 @@
     }
 }
 
+@media (max-width: 1000px) {
+    .admin-report-detail-shell {
+        padding-left: var(--space-4);
+        padding-right: var(--space-4);
+    }
+
+    .admin-detail-insights-grid,
+    .admin-detail-quotes-grid,
+    .admin-detail-skill-radar-list,
+    .admin-detail-profile-summary-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .admin-detail-profile-summary-item,
+    .admin-detail-profile-summary-item:nth-child(1),
+    .admin-detail-profile-summary-item:nth-child(2),
+    .admin-detail-profile-summary-item:nth-child(3),
+    .admin-detail-profile-summary-item:nth-child(n + 4) {
+        grid-column: 1;
+    }
+
+    #admin-report-detail-panel .dashboard-topbar {
+        flex-direction: column;
+        align-items: stretch;
+        padding-top: var(--space-3);
+        padding-bottom: var(--space-4);
+    }
+
+    #admin-report-detail-panel .dashboard-topbar-actions {
+        flex-direction: column;
+        align-items: stretch;
+        flex-wrap: nowrap;
+    }
+
+    #admin-report-detail-panel .dashboard-topbar-actions > * {
+        width: 100%;
+    }
+}

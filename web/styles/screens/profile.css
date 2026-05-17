@@ -712,6 +712,43 @@
     align-items: center;
 }
 
+@media (max-width: 900px) {
+    .profile-history-item-status {
+        justify-self: start;
+    }
+}
+
+@media (max-width: 720px) {
+    .profile-skill-grid .profile-skill-columns {
+        display: none;
+    }
+
+    .profile-skill-grid .profile-skill-row {
+        grid-template-columns: 1fr;
+        row-gap: var(--space-2);
+        align-items: start;
+    }
+
+    .profile-skill-grid .profile-skill-level {
+        justify-self: start;
+        text-align: left;
+    }
+
+    .profile-skill-grid .profile-skill-progress {
+        display: block;
+        justify-self: start;
+    }
+
+    .profile-skill-grid .report-skill-progress-track {
+        display: none;
+    }
+
+    .profile-skill-grid .profile-skill-progress > span {
+        min-width: 0;
+        text-align: left;
+    }
+}
+
 .profile-history-expert-comment {
     display: grid;
     gap: var(--space-2);

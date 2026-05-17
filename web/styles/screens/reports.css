@@ -123,11 +123,33 @@
     color: var(--text-muted);
 }
 
-.reports-intro-card {
-    padding: var(--space-3);
+.reports-howto-hint {
+    display: grid;
+    gap: 2px;
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius-md);
+    background: var(--accent-surface);
+    border: 1px dashed rgba(70, 72, 212, 0.24);
 }
 
-.reports-intro-card strong {
+.reports-howto-hint-label {
     color: var(--accent);
+    font-family: var(--font-heading);
+    font-size: var(--fs-micro);
+    font-weight: var(--fw-bold);
+    text-transform: uppercase;
+    letter-spacing: var(--ls-eyebrow);
+}
+
+.reports-howto-hint p {
+    margin: 0;
+    color: var(--text-body);
+    font-size: var(--fs-meta);
+    line-height: var(--lh-normal);
+}
+
+.reports-howto-hint strong {
+    color: var(--accent);
+    font-weight: var(--fw-bold);
 }
 

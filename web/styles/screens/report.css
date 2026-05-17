@@ -721,7 +721,7 @@ body.report-info-modal-open {
 }
 
 .report-panel .dashboard-topbar {
-    width: min(100%, var(--container-page));
+    width: min(calc(100% - (var(--space-4) * 2)), var(--container-page));
     min-height: 78px;
     margin: 0 auto;
     padding: var(--space-3) 0;
@@ -804,7 +804,7 @@ body.report-info-modal-open {
 }
 
 .report-shell {
-    width: min(100%, var(--container-page));
+    width: min(calc(100% - (var(--space-4) * 2)), var(--container-page));
     display: grid;
     gap: var(--space-4);
     margin: 0 auto;
@@ -1275,7 +1275,10 @@ body.report-info-modal-open {
 }
 
 .report-skill-progress {
-    justify-content: end;
+    width: max-content;
+    max-width: 100%;
+    justify-self: center;
+    justify-content: center;
     gap: var(--space-2);
 }
 
@@ -1344,16 +1347,55 @@ body.report-info-modal-open {
     }
 }
 
+@media (max-width: 900px) {
+    .report-tabs {
+        display: flex;
+        gap: var(--space-3);
+        overflow-x: auto;
+        overscroll-behavior-x: contain;
+        scrollbar-width: thin;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .report-tab-button {
+        flex: 0 0 auto;
+        width: auto;
+        min-width: max-content;
+        padding-right: var(--space-2);
+        padding-left: var(--space-2);
+    }
+}
+
 @media (max-width: 720px) {
     .report-panel .dashboard-topbar {
         display: flex;
+        flex-direction: column;
+        align-items: stretch;
         min-height: auto;
         padding-top: var(--space-2);
         padding-bottom: var(--space-2);
     }
 
+    .report-title-group {
+        width: 100%;
+    }
+
+    .report-panel .dashboard-brand {
+        min-width: 0;
+        overflow-wrap: anywhere;
+    }
+
     .report-panel .dashboard-topbar-actions {
+        width: 100%;
+        flex: none;
+        flex-direction: column;
         gap: var(--space-2);
+        align-items: stretch;
+    }
+
+    .report-panel .dashboard-topbar-actions > button {
+        width: 100%;
+        justify-content: center;
     }
 
     .report-hero-score {
@@ -1365,7 +1407,7 @@ body.report-info-modal-open {
     }
 
     .report-tabs {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: var(--space-2);
     }
 
     .report-detail-columns,
@@ -1386,7 +1428,62 @@ body.report-info-modal-open {
     }
 
     .report-skill-progress {
+        width: 100%;
+        justify-self: stretch;
         justify-content: flex-start;
     }
 }
 
+@media (max-width: 600px) {
+    .report-competency-bars {
+        height: auto;
+        min-height: 0;
+    }
+
+    .report-competency-bars-fallback {
+        grid-template-columns: 1fr;
+        height: auto;
+        gap: var(--space-2);
+    }
+
+    .report-competency-bar-card {
+        min-height: 0;
+        grid-template-columns: 72px minmax(0, 1fr);
+        grid-template-rows: auto auto;
+        column-gap: var(--space-3);
+        row-gap: var(--space-1);
+        align-items: center;
+        justify-items: stretch;
+        padding: var(--space-3);
+        text-align: left;
+    }
+
+    .report-competency-bar-card strong {
+        grid-column: 1;
+        grid-row: 1 / 3;
+        align-self: center;
+        font-size: 1.5rem;
+        text-align: left;
+    }
+
+    .report-competency-bar-card span {
+        grid-column: 2;
+        grid-row: 1;
+        min-height: 0;
+        font-size: var(--fs-caption);
+    }
+
+    .report-competency-meter {
+        grid-column: 2;
+        grid-row: 2;
+        width: 100%;
+        height: 14px;
+        padding: 2px;
+    }
+
+    .report-competency-meter-fill {
+        width: var(--report-competency-percent, 0%);
+        height: 100% !important;
+        background: linear-gradient(90deg, #5d4be8 0%, #6757f0 54%, #8d84ff 100%);
+    }
+}

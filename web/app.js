@@ -593,9 +593,13 @@ const prechatAssessmentTitle = document.getElementById('prechat-assessment-title
 const prechatAssessmentText = document.getElementById('prechat-assessment-text');
 const prechatError = document.getElementById('prechat-error');
 const interviewCaseBadge = document.getElementById('interview-case-badge');
+const interviewTitleRow = document.querySelector('.interview-title-row');
+const interviewCaseHeading = document.querySelector('.interview-case-heading');
 const interviewCaseTitle = document.getElementById('interview-case-title');
 const interviewCaseStatus = document.getElementById('interview-case-status');
 const interviewTimerBadge = document.getElementById('interview-timer-badge');
+const interviewCompactQuery =
+  typeof window.matchMedia === 'function' ? window.matchMedia('(max-width: 900px)') : null;
 const interviewMessages = document.getElementById('interview-messages');
 const interviewScrollArea = document.getElementById('interview-scroll-area');
 const interviewMessagesScroll = document.getElementById('interview-messages-scroll');
@@ -613,6 +617,9 @@ const interviewFooterText = document.getElementById('interview-footer-text');
 const interviewError = document.getElementById('interview-error');
 const caseProgressList = document.getElementById('case-progress-list');
 const interviewRouteLabel = document.getElementById('interview-route-label');
+const caseSidebar = document.querySelector('.case-sidebar');
+const caseSidebarToggle = document.getElementById('case-sidebar-toggle');
+const caseSidebarToggleLabel = document.getElementById('case-sidebar-toggle-label');
 const appLoader = document.getElementById('app-loader');
 const appLoaderTitle = document.getElementById('app-loader-title');
 const appLoaderText = document.getElementById('app-loader-text');
@@ -660,6 +667,8 @@ const reportRecommendations = document.getElementById('report-recommendations');
 const reportCompetencyBars = document.getElementById('report-competency-bars');
 const reportCompetencyBarChartCanvas = document.getElementById('report-competency-bar-chart');
 const reportCompetencyBarsFallback = document.getElementById('report-competency-bars-fallback');
+const reportCompetencyCompactQuery =
+  typeof window.matchMedia === 'function' ? window.matchMedia('(max-width: 600px)') : null;
 const reportStrengthTitle = document.getElementById('report-strength-title');
 const reportStrengthText = document.getElementById('report-strength-text');
 const reportDetailTitle = document.getElementById('report-detail-title');
@@ -7847,7 +7856,7 @@ const renderDashboard = () => {
   availableAssessments.innerHTML = '';
   dashboard.available_assessments.forEach((item, index) => {
     const card = document.createElement('article');
-    card.className = 'card card--lg assessment-mini-card';
+    card.className = 'card assessment-mini-card';
     const actionMarkup =
       index === 0
         ? '<button id="dashboard-mini-start" class="mini-card-action-button" type="button">' +
@@ -9258,7 +9267,9 @@ const buildReportCompetencyFallbackMarkup = (summary) =>
         '<span>' +
         escapeHtml(item.competency) +
         '</span>' +
-        '<div class="report-competency-meter"><div class="report-competency-meter-fill" style="height:' +
+        '<div class="report-competency-meter"><div class="report-competency-meter-fill" style="--report-competency-percent:' +
+        item.avgPercent +
+        '%;height:' +
         item.avgPercent +
         '%"></div></div>' +
         '</article>',
@@ -9293,7 +9304,7 @@ const renderReportCompetencyBarChart = (summary = []) => {
     return;
   }
 
-  if (typeof window.Chart !== 'function' || !reportCompetencyBarChartCanvas) {
+  if (reportCompetencyCompactQuery?.matches || typeof window.Chart !== 'function' || !reportCompetencyBarChartCanvas) {
     if (reportCompetencyBarsFallback) {
       reportCompetencyBarsFallback.innerHTML = buildReportCompetencyFallbackMarkup(items);
       reportCompetencyBarsFallback.classList.remove('hidden');
@@ -9520,6 +9531,12 @@ const renderReport = () => {
     }
   });
 };
+
+reportCompetencyCompactQuery?.addEventListener('change', () => {
+  if (!reportPanel?.classList.contains('hidden') && state.skillAssessments.length) {
+    renderReport();
+  }
+});
 
 const openReport = (options = {}) => {
   const { returnTarget = 'home' } = options;
@@ -10104,6 +10121,60 @@ if (interviewScrollArea) {
   messagesObserver.observe(interviewScrollArea, { childList: true, subtree: true });
 }
 
+const getCurrentCaseDropdownLabel = () => {
+  if (state.assessmentCaseTitle) {
+    return state.assessmentCaseTitle;
+  }
+  if (state.assessmentCaseNumber) {
+    return 'Кейс ' + state.assessmentCaseNumber;
+  }
+  return 'Кейс';
+};
+
+const updateCaseSidebarToggle = () => {
+  if (!caseSidebarToggle || !caseSidebarToggleLabel) return;
+  const label = getCurrentCaseDropdownLabel();
+  caseSidebarToggleLabel.textContent = label;
+  caseSidebarToggle.setAttribute('aria-label', 'Список кейсов: ' + label);
+};
+
+const setCaseSidebarOpen = (isOpen) => {
+  if (!caseSidebar || !caseSidebarToggle) return;
+  caseSidebar.classList.toggle('is-open', isOpen);
+  caseSidebarToggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+};
+
+const placeInterviewTimerBadge = () => {
+  if (!interviewTimerBadge || !interviewTitleRow || !interviewCaseHeading) return;
+  const compact = Boolean(interviewCompactQuery?.matches);
+  const target = compact ? interviewTitleRow : interviewCaseHeading;
+  if (interviewTimerBadge.parentElement !== target) {
+    target.appendChild(interviewTimerBadge);
+  }
+};
+
+placeInterviewTimerBadge();
+
+interviewCompactQuery?.addEventListener('change', placeInterviewTimerBadge);
+
+if (caseSidebarToggle) {
+  caseSidebarToggle.addEventListener('click', () => {
+    setCaseSidebarOpen(!caseSidebar?.classList.contains('is-open'));
+  });
+}
+
+document.addEventListener('click', (event) => {
+  if (!caseSidebar?.classList.contains('is-open')) return;
+  if (caseSidebar.contains(event.target)) return;
+  setCaseSidebarOpen(false);
+});
+
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape') {
+    setCaseSidebarOpen(false);
+  }
+});
+
 const addInterviewHint = (text) => {
   const item = document.createElement('div');
   item.className = 'interview-hint';
@@ -10147,6 +10218,7 @@ const renderCaseProgress = (assessmentCompleted = false) => {
 
   if (!state.assessmentTotalCases) {
     interviewRouteLabel.textContent = 'Подготовка';
+    updateCaseSidebarToggle();
     return;
   }
 
@@ -10194,6 +10266,8 @@ const renderCaseProgress = (assessmentCompleted = false) => {
       '</div>';
     caseProgressList.appendChild(item);
   }
+  updateCaseSidebarToggle();
+  setCaseSidebarOpen(false);
 };
 
 const clearInterviewTimer = () => {
@@ -11309,7 +11383,7 @@ if (interviewBackButton) {
 
 if (interviewProfileButton) {
   interviewProfileButton.addEventListener('click', () => {
-    void openProfile();
+    void openHomePage();
   });
 }
 

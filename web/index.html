@@ -15,12 +15,12 @@
   <link rel="stylesheet" href="/web/styles/screens/onboarding.css?v=20260517-onboarding-progress-pad">
   <link rel="stylesheet" href="/web/styles/screens/processing.css?v=20260516-merged">
   <link rel="stylesheet" href="/web/styles/screens/profile.css?v=20260517-redesign-3">
-  <link rel="stylesheet" href="/web/styles/screens/report.css?v=20260516-merged">
+  <link rel="stylesheet" href="/web/styles/screens/report.css?v=20260517-mobile-report-2">
   <link rel="stylesheet" href="/web/styles/screens/ai-welcome.css?v=20260516-merged">
   <link rel="stylesheet" href="/web/styles/screens/prechat.css?v=20260516-merged">
   <link rel="stylesheet" href="/web/styles/screens/chat.css?v=20260517-scroll-fix">
-  <link rel="stylesheet" href="/web/styles/screens/interview.css?v=20260517-timer-pill">
-  <link rel="stylesheet" href="/web/styles/screens/dashboard.css?v=20260516-merged">
+  <link rel="stylesheet" href="/web/styles/screens/interview.css?v=20260517-mobile-case-dropdown">
+  <link rel="stylesheet" href="/web/styles/screens/dashboard.css?v=20260517-dashboard-soon-button">
   <link rel="stylesheet" href="/web/styles/screens/reports.css?v=20260516-merged">
   <link rel="stylesheet" href="/web/styles/screens/app-loader.css?v=20260516-merged">
   <link rel="stylesheet" href="/web/styles/screens/admin.css?v=20260516-merged">
@@ -28,7 +28,7 @@
   <link rel="stylesheet" href="/web/styles/screens/admin-report-detail.css?v=20260516-merged">
   <link rel="stylesheet" href="/web/styles/screens/admin-methodology.css?v=20260516-merged">
   <link rel="stylesheet" href="/web/styles/screens/admin-prompt-lab.css?v=20260516-merged">
-  <link rel="stylesheet" href="/web/styles/utilities.css?v=20260516-merged">
+  <link rel="stylesheet" href="/web/styles/utilities.css?v=20260517-interview-mobile-2">
       <!--Favicons-->
   <link rel="icon" href="/favicons/favicon.ico" sizes="any">
   <link rel="icon" type="image/png" sizes="32x32" href="/favicons/favicon-32x32.png">
@@ -213,7 +213,7 @@
             <p class="library-subtitle">Выберите тест для начала анализа</p>
           </div>
           <div class="assessment-grid static-grid">
-            <article class="card card--lg assessment-mini-card">
+            <article class="card assessment-mini-card">
               <div class="mini-card-icon">4K</div>
               <h3>Оценка 4К компетенций</h3>
               <p>Комплексный анализ ключевых навыков будущего: Креативность, Критическое мышление, Коммуникация и Кооперация.</p>
@@ -1275,8 +1275,7 @@
             <span id="interview-case-badge" class="interview-case-badge">Кейс 1 из 5</span>
           </div>
           <div class="interview-topbar-actions">
-            <button id="interview-back-button" type="button" class="ghost-button compact-ghost">Назад</button>
-            <button id="interview-profile-button" type="button" class="ghost-button compact-ghost">В профиль</button>
+            <button id="interview-profile-button" type="button" class="ghost-button compact-ghost">Домой</button>
             <button id="interview-exit-button" type="button" class="topbar-exit-button">
               <span class="topbar-user-icon" aria-hidden="true">👤</span>
               <span>Выйти</span>
@@ -1295,6 +1294,16 @@
 
       <div class="interview-layout">
         <aside class="case-sidebar">
+          <button
+            id="case-sidebar-toggle"
+            class="case-sidebar-toggle"
+            type="button"
+            aria-expanded="false"
+            aria-controls="case-progress-list"
+          >
+            <span id="case-sidebar-toggle-label" class="case-sidebar-toggle-label">Кейс</span>
+            <span class="case-sidebar-toggle-icon" aria-hidden="true">⌄</span>
+          </button>
           <div class="case-sidebar-header">
             <strong>Маршрут по кейсам</strong>
             <span id="interview-route-label">Подготовка</span>
@@ -1327,7 +1336,7 @@
           <form id="interview-form" class="interview-form">
             <textarea id="interview-textarea" placeholder="Опишите ваше решение..."></textarea>
             <div class="interview-form-footer">
-              <span id="interview-footer-text">Рекомендуется минимум 200 символов</span>
+              <span id="interview-footer-text">~200 символов</span>
               <div class="interview-action-buttons">
                 <button id="interview-finish-button" type="button" class="ghost-button interview-finish-button">Завершить кейс</button>
                 <button id="interview-submit-button" type="submit" class="primary-button">Отправить ответ</button>
@@ -1451,12 +1460,10 @@
       </div>
 
       <div class="profile-shell reports-shell">
-        <section class="card reports-intro-card">
-          <div class="profile-card-head">
-            <h3>Как смотреть результаты</h3>
-            <p>Разбивка по навыкам открывается внутри каждой попытки. Нажмите <strong>«Раскрыть»</strong> для деталей или <strong>«Открыть отчет»</strong>, чтобы снова посмотреть итоговый экран.</p>
-          </div>
-        </section>
+        <aside class="reports-howto-hint" role="note" aria-label="Как смотреть результаты">
+          <span class="reports-howto-hint-label">Как смотреть результаты</span>
+          <p>Нажмите на нужную сессию, чтобы развернуть разбор по навыкам и комментарий эксперта. Внутри откроются кнопки <strong>«Открыть отчет»</strong> для полного экрана и <strong>«Скачать PDF»</strong> для сохранения копии.</p>
+        </aside>
         <section class="card profile-history-card reports-history-card">
           <div class="profile-card-head">
             <h3>История прохождений</h3>
@@ -1638,6 +1645,6 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js" defer></script>
-  <script src="/web/app.js?v=1.2.8" defer></script>
+  <script src="/web/app.js?v=20260517-mobile-case-dropdown" defer></script>
 </body>
 </html>

@@ -526,10 +526,21 @@
 }
 
 .assessment-mini-card.muted-card .mini-card-meta span:last-child {
-    padding: var(--space-1) var(--space-2);
-    border-radius: var(--radius-pill);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2);
+    min-height: 36px;
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius-sm);
     background: var(--control-bg);
     color: var(--text-muted);
+    font-family: var(--font-heading);
+    font-size: var(--fs-meta);
+    font-weight: var(--fw-bold);
+    line-height: var(--lh-snug);
+    white-space: nowrap;
+    cursor: not-allowed;
 }
 
 .mini-card-action-button {
@@ -810,4 +821,3 @@
     gap: 6px;
     font-size: 13px;
 }
-

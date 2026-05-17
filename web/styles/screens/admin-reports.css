@@ -306,3 +306,28 @@
     color: var(--accent);
 }
 
+@media (max-width: 900px) {
+    .admin-reports-hero {
+        align-items: stretch;
+    }
+
+    .admin-reports-actions {
+        flex-direction: column;
+        align-items: stretch;
+        gap: var(--space-2);
+        order: 1;
+    }
+
+    .admin-reports-actions > * {
+        width: 100%;
+    }
+
+    .admin-search-field {
+        order: 2;
+    }
+
+    #admin-reports-expert-group-button {
+        min-width: 0;
+    }
+}
+

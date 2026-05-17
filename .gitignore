@@ -14,3 +14,4 @@ dist/
 build/
 *.dump
 *.sql
+dev_previews/*.png

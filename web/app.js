@@ -1,4 +1,4 @@
-const APP_RELEASE = '1.2.7';
+const APP_RELEASE = '1.2.8';
 const PROFILE_NO_CHANGES_LABEL = 'Профиль актуален';
 const PROFILE_NO_CHANGES_MESSAGE = 'Профиль актуален';
 

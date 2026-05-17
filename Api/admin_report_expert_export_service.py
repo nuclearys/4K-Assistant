@@ -85,6 +85,17 @@ def _row(cells: list[str], height: int | None = None) -> str:
 class AdminReportExpertExportService:
     _COMPLETED_CASE_STATUSES = {"answered", "assessed", "completed"}
 
+    def _format_system_assessment(self, skill) -> str:
+        level_code = str(skill.assessed_level_code or "").strip()
+        level_name = str(skill.assessed_level_name or "").strip()
+        if level_name and level_code and level_name.lower() != level_code.lower():
+            return f"{level_code} ({level_name})"
+        if level_name:
+            return level_name
+        if level_code:
+            return level_code
+        return "—"
+
     def _resolve_pdf_font_name(self) -> str:
         from reportlab.pdfbase import pdfmetrics
         from reportlab.pdfbase.ttfonts import TTFont
@@ -133,6 +144,7 @@ class AdminReportExpertExportService:
                     _cell(),
                     _cell(),
                     _cell(),
+                    _cell(),
                 ],
                 _estimate_height_points(context_text, base=42),
             )
@@ -162,6 +174,7 @@ class AdminReportExpertExportService:
                                 _cell(),
                                 _cell(),
                                 _cell(),
+                                _cell(),
                             ],
                             pair_height,
                         )
@@ -182,6 +195,7 @@ class AdminReportExpertExportService:
                             _cell(),
                             _cell(),
                             _cell(),
+                            _cell(),
                         ],
                         _estimate_height_points(system_text, base=24),
                     )
@@ -194,6 +208,7 @@ class AdminReportExpertExportService:
                         _cell("—", "WrappedText"),
                         _cell("Ответ пользователя", "Label"),
                         _cell("Нет сохраненных реплик", "WrappedText"),
+                        _cell(),
                         _cell(),
                         _cell(),
                         _cell(),
@@ -214,6 +229,7 @@ class AdminReportExpertExportService:
                         [
                             _cell("Навыки кейса" if first else "", "Label" if first else None),
                             _cell(str(skill.skill_name or "Навык"), "Text"),
+                            _cell(self._format_system_assessment(skill), "Text"),
                             _cell("0", "BooleanCell", "Boolean"),
                             _cell("0", "BooleanCell", "Boolean"),
                             _cell("0", "BooleanCell", "Boolean"),
@@ -230,6 +246,7 @@ class AdminReportExpertExportService:
                     [
                         _cell("Навыки кейса", "Label"),
                         _cell("По этой компетенции кейс не содержит локальной аналитики", "Text"),
+                        _cell("—", "Text"),
                         _cell("0", "BooleanCell", "Boolean"),
                         _cell("0", "BooleanCell", "Boolean"),
                         _cell("0", "BooleanCell", "Boolean"),
@@ -240,7 +257,7 @@ class AdminReportExpertExportService:
                 )
             )
 
-        rows.append(_row([_cell(), _cell(), _cell(), _cell(), _cell(), _cell(), _cell()], 8))
+        rows.append(_row([_cell(), _cell(), _cell(), _cell(), _cell(), _cell(), _cell(), _cell()], 8))
         return rows
 
     def _completed_competency_cases(self, detail, competency: str) -> list[tuple[object, list[object]]]:
@@ -262,6 +279,7 @@ class AdminReportExpertExportService:
                 [
                     _cell("Задание / кейс", "Header"),
                     _cell("Текст", "Header"),
+                    _cell("Оценка системы", "Header"),
                     _cell("L1", "Header"),
                     _cell("L2", "Header"),
                     _cell("L3", "Header"),
@@ -279,6 +297,7 @@ class AdminReportExpertExportService:
                     _cell(),
                     _cell(),
                     _cell(),
+                    _cell(),
                 ],
                 22,
             ),
@@ -288,17 +307,18 @@ class AdminReportExpertExportService:
             if has_competency:
                 rows.extend(self._case_dialogue_rows(case_item, competency))
         if len(rows) == 2:
-            rows.append(_row([_cell("Нет кейсов по этой компетенции", "Label"), _cell(), _cell(), _cell(), _cell(), _cell(), _cell()], 22))
+            rows.append(_row([_cell("Нет кейсов по этой компетенции", "Label"), _cell(), _cell(), _cell(), _cell(), _cell(), _cell(), _cell()], 22))
         return f'''
     <Worksheet ss:Name="{_xml_text(competency[:31])}">
-      <Table ss:ExpandedColumnCount="7" ss:DefaultRowHeight="18">
+      <Table ss:ExpandedColumnCount="8" ss:DefaultRowHeight="18">
         <Column ss:Width="150"/>
-        <Column ss:Width="560"/>
+        <Column ss:Width="500"/>
+        <Column ss:Width="110"/>
         <Column ss:Width="60"/>
         <Column ss:Width="60"/>
         <Column ss:Width="60"/>
         <Column ss:Width="90"/>
-        <Column ss:Width="320"/>
+        <Column ss:Width="260"/>
         {''.join(rows)}
       </Table>
       <WorksheetOptions xmlns="urn:schemas-microsoft-com:office:excel">
@@ -577,6 +597,7 @@ class AdminReportExpertExportService:
                     [
                         [
                             p("Навыки кейса", small_style),
+                            p("Оценка системы", small_style),
                             p("L1", small_style),
                             p("L2", small_style),
                             p("L3", small_style),
@@ -585,6 +606,7 @@ class AdminReportExpertExportService:
                         ],
                         [
                             p(skills_text),
+                            p("\n".join(self._format_system_assessment(skill) for skill in case_skills) or "—"),
                             p("[ ]"),
                             p("[ ]"),
                             p("[ ]"),
@@ -592,7 +614,7 @@ class AdminReportExpertExportService:
                             comment_placeholder(),
                         ],
                     ],
-                    colWidths=[60 * mm, 15 * mm, 15 * mm, 15 * mm, 22 * mm, 53 * mm],
+                    colWidths=[45 * mm, 28 * mm, 13 * mm, 13 * mm, 13 * mm, 20 * mm, 45 * mm],
                 )
                 level_table.setStyle(
                     TableStyle([
@@ -804,6 +826,7 @@ class AdminReportExpertExportService:
                     [
                         [
                             p("Навыки кейса", small_style),
+                            p("Оценка системы", small_style),
                             p("L1", small_style),
                             p("L2", small_style),
                             p("L3", small_style),
@@ -812,6 +835,7 @@ class AdminReportExpertExportService:
                         ],
                         [
                             p(skills_text),
+                            p("\n".join(self._format_system_assessment(skill) for skill in case_skills) or "—"),
                             p("[ ]"),
                             p("[ ]"),
                             p("[ ]"),
@@ -819,7 +843,7 @@ class AdminReportExpertExportService:
                             comment_placeholder(),
                         ],
                     ],
-                    colWidths=[60 * mm, 15 * mm, 15 * mm, 15 * mm, 22 * mm, 53 * mm],
+                    colWidths=[45 * mm, 28 * mm, 13 * mm, 13 * mm, 13 * mm, 20 * mm, 45 * mm],
                 )
                 level_table.setStyle(
                     TableStyle([

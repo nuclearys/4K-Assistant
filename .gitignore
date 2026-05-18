@@ -1,6 +1,7 @@
 .DS_Store
 .env
 .venv/
+node_modules/
 .idea/
 __pycache__/
 *.pyc
@@ -11,7 +12,10 @@ __pycache__/
 .mypy_cache/
 .ruff_cache/
 dist/
+!web/dist/
+!web/dist/**
 build/
 *.dump
 *.sql
 dev_previews/*.png
+AGENTS.md

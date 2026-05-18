@@ -139,7 +139,8 @@
 .admin-methodology-detail-block,
 .admin-methodology-personalization-box,
 .admin-methodology-check-item,
-.admin-methodology-history-item {
+.admin-methodology-history-item,
+.admin-methodology-chip-group {
     border: 1px solid var(--line);
     background: #ffffff;
 }
@@ -274,7 +275,8 @@ admin-methodology-risk-toolbar
 .admin-methodology-personalization-box,
 .admin-methodology-check-item,
 .admin-methodology-signal-card,
-.admin-methodology-history-item {
+.admin-methodology-history-item,
+.admin-methodology-chip-group {
     padding: var(--space-2) var(--space-3);
     border-radius: var(--radius-lg);
 }
@@ -363,7 +365,7 @@ admin-methodology-risk-toolbar
     position: absolute;
     top: var(--space-2);
     right: 0;
-    width: min(560px, 100%);
+    width: min(600px, 100%);
     max-height: calc(100vh - 24px);
     background: rgba(255, 255, 255, 0.98);
     border-left: 1px solid rgba(70, 72, 212, 0.12);
@@ -376,23 +378,35 @@ admin-methodology-risk-toolbar
 
 .admin-methodology-drawer-head {
     align-items: flex-start;
-    padding: var(--space-3) var(--space-3) var(--space-2);
+    gap: var(--space-3);
+    padding: var(--space-3);
     border-bottom: 1px solid rgba(204, 208, 232, 0.7);
+}
+
+.admin-methodology-drawer-head > div:first-child {
+    min-width: 0;
+    flex: 1 1 auto;
+}
+
+.admin-methodology-drawer-actions {
+    flex-wrap: nowrap;
+    flex-shrink: 0;
+    align-items: center;
 }
 
 .admin-methodology-drawer-body {
     overflow: auto;
     display: flex;
     flex-direction: column;
-    gap: var(--space-2);
-    padding: var(--space-2) var(--space-2) var(--space-3);
+    gap: var(--space-3);
+    padding: var(--space-3);
 }
 
 .admin-methodology-drawer-head h3 {
     margin: var(--space-1) 0 0;
     font-size: var(--fs-h3);
     line-height: var(--lh-tight);
-    max-width: 360px;
+    max-width: none;
 }
 
 .admin-methodology-save-status,
@@ -434,6 +448,7 @@ admin-methodology-risk-toolbar
 .admin-methodology-chip-group {
     display: grid;
     gap: var(--space-2);
+    align-content: start;
 }
 
 .admin-methodology-chip-group-wide {
@@ -559,7 +574,7 @@ admin-methodology-risk-toolbar
 .admin-methodology-chip-list {
     display: flex;
     flex-wrap: wrap;
-    gap: var(--space-1);
+    gap: var(--space-2) var(--space-1);
 }
 
 .admin-methodology-chip,
@@ -619,12 +634,15 @@ admin-methodology-risk-toolbar
 }
 
 .admin-methodology-check-item {
+    display: grid;
     grid-template-columns: 1fr auto;
+    gap: var(--space-1) var(--space-3);
     align-items: center;
 }
 
 .admin-methodology-check-item small {
     grid-column: 1 / -1;
+    line-height: var(--lh-snug);
 }
 
 .admin-methodology-check-item.passed span {

@@ -425,6 +425,37 @@ def _strip_avatar(user: UserResponse | None) -> UserResponse | None:
     return user.model_copy(update={"avatar_data_url": None})
 
 
+def _compact_user_response(user: UserResponse | None) -> UserResponse | None:
+    if user is None:
+        return None
+    return user.model_copy(
+        update={
+            "avatar_data_url": None,
+            "profile_metadata": None,
+            "raw_input": None,
+            "normalized_input": None,
+            "role_interpretation": None,
+            "user_work_context": None,
+            "role_limits": None,
+            "role_vocabulary": None,
+            "domain_profile": None,
+            "role_skill_profile": None,
+            "adaptation_rules_for_cases": None,
+            "user_processes": None,
+            "user_tasks": None,
+            "user_stakeholders": None,
+            "user_risks": None,
+            "user_constraints": None,
+            "user_artifacts": None,
+            "user_systems": None,
+            "user_success_metrics": None,
+            "data_quality_notes": None,
+            "profile_quality": None,
+            "profile_build_trace": None,
+        }
+    )
+
+
 def _build_dashboard(connection, user: UserResponse) -> UserDashboard:
     progress_row = connection.execute(
         """
@@ -2192,7 +2223,7 @@ def check_or_create_user(payload: CheckOrCreateUserRequest, request: Request, re
     with get_connection() as connection:
         if normalized_phone == _normalize_phone_digits(ADMIN_PHONE):
             user = _ensure_admin_user(connection)
-            user = _strip_avatar(user)
+            user = _compact_user_response(user)
             _set_user_session_cookie(response, web_session_service.create_session(user.id))
             operation_progress_service.complete(
                 operation_id,
@@ -2241,6 +2272,9 @@ def check_or_create_user(payload: CheckOrCreateUserRequest, request: Request, re
                 if repaired_user is not None:
                     user = _strip_avatar(repaired_user)
             _set_user_session_cookie(response, web_session_service.create_session(user.id))
+            agent = interviewer_agent.start(phone=phone, user=user)
+            compact_user = _compact_user_response(user)
+            agent = agent.model_copy(update={"user": compact_user})
             operation_progress_service.complete(
                 operation_id,
                 title="Профиль найден",
@@ -2249,9 +2283,9 @@ def check_or_create_user(payload: CheckOrCreateUserRequest, request: Request, re
             return CheckOrCreateUserResponse(
                 exists=True,
                 message="Пользователь с таким номером телефона уже существует.",
-                user=user,
+                user=compact_user,
                 requires_user_data=False,
-                agent=interviewer_agent.start(phone=phone, user=user),
+                agent=agent,
                 dashboard=_build_dashboard(connection, user),
             )
 
@@ -2284,20 +2318,21 @@ def restore_user_session(request: Request) -> UserSessionRestoreResponse:
     user = web_session_service.get_user_by_token(token)
     if user is None:
         return UserSessionRestoreResponse(authenticated=False)
-    user = _strip_avatar(user)
+    full_user = _strip_avatar(user)
+    compact_user = _compact_user_response(full_user)
 
     with get_connection() as connection:
-        if _is_admin_user(connection, user):
+        if _is_admin_user(connection, full_user):
             return UserSessionRestoreResponse(
                 authenticated=True,
-                user=user,
+                user=compact_user,
                 is_admin=True,
                 admin_dashboard=_build_admin_dashboard(connection),
             )
         return UserSessionRestoreResponse(
             authenticated=True,
-            user=user,
-            dashboard=_build_dashboard(connection, user),
+            user=compact_user,
+            dashboard=_build_dashboard(connection, full_user),
         )
 
 
@@ -2319,13 +2354,13 @@ def bootstrap_user_session(user_id: int) -> UserSessionBootstrapResponse:
         user = _user_response_from_row(row)
         if _is_admin_user(connection, user):
             return UserSessionBootstrapResponse(
-                user=user,
+                user=_compact_user_response(user),
                 dashboard=_build_dashboard(connection, user),
                 is_admin=True,
                 admin_dashboard=_build_admin_dashboard(connection),
             )
         return UserSessionBootstrapResponse(
-            user=user,
+            user=_compact_user_response(user),
             dashboard=_build_dashboard(connection, user),
         )
 

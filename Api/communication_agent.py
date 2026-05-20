@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import json
 import re
+from collections import Counter
 from dataclasses import dataclass
+from math import sqrt
 from typing import Any
 
 from Api.deepseek_client import deepseek_client
@@ -31,6 +33,13 @@ LEVEL_NAMES = {
     "L2": "Продвинутый",
     "L3": "Системный",
     "N/A": "Не проявлено",
+}
+
+EMBEDDING_SIGNAL_THRESHOLDS: dict[str, tuple[float, float, float]] = {
+    "Коммуникация": (0.10, 0.20, 0.26),
+    "Командная работа": (0.10, 0.18, 0.30),
+    "Креативность": (0.08, 0.18, 0.32),
+    "Критическое мышление": (0.08, 0.18, 0.22),
 }
 
 
@@ -76,6 +85,65 @@ class BaseCompetencyAgent:
                 continue
             tokens.add(token)
         return tokens
+
+    def _embedding_tokens(self, value: str | None) -> list[str]:
+        return [token for token in self.normalize_text(value).split() if len(token) >= 2]
+
+    def _char_ngrams(self, value: str | None, n: int = 3) -> list[str]:
+        text = f" {self.normalize_text(value)} "
+        if not text.strip():
+            return []
+        if len(text) < n:
+            return [text]
+        return [text[idx : idx + n] for idx in range(len(text) - n + 1)]
+
+    def _build_embedding_like_vector(self, value: str | None) -> Counter[str]:
+        vector: Counter[str] = Counter()
+        words = self._embedding_tokens(value)
+        for token in words:
+            vector[f"w:{token}"] += 1.0
+        for idx in range(len(words) - 1):
+            vector[f"b:{words[idx]}_{words[idx + 1]}"] += 1.35
+        for gram in self._char_ngrams(value, 3):
+            vector[f"c:{gram}"] += 0.35
+        return vector
+
+    def _cosine_similarity(self, left: Counter[str], right: Counter[str]) -> float:
+        if not left or not right:
+            return 0.0
+        if len(left) > len(right):
+            left, right = right, left
+        dot = sum(weight * right.get(key, 0.0) for key, weight in left.items())
+        left_norm = sqrt(sum(weight * weight for weight in left.values()))
+        right_norm = sqrt(sum(weight * weight for weight in right.values()))
+        if left_norm == 0.0 or right_norm == 0.0:
+            return 0.0
+        return dot / (left_norm * right_norm)
+
+    def _score_against_rubric_embedding_signal(
+        self,
+        user_text: str,
+        rubric: dict[str, dict[str, str]],
+    ) -> dict[str, int]:
+        user_vector = self._build_embedding_like_vector(user_text)
+        if not user_vector:
+            return {"L1": 0, "L2": 0, "L3": 0}
+        thresholds = EMBEDDING_SIGNAL_THRESHOLDS.get(self.competency_name, (0.10, 0.18, 0.26))
+        scores = {"L1": 0, "L2": 0, "L3": 0}
+        for idx, level_code in enumerate(("L1", "L2", "L3")):
+            row = rubric.get(level_code, {})
+            rubric_text = " ".join(
+                [
+                    str(row.get("level_name") or ""),
+                    str(row.get("knowledge_text") or "").strip(),
+                    str(row.get("skill_text") or "").strip(),
+                    str(row.get("behavior_text") or "").strip(),
+                ]
+            ).strip()
+            similarity = self._cosine_similarity(user_vector, self._build_embedding_like_vector(rubric_text))
+            if similarity >= thresholds[idx]:
+                scores[level_code] = 1
+        return scores
 
     def _load_agent_prompt_profile(self, connection) -> dict[str, Any]:
         profile_row = connection.execute(
@@ -549,8 +617,14 @@ class BaseCompetencyAgent:
     ) -> dict[str, int]:
         if not rubric or not self.normalize_text(user_text):
             return {"L1": 0, "L2": 0, "L3": 0}
+        embedding_scores = self._score_against_rubric_embedding_signal(user_text, rubric)
         if not deepseek_client.enabled:
-            return self._score_against_rubric_token_fallback(user_text, rubric)
+            fallback_scores = self._score_against_rubric_token_fallback(user_text, rubric)
+            return {
+                "L1": max(fallback_scores["L1"], embedding_scores["L1"]),
+                "L2": max(fallback_scores["L2"], embedding_scores["L2"]),
+                "L3": max(fallback_scores["L3"], embedding_scores["L3"]),
+            }
 
         cache_key = self._semantic_rubric_cache_key(
             user_text=user_text,
@@ -560,7 +634,11 @@ class BaseCompetencyAgent:
         )
         cached = self._semantic_rubric_cache.get(cache_key)
         if cached is not None:
-            return dict(cached)
+            return {
+                "L1": max(int(cached.get("L1", 0) or 0), embedding_scores["L1"]),
+                "L2": max(int(cached.get("L2", 0) or 0), embedding_scores["L2"]),
+                "L3": max(int(cached.get("L3", 0) or 0), embedding_scores["L3"]),
+            }
 
         profile = dict((agent_prompt_config or {}).get("profile") or {})
         rules = list((agent_prompt_config or {}).get("rules") or [])
@@ -623,11 +701,20 @@ class BaseCompetencyAgent:
             parsed = self._parse_semantic_rubric_scores(raw)
             if parsed is not None:
                 self._semantic_rubric_cache[cache_key] = dict(parsed)
-                return parsed
+                return {
+                    "L1": max(parsed["L1"], embedding_scores["L1"]),
+                    "L2": max(parsed["L2"], embedding_scores["L2"]),
+                    "L3": max(parsed["L3"], embedding_scores["L3"]),
+                }
         except Exception:
             pass
 
-        return self._score_against_rubric_token_fallback(user_text, rubric)
+        fallback_scores = self._score_against_rubric_token_fallback(user_text, rubric)
+        return {
+            "L1": max(fallback_scores["L1"], embedding_scores["L1"]),
+            "L2": max(fallback_scores["L2"], embedding_scores["L2"]),
+            "L3": max(fallback_scores["L3"], embedding_scores["L3"]),
+        }
 
     def _detect_red_flags(
         self,

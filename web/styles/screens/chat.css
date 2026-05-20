@@ -252,6 +252,33 @@
     gap: var(--space-2);
 }
 
+.chat-consent-accept-button {
+    grid-template-columns: auto 1fr;
+    align-items: center;
+}
+
+.chat-consent-accept-checkbox {
+    width: 18px;
+    height: 18px;
+    flex: 0 0 auto;
+    border: 2px solid currentColor;
+    border-radius: 4px;
+    position: relative;
+}
+
+.chat-consent-accept-button:hover .chat-consent-accept-checkbox::after,
+.chat-consent-accept-button:focus-visible .chat-consent-accept-checkbox::after {
+    content: "";
+    position: absolute;
+    left: 4px;
+    top: 1px;
+    width: 5px;
+    height: 10px;
+    border: solid currentColor;
+    border-width: 0 2px 2px 0;
+    transform: rotate(45deg);
+}
+
 .chat-role-option-button {
     min-height: 42px;
     padding: var(--space-3);

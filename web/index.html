@@ -15,7 +15,7 @@
   <link rel="stylesheet" href="/web/styles/screens/onboarding.css?v=20260517-onboarding-progress-pad">
   <link rel="stylesheet" href="/web/styles/screens/processing.css?v=20260516-merged">
   <link rel="stylesheet" href="/web/styles/screens/profile.css?v=20260517-redesign-3">
-  <link rel="stylesheet" href="/web/styles/screens/report.css?v=20260517-mobile-report-2">
+  <link rel="stylesheet" href="/web/styles/screens/report.css?v=20260520-report-insight-balance">
   <link rel="stylesheet" href="/web/styles/screens/ai-welcome.css?v=20260516-merged">
   <link rel="stylesheet" href="/web/styles/screens/prechat.css?v=20260516-merged">
   <link rel="stylesheet" href="/web/styles/screens/chat.css?v=20260517-scroll-fix">
@@ -23,7 +23,7 @@
   <link rel="stylesheet" href="/web/styles/screens/dashboard.css?v=20260517-dashboard-soon-button">
   <link rel="stylesheet" href="/web/styles/screens/reports.css?v=20260516-merged">
   <link rel="stylesheet" href="/web/styles/screens/app-loader.css?v=20260516-merged">
-  <link rel="stylesheet" href="/web/styles/screens/admin.css?v=20260516-merged">
+  <link rel="stylesheet" href="/web/styles/screens/admin.css?v=20260518-mbti-preview">
   <link rel="stylesheet" href="/web/styles/screens/admin-reports.css?v=20260516-merged">
   <link rel="stylesheet" href="/web/styles/screens/admin-report-detail.css?v=20260516-merged">
   <link rel="stylesheet" href="/web/styles/screens/admin-methodology.css?v=20260516-merged">
@@ -82,6 +82,11 @@
         <div class="onboarding-copy">
           <div class="step-badge" id="step-badge">
             <button id="onboarding-step-back" type="button" class="step-badge-back" aria-label="Назад" hidden></button>
+            <span class="step-progress" aria-hidden="true">
+              <span></span>
+              <span></span>
+              <span></span>
+            </span>
             <span id="step-badge-label">Шаг 01</span>
           </div>
           <h2 id="onboarding-title">Познакомьтесь с AI-ассистентом</h2>
@@ -214,7 +219,7 @@
           </div>
           <div class="assessment-grid static-grid">
             <article class="card assessment-mini-card">
-              <div class="mini-card-icon">4K</div>
+              <div class="mini-card-icon"><img src="/web/assets/icons/4k-icon.svg" alt="" aria-hidden="true"></div>
               <h3>Оценка 4К компетенций</h3>
               <p>Комплексный анализ ключевых навыков будущего: Креативность, Критическое мышление, Коммуникация и Кооперация.</p>
               <div class="mini-card-footer">
@@ -229,7 +234,7 @@
               </div>
             </article>
             <article class="card is-placeholder assessment-mini-card muted-card warm">
-              <div class="mini-card-icon muted-icon">◌</div>
+              <div class="mini-card-icon muted-icon"><img src="/web/assets/icons/4k-icon.svg" alt="" aria-hidden="true"></div>
               <h3>Проверка профиля MBTI</h3>
               <p>AI-анализ типа личности для понимания паттернов поведения и наиболее подходящих форматов работы.</p>
               <div class="mini-card-footer"><span>15 минут</span><button type="button" class="mini-start-button disabled" disabled>Скоро</button></div>
@@ -239,7 +244,7 @@
 
         <section class="card card--lg importance-card">
           <div>
-            <p class="section-label accent-label">Почему это важно?</p>
+            <p class="section-label accent-label"><img src="/web/assets/icons/info-icon.svg" alt="" aria-hidden="true">Почему это важно?</p>
             <h3>Постройте свой карьерный трек на данных</h3>
             <p>Ваш профиль в 4K Assistant это не просто результаты тестов. Это динамическая модель компетенций, которую вы можете использовать для развития, внутреннего роста и планирования обучения.</p>
           </div>
@@ -305,7 +310,10 @@
             <div class="report-card-head">
               <div>
                 <p class="section-label accent-label">MBTI распределение</p>
-                <h3>Сводка по типам</h3>
+                <div class="admin-chart-title-row">
+                  <h3>Сводка по типам</h3>
+                  <span id="admin-mbti-preview-pill" class="admin-preview-pill hidden">Preview</span>
+                </div>
               </div>
             </div>
             <div id="admin-mbti-chart" class="admin-mbti-chart">
@@ -1021,11 +1029,11 @@
 
     <section class="panel admin-report-detail-panel hidden" id="admin-report-detail-panel">
       <div class="dashboard-topbar">
-        <div class="brand dashboard-brand">Отчет по оценке</div>
+        <div class="brand dashboard-brand">Отчет по оценке<img class="report-title-icon" src="/web/assets/icons/report-star-icon.svg" alt="" aria-hidden="true"></div>
         <div class="dashboard-topbar-actions">
-          <button id="admin-report-detail-pdf-button" class="ghost-button compact-ghost" type="button">Скачать PDF</button>
-          <button id="admin-report-detail-expert-pdf-button" class="ghost-button compact-ghost" type="button">Эксперт PDF</button>
-          <button id="admin-report-detail-dialogues-pdf-button" class="ghost-button compact-ghost" type="button">Скачать все диалоги</button>
+          <button id="admin-report-detail-pdf-button" class="ghost-button compact-ghost" type="button"><img class="button-icon" src="/web/assets/icons/download-icon.svg" alt="" aria-hidden="true">Скачать PDF</button>
+          <button id="admin-report-detail-expert-pdf-button" class="ghost-button compact-ghost" type="button"><img class="button-icon" src="/web/assets/icons/download-icon.svg" alt="" aria-hidden="true">Эксперт PDF</button>
+          <button id="admin-report-detail-dialogues-pdf-button" class="ghost-button compact-ghost" type="button"><img class="button-icon" src="/web/assets/icons/download-icon.svg" alt="" aria-hidden="true">Скачать все диалоги</button>
           <button id="admin-report-detail-back-button" class="ghost-button compact-ghost" type="button">Назад</button>
         </div>
       </div>
@@ -1234,17 +1242,17 @@
         </div>
         <div class="prechat-steps">
           <article class="card prechat-step-card">
-            <div class="mini-card-icon">1</div>
+            <div class="mini-card-icon"><img src="/web/assets/icons/file-icon-accent.svg" alt="" aria-hidden="true"></div>
             <h3>1. Получение кейса</h3>
             <p>Ознакомьтесь с подробными условиями бизнес-задачи, вводными данными и контекстом рынка.</p>
           </article>
           <article class="card prechat-step-card">
-            <div class="mini-card-icon">2</div>
+            <div class="mini-card-icon"><img src="/web/assets/icons/free-form-writing-icon.svg" alt="" aria-hidden="true"></div>
             <h3>2. Свободный ответ</h3>
             <p>Опишите свое решение в свободной форме. Мы ценим оригинальность мышления и аргументацию.</p>
           </article>
           <article class="card prechat-step-card">
-            <div class="mini-card-icon">3</div>
+            <div class="mini-card-icon"><img src="/web/assets/icons/specialized-agents-icon.svg" alt="" aria-hidden="true"></div>
             <h3>3. Анализ</h3>
             <p>Мульти-агентная система ИИ оценит ваши компетенции и сформирует детальный профиль навыков.</p>
           </article>
@@ -1262,7 +1270,7 @@
           </div>
         </div>
         <p id="prechat-error" class="error" hidden></p>
-        <p class="prechat-duration">Ориентировочное время: 45 минут</p>
+        <p class="prechat-duration"><img src="/web/assets/icons/clock-icon.svg" alt="" aria-hidden="true">45 минут</p>
         <div class="prechat-social-proof">Система запущена недавно — вы проходите один из первых ассессментов</div>
       </div>
     </section>
@@ -1339,7 +1347,7 @@
               <span id="interview-footer-text">~200 символов</span>
               <div class="interview-action-buttons">
                 <button id="interview-finish-button" type="button" class="ghost-button interview-finish-button">Завершить кейс</button>
-                <button id="interview-submit-button" type="submit" class="primary-button">Отправить ответ</button>
+                <button id="interview-submit-button" type="submit" class="primary-button">Отправить ответ<img class="button-icon" src="/web/assets/icons/arrowtriangle-forward-white-icon.svg" alt="" aria-hidden="true"></button>
               </div>
             </div>
           </form>
@@ -1366,7 +1374,7 @@
                 <div id="profile-avatar" class="profile-avatar">A</div>
                 <img id="profile-avatar-image" class="profile-avatar-image hidden" alt="Фото пользователя">
                 <label class="profile-avatar-upload" for="profile-avatar-input" title="Загрузить фото">
-                  <span aria-hidden="true">✎</span>
+                  <img src="/web/assets/icons/pencil-icon-white.svg" alt="" aria-hidden="true">
                 </label>
                 <input id="profile-avatar-input" type="file" accept="image/*" hidden>
               </div>
@@ -1411,14 +1419,14 @@
                 <span class="profile-field-label">Email</span>
                 <div class="profile-input-wrap">
                   <input id="profile-email" type="email" placeholder="name@example.com">
-                  <span class="profile-field-edit-icon" aria-hidden="true">✎</span>
+                  <span class="profile-field-edit-icon" aria-hidden="true"><img src="/web/assets/icons/pencil-icon-white.svg" alt=""></span>
                 </div>
               </label>
               <label class="profile-field is-editable">
                 <span class="profile-field-label">Telegram</span>
                 <div class="profile-input-wrap">
                   <input id="profile-telegram" type="text" placeholder="@username">
-                  <span class="profile-field-edit-icon" aria-hidden="true">✎</span>
+                  <span class="profile-field-edit-icon" aria-hidden="true"><img src="/web/assets/icons/pencil-icon-white.svg" alt=""></span>
                 </div>
               </label>
             </div>
@@ -1476,7 +1484,7 @@
 
     <section class="panel processing-panel hidden" id="processing-panel">
       <div class="processing-topbar">
-        <button id="processing-back-button" class="ghost-button processing-back-button" type="button">← 4K Ассистент</button>
+        <button id="processing-back-button" class="ghost-button processing-back-button" type="button">4K Ассистент</button>
         <span class="processing-safe-badge">Безопасная среда</span>
       </div>
 
@@ -1525,11 +1533,11 @@
       <div class="dashboard-topbar">
         <div class="report-title-group">
           <button id="report-back-button" class="report-back-button" type="button" aria-label="Назад"></button>
-          <div class="brand dashboard-brand">Профиль компетенций</div>
+          <div class="brand dashboard-brand">Профиль компетенций<img class="report-title-icon" src="/web/assets/icons/report-star-icon.svg" alt="" aria-hidden="true"></div>
         </div>
         <div class="dashboard-topbar-actions">
           <button id="report-home-button" class="ghost-button compact-ghost" type="button">Главная</button>
-          <button id="report-download-button" class="primary-button compact-primary" type="button">Скачать PDF</button>
+          <button id="report-download-button" class="primary-button compact-primary" type="button"><img class="button-icon" src="/web/assets/icons/download-icon.svg" alt="" aria-hidden="true">Скачать PDF</button>
         </div>
       </div>
 
@@ -1555,39 +1563,49 @@
         </section>
 
         <section class="report-overview-grid">
-          <article class="card report-profile-card">
-            <p class="section-label accent-label">Профиль пользователя</p>
-            <div class="report-profile-user">
-              <div id="report-profile-avatar" class="user-avatar">A</div>
-              <div>
-                <strong id="report-profile-name">Пользователь</strong>
-                <span id="report-profile-role">Должность не указана</span>
+          <div class="report-overview-sidebar">
+            <article class="card report-profile-card">
+              <p class="section-label accent-label">Профиль пользователя</p>
+              <div class="report-profile-user">
+                <div id="report-profile-avatar" class="user-avatar">A</div>
+                <div>
+                  <strong id="report-profile-name">Пользователь</strong>
+                  <span id="report-profile-role">Должность не указана</span>
+                </div>
               </div>
-            </div>
-            <div class="report-profile-box">
+            </article>
+
+            <article class="card report-metadata-card">
+              <p class="section-label accent-label">Данные ассессмента</p>
+              <dl id="report-metadata-list" class="report-metadata-list"></dl>
+            </article>
+
+            <article class="card report-recommendations-card report-profile-box">
               <strong>Рекомендации по росту</strong>
               <ul id="report-recommendations" class="report-recommendations"></ul>
-            </div>
-          </article>
+            </article>
+          </div>
 
-          <article class="card report-competencies-card">
-            <div class="report-card-head">
-              <div>
-                <p class="section-label accent-label">Навыки 4K</p>
-                <h3>Сводные показатели по компетенциям</h3>
+          <div class="report-overview-main">
+            <article class="card report-competencies-card">
+              <div class="report-card-head">
+                <div>
+                  <p class="section-label accent-label">Навыки 4K</p>
+                  <h3>Сводные показатели по компетенциям</h3>
+                </div>
               </div>
-            </div>
-            <div id="report-competency-bars" class="report-competency-bars">
-              <canvas id="report-competency-bar-chart" aria-label="Сводные показатели по компетенциям"></canvas>
-              <div id="report-competency-bars-fallback" class="report-competency-bars-fallback hidden"></div>
-            </div>
-          </article>
+              <div id="report-competency-bars" class="report-competency-bars">
+                <canvas id="report-competency-bar-chart" aria-label="Сводные показатели по компетенциям"></canvas>
+                <div id="report-competency-bars-fallback" class="report-competency-bars-fallback hidden"></div>
+              </div>
+            </article>
 
-          <article class="card report-insight-card">
-            <p class="section-label accent-label">AI insights</p>
-            <h3 id="report-strength-title">Сильная сторона пока формируется</h3>
-            <p id="report-strength-text">Здесь появится интерпретация результатов после завершения анализа и загрузки данных по навыкам.</p>
-          </article>
+            <article class="card report-insight-card">
+              <p class="section-label accent-label">AI insights</p>
+              <h3 id="report-strength-title">Сильная сторона пока формируется</h3>
+              <div id="report-strength-text" class="report-insight-body">Здесь появится интерпретация результатов после завершения анализа и загрузки данных по навыкам.</div>
+            </article>
+          </div>
         </section>
 
         <section class="card report-details-card">
@@ -1645,6 +1663,6 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js" defer></script>
-  <script type="module" src="/web/dist/main.js?v=20260518-lazy"></script>
+  <script type="module" src="/web/dist/main.js?v=20260518-admin-mbti-preview"></script>
 </body>
 </html>

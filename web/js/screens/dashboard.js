@@ -73,7 +73,7 @@ export const renderDashboard = () => {
           '</div>'
         : '<span>' + escapeHtml(item.status) + '</span>';
     card.innerHTML =
-      '<div class="mini-card-icon">4K</div>' +
+      '<div class="mini-card-icon"><img src="/web/assets/icons/4k-icon.svg" alt="" aria-hidden="true"></div>' +
       '<h3>' +
       escapeHtml(item.title) +
       '</h3>' +
@@ -97,9 +97,7 @@ export const renderDashboard = () => {
     const card = document.createElement('article');
     card.className = 'card is-placeholder assessment-mini-card muted-card ' + item.tone;
     card.innerHTML =
-      '<div class="mini-card-icon muted-icon">' +
-      (item.title === 'MBTI Profile' ? '◌' : '◍') +
-      '</div>' +
+      '<div class="mini-card-icon muted-icon"><img src="/web/assets/icons/4k-icon.svg" alt="" aria-hidden="true"></div>' +
       '<h3>' +
       item.title +
       '</h3>' +

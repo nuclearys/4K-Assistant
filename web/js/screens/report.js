@@ -6,6 +6,7 @@ import {
   reportProfileAvatar,
   reportProfileName,
   reportProfileRole,
+  reportMetadataList,
   reportRecommendations,
   reportCompetencyBars,
   reportCompetencyBarChartCanvas,
@@ -196,6 +197,105 @@ const getReportSkillEvidenceExcerpt = (skill) =>
     .replace(/\s+/g, ' ')
     .trim();
 
+const formatReportDateTime = (value) => {
+  if (!value) {
+    return 'Без даты';
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return 'Без даты';
+  }
+  return date.toLocaleString('ru-RU', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+};
+
+const formatReportDuration = (startedAt, finishedAt) => {
+  if (!finishedAt) {
+    return 'В процессе';
+  }
+  const start = new Date(startedAt);
+  const finish = new Date(finishedAt);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(finish.getTime()) || finish < start) {
+    return 'Не рассчитано';
+  }
+
+  const totalMinutes = Math.max(0, Math.round((finish.getTime() - start.getTime()) / 60000));
+  if (totalMinutes < 1) {
+    return '<1 мин';
+  }
+  const days = Math.floor(totalMinutes / 1440);
+  const hours = Math.floor((totalMinutes % 1440) / 60);
+  const minutes = totalMinutes % 60;
+  if (days > 0) {
+    return days + ' д ' + hours + ' ч';
+  }
+  if (hours > 0) {
+    return hours + ' ч ' + minutes + ' мин';
+  }
+  return minutes + ' мин';
+};
+
+const getReportSessionSummary = () => {
+  const sessionId = Number(state.assessmentSessionId);
+  const history = Array.isArray(state.profileSummary?.history) ? state.profileSummary.history : [];
+  return history.find((item) => Number(item.session_id) === sessionId) || null;
+};
+
+const getReportStatusLabel = (status) => {
+  if (status === 'completed') {
+    return 'Завершена';
+  }
+  if (status === 'active') {
+    return 'В процессе';
+  }
+  if (status === 'draft') {
+    return 'Черновик';
+  }
+  return status ? String(status) : 'Нет статуса';
+};
+
+const renderReportMetadata = () => {
+  if (!reportMetadataList) {
+    return;
+  }
+
+  const summary = getReportSessionSummary();
+  if (!summary) {
+    reportMetadataList.innerHTML =
+      '<div class="report-metadata-empty">Данные по сессии появятся после загрузки истории ассессментов.</div>';
+    return;
+  }
+
+  const completedCases = Number(summary.completed_cases) || 0;
+  const totalCases = Number(summary.total_cases) || 0;
+  const rows = [
+    ['Сессия', '#' + summary.session_id],
+    [summary.finished_at ? 'Завершена' : 'Начата', formatReportDateTime(summary.finished_at || summary.started_at)],
+    ['Кейсы', completedCases + '/' + totalCases],
+    ['Время прохождения', formatReportDuration(summary.started_at, summary.finished_at)],
+    ['Статус', getReportStatusLabel(summary.status)],
+  ];
+
+  reportMetadataList.innerHTML = rows
+    .map(
+      ([label, value]) =>
+        '<div class="report-metadata-row">' +
+        '<dt>' +
+        escapeHtml(label) +
+        '</dt>' +
+        '<dd>' +
+        escapeHtml(value) +
+        '</dd>' +
+        '</div>',
+    )
+    .join('');
+};
+
 export const openReportInfoModal = ({ eyebrow = 'Детали', title = 'Информация', bodyMarkup = '' }) => {
   if (!reportInfoModal || !reportInfoModalTitle || !reportInfoModalBody) {
     return;
@@ -257,36 +357,194 @@ const buildReportRationaleMarkup = (rationale) => {
   );
 };
 
-const getReportSkillScoreDetails = (skill) => {
+const buildReportInfoCard = (title, bodyMarkup, options = {}) => {
+  if (!bodyMarkup) {
+    return '';
+  }
+  const modifier = options.modifier ? ' report-info-card--' + options.modifier : '';
+  return (
+    '<section class="report-info-card' +
+    modifier +
+    '">' +
+    '<span class="report-info-card-title">' +
+    escapeHtml(title) +
+    '</span>' +
+    bodyMarkup +
+    '</section>'
+  );
+};
+
+const buildReportMetricMarkup = (items) => {
+  const metrics = items.filter((item) => item.value !== null && item.value !== undefined && item.value !== '');
+  if (!metrics.length) {
+    return '';
+  }
+  return (
+    '<dl class="report-info-metrics">' +
+    metrics
+      .map(
+        (item) =>
+          '<div>' +
+          '<dt>' +
+          escapeHtml(item.label) +
+          '</dt>' +
+          '<dd>' +
+          escapeHtml(item.value) +
+          '</dd>' +
+          '</div>',
+      )
+      .join('') +
+    '</dl>'
+  );
+};
+
+const buildReportListMarkup = (items) => {
+  const labels = items.map((item) => String(item || '').trim()).filter(Boolean);
+  if (!labels.length) {
+    return '';
+  }
+  return '<ul class="report-info-list">' + labels.map((label) => '<li>' + escapeHtml(label) + '</li>').join('') + '</ul>';
+};
+
+const buildReportChipListMarkup = (items) => {
+  const labels = items.map((item) => String(item || '').trim()).filter(Boolean);
+  if (!labels.length) {
+    return '';
+  }
+  return '<span class="report-evidence-signals">' + labels.map((label) => '<span>' + escapeHtml(label) + '</span>').join('') + '</span>';
+};
+
+const formatPercentValue = (value) => {
+  if (value === null || value === undefined || value === '') {
+    return null;
+  }
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return null;
+  }
+  return Math.round(numeric) + '%';
+};
+
+const getReportSkillScoreDetails = (skill, percent = null) => {
   const evidenceLabels = parseJsonArrayField(skill.found_evidence)
     .map(getReportEvidenceLabel)
     .filter(Boolean)
     .slice(0, 3);
+  const detectedBlocks = parseJsonArrayField(skill.detected_required_blocks);
+  const missingBlocks = parseJsonArrayField(skill.missing_required_blocks);
   const rationale = String(skill?.rationale || '')
     .replace(/\s+/g, ' ')
     .trim();
   const excerpt = getReportSkillEvidenceExcerpt(skill);
-  const signalsMarkup = evidenceLabels.length
-    ? '<span class="report-evidence-signals">' +
-      evidenceLabels.map((label) => '<span>' + escapeHtml(label) + '</span>').join('') +
-      '</span>'
-    : '';
-  const rationaleMarkup = rationale
-    ? '<span class="report-evidence-rationale">' + buildReportRationaleMarkup(rationale) + '</span>'
-    : '';
-  const excerptMarkup =
-    !evidenceLabels.length && !rationale && excerpt
-      ? '<span class="report-evidence-quote">' + escapeHtml(excerpt) + '</span>'
-      : '';
+  const summaryMarkup = buildReportMetricMarkup([
+    { label: 'Оценка', value: formatPercentValue(percent) },
+    { label: 'Уровень', value: skill.assessed_level_name || skill.assessed_level_code },
+  ]);
+  const structureBody = [
+    buildReportMetricMarkup([{ label: 'Покрытие', value: formatPercentValue(skill.block_coverage_percent) }]),
+    detectedBlocks.length
+      ? '<div class="report-info-card-group"><span>Найдены</span>' + buildReportChipListMarkup(detectedBlocks) + '</div>'
+      : '',
+    missingBlocks.length
+      ? '<div class="report-info-card-group report-info-card-group--muted"><span>Не обнаружены</span>' +
+        buildReportChipListMarkup(missingBlocks) +
+        '</div>'
+      : '',
+  ].join('');
+  const artifactBody = [
+    skill.expected_artifact_names
+      ? '<p class="report-info-card-text">' + escapeHtml(skill.expected_artifact_names) + '</p>'
+      : '',
+    buildReportMetricMarkup([{ label: 'Соответствие', value: formatPercentValue(skill.artifact_compliance_percent) }]),
+  ].join('');
+  const signalsMarkup = buildReportInfoCard('Найденные признаки', buildReportChipListMarkup(evidenceLabels));
+  const rationaleMarkup = buildReportInfoCard(
+    'Объяснение',
+    rationale ? '<p class="report-evidence-rationale">' + buildReportRationaleMarkup(rationale) + '</p>' : '',
+    { modifier: 'wide' },
+  );
+  const excerptMarkup = buildReportInfoCard(
+    'Фрагмент ответа',
+    excerpt ? '<p class="report-evidence-quote">' + escapeHtml(excerpt) + '</p>' : '',
+    { modifier: 'wide' },
+  );
   return {
-    hasDetails: Boolean(evidenceLabels.length || rationale || excerpt),
-    markup: signalsMarkup + rationaleMarkup + excerptMarkup,
+    hasDetails: Boolean(
+      evidenceLabels.length ||
+        rationale ||
+        excerpt ||
+        detectedBlocks.length ||
+        missingBlocks.length ||
+        skill.block_coverage_percent != null ||
+        skill.expected_artifact_names ||
+        skill.artifact_compliance_percent != null,
+    ),
+    markup:
+      '<div class="report-info-card-grid">' +
+      buildReportInfoCard('Итог', summaryMarkup) +
+      signalsMarkup +
+      buildReportInfoCard('Структура ответа', structureBody) +
+      buildReportInfoCard('Артефакт', artifactBody) +
+      rationaleMarkup +
+      excerptMarkup +
+      '</div>',
   };
+};
+
+const normalizeReportInsightText = (value) =>
+  String(value || '')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+const getReportInsightNarrative = (interpretation) => {
+  const text = normalizeReportInsightText(interpretation?.insight_text);
+  const pattern = normalizeReportInsightText(interpretation?.response_pattern);
+  if (text && pattern && text.endsWith(pattern)) {
+    return text.slice(0, -pattern.length).trim();
+  }
+  return text;
+};
+
+const buildReportInsightPills = (interpretation) =>
+  '<div class="report-insight-pills">' +
+  '<span>Сигнал: ' +
+  escapeHtml(interpretation?.has_interpretation_signal ? 'достаточный' : 'слабый') +
+  '</span>' +
+  '<span>Компетенция: ' +
+  escapeHtml(interpretation?.has_confident_strongest ? 'выделена' : 'не подтверждена') +
+  '</span>' +
+  '</div>';
+
+const buildReportInsightMarkup = (interpretation) => {
+  const narrative = getReportInsightNarrative(interpretation);
+  const pattern = normalizeReportInsightText(interpretation?.response_pattern);
+  const basisItems = Array.isArray(interpretation?.basis_items) ? interpretation.basis_items : [];
+
+  if (!narrative && !pattern && !basisItems.length) {
+    return (
+      '<p class="report-info-text">' +
+      escapeHtml(
+        'По последней сессии пока не удалось выделить достаточно уверенную доминирующую компетенцию. После повторного прохождения с более содержательными и структурированными ответами здесь появится аналитический вывод.',
+      ) +
+      '</p>'
+    );
+  }
+
+  return (
+    '<div class="report-insight-compact">' +
+    (narrative ? '<p class="report-insight-summary">' + escapeHtml(narrative) + '</p>' : '') +
+    buildReportInsightPills(interpretation) +
+    '<div class="report-insight-compact-grid">' +
+    buildReportInfoCard('Паттерн ответа', pattern ? '<p class="report-info-card-text">' + escapeHtml(pattern) + '</p>' : '') +
+    buildReportInfoCard('Основание', buildReportListMarkup(basisItems)) +
+    '</div>' +
+    '</div>'
+  );
 };
 
 const buildReportSkillScoreMarkup = (skill, percent) => {
   const scoreText = escapeHtml(percent + '%');
-  const details = getReportSkillScoreDetails(skill);
+  const details = getReportSkillScoreDetails(skill, percent);
   if (!details.hasDetails) {
     return '<span>' + scoreText + '</span>';
   }
@@ -935,6 +1193,7 @@ export const renderReport = () => {
   reportProfileName.textContent = state.pendingUser?.full_name || 'Пользователь';
   reportProfileRole.textContent =
     sanitizeDisplayRole(state.pendingUser?.job_description || '') || 'Должность не указана';
+  renderReportMetadata();
 
   reportRecommendations.innerHTML = '';
   getReportRecommendations(summary).forEach((text) => {
@@ -946,15 +1205,7 @@ export const renderReport = () => {
   renderReportCompetencyBarChart(summary);
 
   reportStrengthTitle.textContent = interpretation?.insight_title || 'AI insights пока недоступны';
-  if (interpretation?.insight_text) {
-    const basisBlock = interpretation?.basis_items?.length
-      ? '\n\nОснование вывода:\n• ' + interpretation.basis_items.join('\n• ')
-      : '';
-    reportStrengthText.textContent = interpretation.insight_text + basisBlock;
-  } else {
-    reportStrengthText.textContent =
-      'По последней сессии пока не удалось выделить достаточно уверенную доминирующую компетенцию. После повторного прохождения с более содержательными и структурированными ответами здесь появится аналитический вывод.';
-  }
+  reportStrengthText.innerHTML = buildReportInsightMarkup(interpretation);
 
   const availableTabs = summary.map((item) => item.competency);
   if (!availableTabs.includes(state.reportCompetencyTab)) {
@@ -1017,7 +1268,7 @@ export const renderReport = () => {
     }
 
     const scoreButton = item.querySelector('.report-skill-score-text');
-    const scoreDetails = getReportSkillScoreDetails(skill);
+    const scoreDetails = getReportSkillScoreDetails(skill, percent);
     if (scoreButton && scoreDetails.hasDetails) {
       scoreButton.addEventListener('click', (event) => {
         event.stopPropagation();
@@ -1088,19 +1339,34 @@ export const loadSkillAssessments = async () => {
     return;
   }
 
-  let [skillsResponse, interpretationResponse] = await Promise.all([
+  const profileSummaryPromise = fetch('/users/' + state.pendingUser.id + '/profile-summary')
+    .then((response) => readApiResponse(response, 'Не удалось загрузить данные ассессмента.'))
+    .catch((error) => {
+      console.warn('Failed to load report metadata', error);
+      return null;
+    });
+
+  let [skillsResponse, interpretationResponse, profileSummary] = await Promise.all([
     fetch('/users/' + state.pendingUser.id + '/assessment/' + state.assessmentSessionId + '/skill-assessments'),
     fetch('/users/' + state.pendingUser.id + '/assessment/' + state.assessmentSessionId + '/report-interpretation'),
+    profileSummaryPromise,
   ]);
+  if (profileSummary) {
+    state.profileSummary = profileSummary;
+  }
 
   if ((skillsResponse.status === 404 || interpretationResponse.status === 404) && state.assessmentSessionCode) {
     const previousSessionId = state.assessmentSessionId;
     const resolvedSessionId = await resolveAssessmentSessionIdByCode();
     if (resolvedSessionId && resolvedSessionId !== previousSessionId) {
-      [skillsResponse, interpretationResponse] = await Promise.all([
+      [skillsResponse, interpretationResponse, profileSummary] = await Promise.all([
         fetch('/users/' + state.pendingUser.id + '/assessment/' + state.assessmentSessionId + '/skill-assessments'),
         fetch('/users/' + state.pendingUser.id + '/assessment/' + state.assessmentSessionId + '/report-interpretation'),
+        profileSummaryPromise,
       ]);
+      if (profileSummary) {
+        state.profileSummary = profileSummary;
+      }
     }
   }
 

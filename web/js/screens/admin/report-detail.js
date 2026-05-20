@@ -505,7 +505,7 @@ export const renderAdminReportDetail = () => {
           escapeHtml(detail.session_id) +
           '" data-session-case-id="' +
           escapeHtml(item.session_case_id) +
-          '">Скачать диалог PDF</button>' +
+          '"><img class="button-icon" src="/web/assets/icons/download-icon.svg" alt="" aria-hidden="true">Скачать диалог PDF</button>' +
           '</div>' +
           ((item.dialogue || []).length
             ? item.dialogue

@@ -46,8 +46,8 @@ import {
 import { destroyReportCompetencyBarChart } from './report.js';
 import { destroyAdminSkillRadarChart } from './admin/skill-radar.js';
 import { stopAssessmentPreparationPolling } from './assessment.js';
-import { openAiWelcome } from './ai-welcome.js';
 import { openDashboard } from './dashboard.js';
+import { openOnboardingScreen } from '../screen-loaders.js';
 
 export const clearProcessingTimer = () => {
   if (state.processingTimerId) {
@@ -204,7 +204,12 @@ export const renderChatRoleOptions = () => {
     return;
   }
   const options = Array.isArray(state.pendingRoleOptions) ? state.pendingRoleOptions : [];
-  const actionOptions = Array.isArray(state.pendingActionOptions) ? state.pendingActionOptions : [];
+  const actionOptions = (Array.isArray(state.pendingActionOptions) ? state.pendingActionOptions : []).filter((option) => {
+    if (!state.pendingConsentText) {
+      return true;
+    }
+    return String(option?.value || '').trim().toLowerCase() === 'согласен';
+  });
   const hasCompactActions = actionOptions.length > 0;
   const showNoChangesQuickReply = Boolean(state.pendingNoChangesQuickReply);
   chatRoleOptions.innerHTML = '';
@@ -246,7 +251,7 @@ export const renderChatRoleOptions = () => {
   } else if (actionOptions.length) {
     const label = document.createElement('p');
     label.className = 'chat-role-options-label';
-    label.textContent = 'Подтвердите выбор:';
+    label.textContent = state.pendingConsentText ? 'Подтвердите согласие:' : 'Подтвердите выбор:';
     chatRoleOptions.appendChild(label);
   }
 
@@ -277,7 +282,15 @@ export const renderChatRoleOptions = () => {
   actionOptions.forEach((option) => {
     const button = document.createElement('button');
     button.type = 'button';
-    button.className = 'chat-role-option-button';
+    button.className = state.pendingConsentText
+      ? 'chat-role-option-button chat-consent-accept-button'
+      : 'chat-role-option-button';
+    if (state.pendingConsentText) {
+      const checkbox = document.createElement('span');
+      checkbox.className = 'chat-consent-accept-checkbox';
+      checkbox.setAttribute('aria-hidden', 'true');
+      button.appendChild(checkbox);
+    }
     const title = document.createElement('span');
     title.className = 'chat-role-option-title';
     title.textContent = option.label || option.value;
@@ -387,17 +400,24 @@ export const sendChatMessage = async (text, displayText = null) => {
     persistAssessmentContext();
 
     if (state.completed) {
+      state.isChatSubmitting = false;
       chatForm.classList.add('hidden');
       chatInput.disabled = true;
       chatForm.querySelector('button').disabled = true;
 
       window.setTimeout(() => {
         if (data.blocked) {
+          state.completed = false;
+          state.pendingAgentMessage = null;
+          state.pendingActionOptions = [];
+          state.pendingConsentTitle = null;
+          state.pendingConsentText = null;
+          state.isNewUserFlow = false;
           returnToStart();
           return;
         }
         if (state.isNewUserFlow) {
-          openAiWelcome();
+          void openOnboardingScreen();
           return;
         }
 

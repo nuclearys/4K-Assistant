@@ -142,39 +142,66 @@ export const fallbackCompetencyPalette = {
 export const onboardingSteps = [
   {
     step: 'Шаг 01',
+    progressIndex: 0,
     title: 'Познакомьтесь с AI-ассистентом',
     description:
       'Мульти-агентная система анализирует ответы и помогает быстро собрать профиль сотрудника для дальнейшей оценки компетенций.',
     features: [
-      ['Глубокий анализ', 'Система оценивает не только результат, но и логику ваших ответов.'],
-      ['Специализированные агенты', 'Несколько AI-агентов работают над профилем параллельно и дополняют друг друга.'],
+      {
+        icon: '/web/assets/icons/deep-analysis-icon.svg',
+        title: 'Глубокий анализ',
+        text: 'Система смотрит на ход рассуждений, аргументы и связи между решениями.',
+      },
+      {
+        icon: '/web/assets/icons/specialized-agents-icon.svg',
+        title: 'Специализированные агенты',
+        text: 'Отдельные агенты фокусируются на разных компетенциях и собирают общий профиль.',
+      },
     ],
     visual:
-      '<div class="visual-grid"><div class="visual-card visual-main">Assistant v2.0</div><div class="visual-card">Аналитика</div><div class="visual-card muted"></div><div class="visual-chip"></div></div>',
+      '<div class="visual-grid"><div class="visual-card visual-main">Assistant v2.0</div><div class="visual-card">Аналитика</div><div class="visual-card muted"><span></span><span></span></div><div class="visual-chip"></div></div>',
   },
   {
     step: 'Шаг 02',
+    progressIndex: 1,
     title: 'Решайте реальные кейсы',
     description:
       'После регистрации вы получите практические задачи и сможете отвечать в свободной форме, без тестов и шаблонов.',
     features: [
-      ['Свободная форма', 'Вы описываете подход так, как привыкли в реальной работе.'],
-      ['Глубокий анализ', 'Алгоритмы 4K анализируют логические связи и полноту ответа.'],
+      {
+        icon: '/web/assets/icons/free-form-writing-icon.svg',
+        title: 'Свободная форма',
+        text: 'Вы описываете решение своими словами, как в рабочей переписке или разборе задачи.',
+      },
+      {
+        icon: '/web/assets/icons/mind-icon.svg',
+        title: 'Рабочий контекст',
+        text: 'Кейсы подаются как практические ситуации, где важны приоритеты, риски и логика действий.',
+      },
     ],
     visual:
-      '<div class="case-visual"><div class="case-bubble">Ассистент: Как бы вы оптимизировали логистику при росте спроса на 40%?</div><div class="case-sheet"></div><div class="case-progress">Пишу решение...</div></div>',
+      '<div class="case-visual"><div class="case-bubble">Ассистент: Как бы вы оптимизировали логистику при росте спроса на 40%?</div><div class="case-sheet"><span></span><span></span></div><div class="case-progress">Пишу решение...</div></div>',
   },
   {
     step: 'Шаг 03',
+    progressIndex: 2,
     title: 'Получите профиль компетенций',
     description:
       'Система оценит ваши навыки по модели 4K и сформирует персональный отчет с глубокой аналитикой потенциала.',
     features: [
-      ['AI анализ', 'Автоматическая интерпретация ваших сильных сторон и рабочих паттернов.'],
-      ['Детальный отчет', 'Итоговый профиль с рекомендациями по развитию и дальнейшему обучению.'],
+      {
+        icon: '/web/assets/icons/sparkles-icon.svg',
+        title: 'AI-интерпретация',
+        text: 'Ассистент выделяет сильные стороны, зоны роста и устойчивые паттерны решений.',
+      },
+      {
+        icon: '/web/assets/icons/file-icon.svg',
+        title: 'Детальный отчет',
+        text: 'В финале вы видите профиль 4K с уровнями компетенций и рекомендациями по развитию.',
+      },
     ],
     visual:
-      '<div class="radar-visual"><div class="radar-shape"></div><span>Креативность</span><span>Коммуникация</span><span>Критическое мышление</span><span>Командная работа</span></div>',
+      '<div class="radar-visual"><div class="radar-ring radar-ring-outer"></div><div class="radar-ring radar-ring-middle"></div><div class="radar-ring radar-ring-inner"></div><div class="radar-shape"></div><span>Креативность</span><span>Коммуникация</span><span>Критическое мышление</span><span>Командная работа</span></div>',
     finalButton: 'Перейти к профилю',
   },
 ];

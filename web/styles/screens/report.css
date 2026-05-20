@@ -52,6 +52,7 @@
 }
 
 .report-profile-card,
+.report-metadata-card,
 .report-competencies-card,
 .report-insight-card,
 .report-details-card {
@@ -155,9 +156,7 @@
 
 .report-recommendations {
     display: flex;
-    flex: 1;
     flex-direction: column;
-    justify-content: space-between;
     gap: var(--space-2);
     margin: var(--space-3) 0 0;
     color: #fff8ef;
@@ -376,6 +375,14 @@
     line-height: var(--lh-normal);
 }
 
+.report-skill-name > .skill-artifact-hint {
+    display: block;
+    max-width: 100%;
+    font-family: var(--font-body);
+    font-weight: var(--fw-regular);
+    text-align: inherit;
+}
+
 .report-hero-score-label {
     display: inline-flex;
     align-items: center;
@@ -542,6 +549,115 @@
     color: #14151f;
 }
 
+.report-info-card-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-3);
+}
+
+.report-info-card {
+    display: grid;
+    min-width: 0;
+    align-content: start;
+    gap: var(--space-3);
+    padding: var(--space-3);
+    border: 1px solid rgba(18, 24, 42, 0.1);
+    border-radius: var(--radius-sm);
+    background: #f8f8fb;
+}
+
+.report-info-card--wide {
+    grid-column: 1 / -1;
+}
+
+.report-info-card-title,
+.report-info-card-group > span {
+    color: #767586;
+    font-family: var(--font-heading);
+    font-size: var(--fs-micro);
+    font-weight: var(--fw-extrabold);
+    line-height: 1;
+    letter-spacing: var(--ls-eyebrow);
+    text-transform: uppercase;
+}
+
+.report-info-card-text {
+    margin: 0;
+    color: #14151f;
+    font-size: var(--fs-body-sm);
+    line-height: var(--lh-normal);
+}
+
+.report-info-list {
+    display: grid;
+    gap: var(--space-2);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.report-info-list li {
+    position: relative;
+    padding-left: var(--space-3);
+    color: #14151f;
+    font-size: var(--fs-body-sm);
+    line-height: var(--lh-normal);
+}
+
+.report-info-list li::before {
+    content: "";
+    position: absolute;
+    top: 0.72em;
+    left: 0;
+    width: 5px;
+    height: 5px;
+    border-radius: var(--radius-pill);
+    background: #4648d4;
+}
+
+.report-info-metrics {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(118px, 1fr));
+    gap: var(--space-2);
+    margin: 0;
+}
+
+.report-info-metrics div {
+    display: grid;
+    gap: 3px;
+    min-width: 0;
+}
+
+.report-info-metrics dt,
+.report-info-metrics dd {
+    margin: 0;
+}
+
+.report-info-metrics dt {
+    color: #767586;
+    font-size: var(--fs-caption);
+    font-weight: var(--fw-medium);
+    line-height: var(--lh-snug);
+}
+
+.report-info-metrics dd {
+    color: #13144a;
+    font-family: var(--font-heading);
+    font-size: var(--fs-body-lg);
+    font-weight: var(--fw-extrabold);
+    line-height: var(--lh-tight);
+}
+
+.report-info-card-group {
+    display: grid;
+    gap: var(--space-2);
+}
+
+.report-info-card-group--muted .report-evidence-signals span {
+    background: #fff;
+    color: #767586;
+}
+
 .report-evidence-level-pill {
     display: inline-flex;
     align-items: center;
@@ -592,7 +708,7 @@ body.report-info-modal-open {
 
 .report-info-dialog {
     position: relative;
-    width: min(640px, 100%);
+    width: min(820px, 100%);
     max-height: min(680px, calc(100vh - 48px));
     overflow: auto;
     padding: var(--space-5);
@@ -688,7 +804,7 @@ body.report-info-modal-open {
 }
 
 .report-info-body .report-evidence-signals {
-    margin-bottom: var(--space-3);
+    margin-bottom: 0;
 }
 
 .report-info-body .report-evidence-signals span {
@@ -697,8 +813,23 @@ body.report-info-modal-open {
 
 .report-info-body .report-evidence-rationale,
 .report-info-body .report-evidence-quote {
+    margin: 0;
     font-size: var(--fs-body);
     line-height: var(--lh-normal);
+}
+
+@media (max-width: 720px) {
+    .report-info-card-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .report-insight-compact-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .report-info-dialog {
+        padding: var(--space-4);
+    }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -767,13 +898,11 @@ body.report-info-modal-open {
     letter-spacing: var(--ls-tight);
 }
 
-.report-panel .dashboard-brand::after {
-    content: "";
+.report-panel .dashboard-brand .report-title-icon {
     width: 20px;
     height: 20px;
+    flex: 0 0 20px;
     order: 1;
-    background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 20 20' fill='none'%3E%3Cpath fill-rule='evenodd' clip-rule='evenodd' d='M4.03995 10L0 7.62395L2.97768 2.37608L7.02 4.74805L7.0223 0H12.9777L12.98 4.74805L17.0223 2.37608L20 7.62395L15.96 10L20 12.376L17.0223 17.6239L12.98 15.252L12.9777 20H7.0223L7.02 15.252L2.97768 17.6239L0 12.376L4.03995 10Z' fill='%234648D4'/%3E%3C/svg%3E")
-        center / contain no-repeat;
 }
 
 .report-panel .dashboard-topbar-actions {
@@ -788,6 +917,10 @@ body.report-info-modal-open {
 }
 
 .report-panel .compact-primary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2);
     min-height: 40px;
     padding: 0 var(--space-3);
     border-radius: var(--radius-sm);
@@ -796,11 +929,11 @@ body.report-info-modal-open {
     line-height: var(--lh-snug);
 }
 
-.report-panel .compact-primary::before {
-    content: "↓";
-    margin-right: var(--space-2);
-    font-size: var(--fs-meta);
-    line-height: 1;
+.report-panel .compact-primary .button-icon {
+    width: 12px;
+    height: 12px;
+    flex: 0 0 12px;
+    filter: brightness(0) invert(1);
 }
 
 .report-shell {
@@ -863,15 +996,38 @@ body.report-info-modal-open {
 .report-overview-grid {
     display: grid;
     grid-template-columns: repeat(12, minmax(0, 1fr));
-    grid-template-areas:
-        "profile profile profile profile competencies competencies competencies competencies competencies competencies competencies competencies"
-        "profile profile profile profile insight insight insight insight insight insight insight insight"
-        "profile profile profile profile insight insight insight insight insight insight insight insight";
     gap: var(--space-4);
-    align-items: start;
+    align-items: stretch;
+}
+
+.report-overview-sidebar,
+.report-overview-main {
+    min-width: 0;
+    display: grid;
+    gap: var(--space-4);
+    align-self: stretch;
+}
+
+.report-overview-sidebar {
+    grid-column: span 4;
+    grid-template-rows: auto auto minmax(0, 1fr);
+}
+
+.report-overview-main {
+    grid-column: span 8;
+}
+
+.report-overview-sidebar > .report-profile-card,
+.report-overview-sidebar > .report-metadata-card,
+.report-overview-sidebar > .report-recommendations-card,
+.report-overview-main > .report-competencies-card,
+.report-overview-main > .report-insight-card {
+    grid-column: 1;
 }
 
 .report-profile-card,
+.report-metadata-card,
+.report-recommendations-card,
 .report-competencies-card,
 .report-insight-card,
 .report-details-card {
@@ -880,12 +1036,12 @@ body.report-info-modal-open {
     background: #fff;
 }
 
-.report-overview-grid > .report-profile-card {
-    grid-area: profile;
+.report-overview-sidebar > .report-recommendations-card {
+    min-height: 0;
+    align-self: stretch;
 }
 
 .report-profile-card {
-    align-self: stretch;
     display: flex;
     flex-direction: column;
     gap: var(--space-4);
@@ -902,6 +1058,71 @@ body.report-info-modal-open {
 
 .report-profile-card > .accent-label::before {
     display: none;
+}
+
+.report-metadata-card {
+    display: grid;
+    gap: var(--space-3);
+    padding: var(--space-4);
+}
+
+.report-metadata-card > .section-label {
+    color: var(--accent);
+    font-size: var(--fs-caption);
+    font-weight: var(--fw-bold);
+    line-height: 1;
+    letter-spacing: var(--ls-eyebrow);
+}
+
+.report-metadata-card > .accent-label::before {
+    display: none;
+}
+
+.report-metadata-list {
+    display: grid;
+    gap: var(--space-2);
+    margin: 0;
+}
+
+.report-metadata-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: var(--space-3);
+    align-items: baseline;
+    padding-bottom: var(--space-2);
+    border-bottom: 1px solid rgba(199, 196, 215, 0.26);
+}
+
+.report-metadata-row:last-child {
+    padding-bottom: 0;
+    border-bottom: 0;
+}
+
+.report-metadata-row dt,
+.report-metadata-row dd {
+    margin: 0;
+}
+
+.report-metadata-row dt {
+    color: var(--text-muted);
+    font-size: var(--fs-body-sm);
+    line-height: var(--lh-snug);
+}
+
+.report-metadata-row dd {
+    color: var(--text-main);
+    font-family: var(--font-heading);
+    font-size: var(--fs-body-sm);
+    font-weight: var(--fw-bold);
+    line-height: var(--lh-snug);
+    text-align: right;
+}
+
+.report-metadata-empty {
+    margin: 0;
+    color: var(--text-muted);
+    font-size: var(--fs-body-sm);
+    line-height: var(--lh-normal);
 }
 
 .report-profile-user {
@@ -950,10 +1171,8 @@ body.report-info-modal-open {
 }
 
 .report-profile-box {
-    flex: 1;
     display: flex;
     flex-direction: column;
-    margin-top: var(--space-2);
     padding: var(--space-4);
     border-radius: var(--radius-sm);
     background: #b55d00;
@@ -965,10 +1184,6 @@ body.report-info-modal-open {
     color: #fffbff;
     font-size: var(--fs-body);
     line-height: var(--lh-snug);
-}
-
-.report-overview-grid > .report-competencies-card {
-    grid-area: competencies;
 }
 
 .report-competencies-card {
@@ -1083,16 +1298,12 @@ body.report-info-modal-open {
     );
 }
 
-.report-overview-grid > .report-insight-card {
-    grid-area: insight;
-}
-
 .report-insight-card {
     position: relative;
     min-height: 320px;
     display: block;
     overflow: hidden;
-    padding: var(--space-5);
+    padding: var(--space-4);
     border-color: rgba(199, 196, 215, 0.3);
     background: rgba(247, 249, 251, 0.8);
 }
@@ -1122,12 +1333,70 @@ body.report-info-modal-open {
     color: var(--text-main);
 }
 
-.report-insight-card p:last-child {
-    max-width: 576px;
-    margin: var(--space-2) 0 0;
+.report-insight-body {
+    margin-top: var(--space-2);
     color: var(--text-body);
     font-size: var(--fs-body);
-    line-height: var(--lh-loose);
+    line-height: var(--lh-normal);
+}
+
+.report-insight-compact {
+    display: grid;
+    gap: var(--space-3);
+}
+
+.report-insight-summary {
+    max-width: 720px;
+    margin: 0;
+    color: var(--text-body);
+    font-size: var(--fs-body-sm);
+    line-height: var(--lh-normal);
+}
+
+.report-insight-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+}
+
+.report-insight-pills span {
+    display: inline-flex;
+    align-items: center;
+    padding: 5px var(--space-3);
+    border-radius: var(--radius-pill);
+    background: rgba(70, 72, 212, 0.09);
+    color: #4648d4;
+    font-family: var(--font-heading);
+    font-size: var(--fs-caption);
+    font-weight: var(--fw-bold);
+    line-height: 1;
+}
+
+.report-insight-compact-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.2fr) minmax(220px, 0.8fr);
+    gap: var(--space-3);
+}
+
+.report-insight-compact-grid .report-info-card {
+    gap: var(--space-3);
+    padding: var(--space-3);
+    background: rgba(255, 255, 255, 0.72);
+}
+
+.report-insight-compact-grid .report-info-card-title,
+.report-insight-compact-grid .report-info-card-group > span {
+    font-size: 10px;
+}
+
+.report-insight-compact-grid .report-info-card-text,
+.report-insight-compact-grid .report-info-list li {
+    font-size: var(--fs-caption);
+    line-height: var(--lh-snug);
+}
+
+.report-insight-compact-grid .report-info-list {
+    gap: var(--space-2);
 }
 
 .report-details-card {
@@ -1254,6 +1523,11 @@ body.report-info-modal-open {
 }
 
 .report-skill-name {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-1);
     color: var(--text-main);
     font-family: var(--font-body);
     font-size: var(--fs-body);
@@ -1317,29 +1591,16 @@ body.report-info-modal-open {
     .report-hero,
     .report-overview-grid {
         grid-template-columns: 1fr;
-        grid-template-areas:
-            "profile"
-            "competencies"
-            "insight";
     }
 
-    .report-profile-card,
-    .report-competencies-card,
-    .report-insight-card,
+    .report-overview-sidebar,
+    .report-overview-main,
     .report-details-card {
         grid-column: 1;
     }
 
-    .report-profile-card {
-        grid-area: profile;
-    }
-
-    .report-competencies-card {
-        grid-area: competencies;
-    }
-
-    .report-insight-card {
-        grid-area: insight;
+    .report-overview-sidebar {
+        grid-template-rows: none;
     }
 
     .admin-detail-skill-radar-list {
@@ -1421,6 +1682,10 @@ body.report-info-modal-open {
     .report-detail-column-progress,
     .report-skill-name {
         text-align: left;
+    }
+
+    .report-skill-name {
+        align-items: flex-start;
     }
 
     .report-skill-level {

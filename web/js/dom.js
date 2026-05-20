@@ -346,6 +346,7 @@ export const reportSummaryText = document.getElementById('report-summary-text');
 export const reportProfileAvatar = document.getElementById('report-profile-avatar');
 export const reportProfileName = document.getElementById('report-profile-name');
 export const reportProfileRole = document.getElementById('report-profile-role');
+export const reportMetadataList = document.getElementById('report-metadata-list');
 export const reportRecommendations = document.getElementById('report-recommendations');
 export const reportCompetencyBars = document.getElementById('report-competency-bars');
 export const reportCompetencyBarChartCanvas = document.getElementById('report-competency-bar-chart');

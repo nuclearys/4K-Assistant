@@ -15,7 +15,7 @@
   <link rel="stylesheet" href="/web/styles/screens/onboarding.css?v=20260517-onboarding-progress-pad">
   <link rel="stylesheet" href="/web/styles/screens/processing.css?v=20260516-merged">
   <link rel="stylesheet" href="/web/styles/screens/profile.css?v=20260517-redesign-3">
-  <link rel="stylesheet" href="/web/styles/screens/report.css?v=20260517-mobile-report-2">
+  <link rel="stylesheet" href="/web/styles/screens/report.css?v=20260520-report-insight-balance">
   <link rel="stylesheet" href="/web/styles/screens/ai-welcome.css?v=20260516-merged">
   <link rel="stylesheet" href="/web/styles/screens/prechat.css?v=20260516-merged">
   <link rel="stylesheet" href="/web/styles/screens/chat.css?v=20260517-scroll-fix">
@@ -1563,40 +1563,49 @@
         </section>
 
         <section class="report-overview-grid">
-          <article class="card report-profile-card">
-            <p class="section-label accent-label">Профиль пользователя</p>
-            <div class="report-profile-user">
-              <div id="report-profile-avatar" class="user-avatar">A</div>
-              <div>
-                <strong id="report-profile-name">Пользователь</strong>
-                <span id="report-profile-role">Должность не указана</span>
+          <div class="report-overview-sidebar">
+            <article class="card report-profile-card">
+              <p class="section-label accent-label">Профиль пользователя</p>
+              <div class="report-profile-user">
+                <div id="report-profile-avatar" class="user-avatar">A</div>
+                <div>
+                  <strong id="report-profile-name">Пользователь</strong>
+                  <span id="report-profile-role">Должность не указана</span>
+                </div>
               </div>
-            </div>
-          </article>
+            </article>
 
-          <article class="card report-recommendations-card report-profile-box">
-            <strong>Рекомендации по росту</strong>
-            <ul id="report-recommendations" class="report-recommendations"></ul>
-          </article>
+            <article class="card report-metadata-card">
+              <p class="section-label accent-label">Данные ассессмента</p>
+              <dl id="report-metadata-list" class="report-metadata-list"></dl>
+            </article>
 
-          <article class="card report-competencies-card">
-            <div class="report-card-head">
-              <div>
-                <p class="section-label accent-label">Навыки 4K</p>
-                <h3>Сводные показатели по компетенциям</h3>
+            <article class="card report-recommendations-card report-profile-box">
+              <strong>Рекомендации по росту</strong>
+              <ul id="report-recommendations" class="report-recommendations"></ul>
+            </article>
+          </div>
+
+          <div class="report-overview-main">
+            <article class="card report-competencies-card">
+              <div class="report-card-head">
+                <div>
+                  <p class="section-label accent-label">Навыки 4K</p>
+                  <h3>Сводные показатели по компетенциям</h3>
+                </div>
               </div>
-            </div>
-            <div id="report-competency-bars" class="report-competency-bars">
-              <canvas id="report-competency-bar-chart" aria-label="Сводные показатели по компетенциям"></canvas>
-              <div id="report-competency-bars-fallback" class="report-competency-bars-fallback hidden"></div>
-            </div>
-          </article>
+              <div id="report-competency-bars" class="report-competency-bars">
+                <canvas id="report-competency-bar-chart" aria-label="Сводные показатели по компетенциям"></canvas>
+                <div id="report-competency-bars-fallback" class="report-competency-bars-fallback hidden"></div>
+              </div>
+            </article>
 
-          <article class="card report-insight-card">
-            <p class="section-label accent-label">AI insights</p>
-            <h3 id="report-strength-title">Сильная сторона пока формируется</h3>
-            <p id="report-strength-text">Здесь появится интерпретация результатов после завершения анализа и загрузки данных по навыкам.</p>
-          </article>
+            <article class="card report-insight-card">
+              <p class="section-label accent-label">AI insights</p>
+              <h3 id="report-strength-title">Сильная сторона пока формируется</h3>
+              <div id="report-strength-text" class="report-insight-body">Здесь появится интерпретация результатов после завершения анализа и загрузки данных по навыкам.</div>
+            </article>
+          </div>
         </section>
 
         <section class="card report-details-card">

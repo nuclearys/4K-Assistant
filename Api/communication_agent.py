@@ -5,6 +5,8 @@ import re
 from dataclasses import dataclass
 from typing import Any
 
+from Api.deepseek_client import deepseek_client
+
 
 STOP_WORDS = {
     "для", "как", "это", "или", "если", "при", "что", "его", "ее", "так", "уже", "через",
@@ -57,6 +59,7 @@ class BaseCompetencyAgent:
     def __init__(self, competency_name: str, agent_code: str) -> None:
         self.competency_name = competency_name
         self.agent_code = agent_code
+        self._semantic_rubric_cache: dict[str, dict[str, int]] = {}
 
     def normalize_text(self, value: str | None) -> str:
         if not value:
@@ -152,7 +155,12 @@ class BaseCompetencyAgent:
                 structural_elements=structural_elements,
                 payload=case_payload[0],
             )
-            rubric_match_scores = self._score_against_rubric(user_text, rubric)
+            rubric_match_scores = self._score_against_rubric(
+                user_text,
+                rubric,
+                skill_name=skill["skill_name"],
+                agent_prompt_config=agent_prompt_config,
+            )
             red_flags = self._detect_red_flags(user_text, case_payload, structural_elements)
             level_code = self._determine_level(
                 user_text=user_text,
@@ -476,7 +484,7 @@ class BaseCompetencyAgent:
         result.update(self._detect_required_block_presence(user_text, case_payload))
         return result
 
-    def _score_against_rubric(self, user_text: str, rubric: dict[str, dict[str, str]]) -> dict[str, int]:
+    def _score_against_rubric_token_fallback(self, user_text: str, rubric: dict[str, dict[str, str]]) -> dict[str, int]:
         answer_tokens = self.tokenize(user_text)
         scores = {"L1": 0, "L2": 0, "L3": 0}
         for level_code in ("L1", "L2", "L3"):
@@ -484,6 +492,142 @@ class BaseCompetencyAgent:
             rubric_tokens = self.tokenize(" ".join([row.get("knowledge_text", ""), row.get("skill_text", ""), row.get("behavior_text", "")]))
             scores[level_code] = len(answer_tokens & rubric_tokens)
         return scores
+
+    def _semantic_rubric_cache_key(
+        self,
+        *,
+        user_text: str,
+        skill_name: str,
+        rubric: dict[str, dict[str, str]],
+        agent_prompt_config: dict[str, Any] | None,
+    ) -> str:
+        rules = list((agent_prompt_config or {}).get("rules") or [])
+        profile = dict((agent_prompt_config or {}).get("profile") or {})
+        return json.dumps(
+            {
+                "agent_code": self.agent_code,
+                "competency": self.competency_name,
+                "skill_name": skill_name,
+                "user_text": user_text,
+                "rubric": rubric,
+                "purpose_prompt": profile.get("purpose_prompt"),
+                "rules": [str(item.get("rule_text") or "").strip() for item in rules],
+            },
+            ensure_ascii=False,
+            sort_keys=True,
+        )
+
+    def _parse_semantic_rubric_scores(self, raw: str) -> dict[str, int] | None:
+        text = str(raw or "").strip()
+        if not text:
+            return None
+        start = text.find("{")
+        end = text.rfind("}")
+        if start == -1 or end == -1 or end < start:
+            return None
+        try:
+            payload = json.loads(text[start : end + 1])
+        except Exception:
+            return None
+        scores = payload.get("scores")
+        if not isinstance(scores, dict):
+            return None
+        normalized = {
+            "L1": 1 if int(scores.get("L1", 0) or 0) > 0 else 0,
+            "L2": 1 if int(scores.get("L2", 0) or 0) > 0 else 0,
+            "L3": 1 if int(scores.get("L3", 0) or 0) > 0 else 0,
+        }
+        return normalized
+
+    def _score_against_rubric(
+        self,
+        user_text: str,
+        rubric: dict[str, dict[str, str]],
+        *,
+        skill_name: str,
+        agent_prompt_config: dict[str, Any] | None = None,
+    ) -> dict[str, int]:
+        if not rubric or not self.normalize_text(user_text):
+            return {"L1": 0, "L2": 0, "L3": 0}
+        if not deepseek_client.enabled:
+            return self._score_against_rubric_token_fallback(user_text, rubric)
+
+        cache_key = self._semantic_rubric_cache_key(
+            user_text=user_text,
+            skill_name=skill_name,
+            rubric=rubric,
+            agent_prompt_config=agent_prompt_config,
+        )
+        cached = self._semantic_rubric_cache.get(cache_key)
+        if cached is not None:
+            return dict(cached)
+
+        profile = dict((agent_prompt_config or {}).get("profile") or {})
+        rules = list((agent_prompt_config or {}).get("rules") or [])
+        rule_lines = [
+            f"- {str(item.get('rule_text') or '').strip()}"
+            for item in rules
+            if str(item.get("rule_text") or "").strip()
+        ]
+        rubric_lines: list[str] = []
+        for level_code in ("L1", "L2", "L3"):
+            row = rubric.get(level_code, {})
+            rubric_lines.append(
+                "\n".join(
+                    [
+                        f"{level_code} ({row.get('level_name') or LEVEL_NAMES.get(level_code, level_code)}):",
+                        f"knowledge: {row.get('knowledge_text', '').strip()}",
+                        f"skill: {row.get('skill_text', '').strip()}",
+                        f"behavior: {row.get('behavior_text', '').strip()}",
+                    ]
+                )
+            )
+
+        system_prompt = (
+            "Ты оценочный агент 4K-компетенций. "
+            "Твоя задача — определить проявленный уровень навыка по смыслу рубрики, а не по буквальному совпадению слов. "
+            "Смотри на то, демонстрирует ли ответ пользователя знания, действия и поведение, описанные в уровнях L1-L3. "
+            "Оцени строго. Не повышай уровень только из-за отдельных терминов или формально похожих слов. "
+            "Верни только JSON формата "
+            '{"scores":{"L1":0|1,"L2":0|1,"L3":0|1},"best_level":"N/A|L1|L2|L3","reason":"..."}. '
+            "Правила: L3=1 только если ответ явно соответствует системному уровню; "
+            "L2=1 только если ответ уверенно соответствует продвинутому уровню; "
+            "L1=1 только если хотя бы базовое проявление навыка действительно есть. "
+            "Если уровень не достигнут по смыслу рубрики, ставь 0."
+        )
+        if str(profile.get("purpose_prompt") or "").strip():
+            system_prompt += "\nФокус агента: " + str(profile.get("purpose_prompt") or "").strip()
+        if rule_lines:
+            system_prompt += "\nПравила оценки:\n" + "\n".join(rule_lines)
+
+        user_prompt = (
+            f"Компетенция: {self.competency_name}\n"
+            f"Навык: {skill_name}\n\n"
+            "Рубрика уровней:\n"
+            f"{chr(10).join(rubric_lines)}\n\n"
+            "Ответ пользователя:\n"
+            f"{user_text}\n\n"
+            "Определи соответствие ответа уровням рубрики по смыслу."
+        )
+
+        try:
+            raw = deepseek_client._post_chat(
+                [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
+                temperature=0.0,
+                timeout_sec=45,
+                routing_key=f"semantic_rubric::{self.agent_code}::{skill_name}",
+            )
+            parsed = self._parse_semantic_rubric_scores(raw)
+            if parsed is not None:
+                self._semantic_rubric_cache[cache_key] = dict(parsed)
+                return parsed
+        except Exception:
+            pass
+
+        return self._score_against_rubric_token_fallback(user_text, rubric)
 
     def _detect_red_flags(
         self,
@@ -865,7 +1009,7 @@ class BaseCompetencyAgent:
             if evidence_labels:
                 parts.append(f"Найденные evidence-сигналы: {', '.join(evidence_labels)}.")
         if any(rubric_match_scores.values()):
-            parts.append("Совпадения с рубрикой: " + ", ".join(f"{level}={score}" for level, score in rubric_match_scores.items()) + ".")
+            parts.append("Семантическое соответствие рубрике: " + ", ".join(f"{level}={score}" for level, score in rubric_match_scores.items()) + ".")
         if red_flags:
             parts.append(f"Обнаружены красные флаги: {', '.join(red_flags)}.")
         return " ".join(parts)

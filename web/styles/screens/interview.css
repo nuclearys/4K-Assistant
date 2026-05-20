@@ -747,11 +747,11 @@
     line-height: var(--lh-snug);
 }
 
-.interview-form .primary-button::after {
-    content: "▷";
-    font-family: var(--font-body);
-    font-size: var(--fs-meta);
-    line-height: 1;
+.interview-form .primary-button .button-icon {
+    display: block;
+    width: 13px;
+    height: 13px;
+    flex: 0 0 13px;
 }
 
 .interview-footnote {

@@ -155,9 +155,7 @@
 
 .report-recommendations {
     display: flex;
-    flex: 1;
     flex-direction: column;
-    justify-content: space-between;
     gap: var(--space-2);
     margin: var(--space-3) 0 0;
     color: #fff8ef;
@@ -767,13 +765,11 @@ body.report-info-modal-open {
     letter-spacing: var(--ls-tight);
 }
 
-.report-panel .dashboard-brand::after {
-    content: "";
+.report-panel .dashboard-brand .report-title-icon {
     width: 20px;
     height: 20px;
+    flex: 0 0 20px;
     order: 1;
-    background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 20 20' fill='none'%3E%3Cpath fill-rule='evenodd' clip-rule='evenodd' d='M4.03995 10L0 7.62395L2.97768 2.37608L7.02 4.74805L7.0223 0H12.9777L12.98 4.74805L17.0223 2.37608L20 7.62395L15.96 10L20 12.376L17.0223 17.6239L12.98 15.252L12.9777 20H7.0223L7.02 15.252L2.97768 17.6239L0 12.376L4.03995 10Z' fill='%234648D4'/%3E%3C/svg%3E")
-        center / contain no-repeat;
 }
 
 .report-panel .dashboard-topbar-actions {
@@ -788,6 +784,10 @@ body.report-info-modal-open {
 }
 
 .report-panel .compact-primary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2);
     min-height: 40px;
     padding: 0 var(--space-3);
     border-radius: var(--radius-sm);
@@ -796,11 +796,11 @@ body.report-info-modal-open {
     line-height: var(--lh-snug);
 }
 
-.report-panel .compact-primary::before {
-    content: "↓";
-    margin-right: var(--space-2);
-    font-size: var(--fs-meta);
-    line-height: 1;
+.report-panel .compact-primary .button-icon {
+    width: 12px;
+    height: 12px;
+    flex: 0 0 12px;
+    filter: brightness(0) invert(1);
 }
 
 .report-shell {
@@ -865,13 +865,14 @@ body.report-info-modal-open {
     grid-template-columns: repeat(12, minmax(0, 1fr));
     grid-template-areas:
         "profile profile profile profile competencies competencies competencies competencies competencies competencies competencies competencies"
-        "profile profile profile profile insight insight insight insight insight insight insight insight"
-        "profile profile profile profile insight insight insight insight insight insight insight insight";
+        "recommendations recommendations recommendations recommendations insight insight insight insight insight insight insight insight"
+        "recommendations recommendations recommendations recommendations insight insight insight insight insight insight insight insight";
     gap: var(--space-4);
     align-items: start;
 }
 
 .report-profile-card,
+.report-recommendations-card,
 .report-competencies-card,
 .report-insight-card,
 .report-details-card {
@@ -884,8 +885,11 @@ body.report-info-modal-open {
     grid-area: profile;
 }
 
+.report-overview-grid > .report-recommendations-card {
+    grid-area: recommendations;
+}
+
 .report-profile-card {
-    align-self: stretch;
     display: flex;
     flex-direction: column;
     gap: var(--space-4);
@@ -950,10 +954,8 @@ body.report-info-modal-open {
 }
 
 .report-profile-box {
-    flex: 1;
     display: flex;
     flex-direction: column;
-    margin-top: var(--space-2);
     padding: var(--space-4);
     border-radius: var(--radius-sm);
     background: #b55d00;
@@ -1319,11 +1321,13 @@ body.report-info-modal-open {
         grid-template-columns: 1fr;
         grid-template-areas:
             "profile"
+            "recommendations"
             "competencies"
             "insight";
     }
 
     .report-profile-card,
+    .report-recommendations-card,
     .report-competencies-card,
     .report-insight-card,
     .report-details-card {
@@ -1332,6 +1336,10 @@ body.report-info-modal-open {
 
     .report-profile-card {
         grid-area: profile;
+    }
+
+    .report-recommendations-card {
+        grid-area: recommendations;
     }
 
     .report-competencies-card {

@@ -254,13 +254,11 @@
     line-height: var(--lh-snug);
 }
 
-.ai-welcome-panel #start-first-assessment::after {
-    content: "";
+.ai-welcome-panel #start-first-assessment .button-arrow {
+    display: block;
     width: 16px;
     height: 16px;
     flex: 0 0 16px;
-    background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16' fill='none'%3E%3Cpath d='M12.175 9H0V7H12.175L6.575 1.4L8 0L16 8L8 16L6.575 14.6L12.175 9Z' fill='white'/%3E%3C/svg%3E")
-        center / contain no-repeat;
 }
 
 .ai-welcome-panel #start-first-assessment.hidden {
@@ -346,7 +344,8 @@
     position: relative;
     width: 48px;
     height: 48px;
-    display: block;
+    display: grid;
+    place-items: center;
     margin: 0 0 var(--space-3);
     border-radius: var(--radius-sm);
     background: var(--accent-soft);
@@ -356,11 +355,15 @@
     overflow: hidden;
 }
 
-.ai-welcome-panel .mini-card-icon::before {
-    content: "";
+.ai-welcome-panel .mini-card-icon img {
     display: block;
     width: 24px;
     height: 23px;
+}
+
+.ai-welcome-panel .assessment-mini-card.muted-card .mini-card-icon img {
+    opacity: 0.42;
+    filter: grayscale(1);
 }
 
 .ai-welcome-panel .muted-card.warm .muted-icon {
@@ -460,19 +463,11 @@
     text-transform: uppercase;
 }
 
-.ai-welcome-panel .importance-card .accent-label::before {
-    content: "i";
+.ai-welcome-panel .importance-card .accent-label img {
+    display: block;
     width: 16px;
     height: 16px;
-    display: inline-grid;
-    place-items: center;
-    border-radius: var(--radius-pill);
-    background: var(--accent-bright);
-    color: #fff;
-    font-family: var(--font-body);
-    font-size: var(--fs-micro);
-    font-weight: var(--fw-bold);
-    line-height: 1;
+    flex: 0 0 16px;
 }
 
 .ai-welcome-panel .importance-card h3 {

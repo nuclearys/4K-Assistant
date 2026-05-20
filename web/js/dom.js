@@ -113,6 +113,7 @@ export const adminCompetencyChartFallback = document.getElementById('admin-compe
 export const adminMbtiChart = document.getElementById('admin-mbti-chart');
 export const adminMbtiPieChartCanvas = document.getElementById('admin-mbti-pie-chart');
 export const adminMbtiChartFallback = document.getElementById('admin-mbti-chart-fallback');
+export const adminMbtiPreviewPill = document.getElementById('admin-mbti-preview-pill');
 export const adminInsightsGrid = document.getElementById('admin-insights-grid');
 export const adminActivityTitle = document.getElementById('admin-activity-title');
 export const adminPeriodSelect = document.getElementById('admin-period-select');

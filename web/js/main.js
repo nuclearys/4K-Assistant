@@ -81,6 +81,9 @@ const bootApp = async () => {
   const screen = params.get('screen') || (safeStorage.getItem(STORAGE_KEYS.completionPending) ? 'processing' : null);
   restoreAssessmentContext();
   restoreAssessmentContextFromParams(params);
+  if (screen && screen !== 'processing' && screen !== 'report') {
+    state.currentScreen = screen;
+  }
   const hadStoredPendingUser = Boolean(state.pendingUser?.id);
   let restoredServerSession = false;
 
@@ -153,7 +156,7 @@ const bootApp = async () => {
       void openAdminReportDetailScreen(state.adminReportDetailSessionId);
       return;
     }
-    if (state.currentScreen === 'admin' || state.isAdmin) {
+    if (state.currentScreen === 'admin' && state.isAdmin) {
       if (state.isAdmin) {
         try {
           await loadAdminDashboardData(state.adminPeriodKey || '30d');
@@ -189,6 +192,8 @@ const bootApp = async () => {
       return;
     }
   }
+
+  returnToStart();
 };
 
 window.addEventListener('popstate', () => {

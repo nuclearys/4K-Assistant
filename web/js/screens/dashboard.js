@@ -45,7 +45,8 @@ export const renderDashboard = () => {
   dashboardUserRole.textContent = position;
   dashboardUserRole.style.display = position ? '' : 'none';
   dashboardAvatar.textContent = buildInitials(user ? user.full_name : dashboard.greeting_name);
-  assessmentTitle.textContent = dashboard.active_assessment.title;
+  assessmentTitle.textContent =
+    dashboard.active_assessment.code === 'competencies_4k' ? 'Компетенции 4К' : dashboard.active_assessment.title;
   assessmentDescription.textContent = dashboard.active_assessment.description;
   assessmentStatusLabel.textContent = progressText;
   assessmentCasesLabel.textContent =

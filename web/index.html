@@ -123,7 +123,7 @@
 
       <div class="dashboard-hero">
         <h2 id="dashboard-greeting">Добро пожаловать</h2>
-        <p class="dashboard-subtitle">Ваш текущий прогресс развития компетенций за этот квартал</p>
+        <p class="dashboard-subtitle">Ваш текущий прогресс развития компетенций</p>
       </div>
 
       <section class="dashboard-section">
@@ -281,7 +281,6 @@
           <div>
             <p class="section-label accent-label">Административный раздел</p>
             <h2 id="admin-title">Сводный отчет</h2>
-            <p id="admin-subtitle">Комплексный анализ компетенций и ключевых метрик платформы.</p>
           </div>
           <div class="admin-hero-actions">
             <button id="admin-open-methodology-button" type="button" class="ghost-button compact-ghost">Управление кейсами</button>
@@ -751,12 +750,13 @@
                 type="button"
                 class="ghost-button admin-export-button"
               >Выгрузить ассесменты</button>
-              <button id="admin-reports-pdf-button" type="button" class="ghost-button admin-export-button">Печать PDF</button>
+              <button id="admin-reports-pdf-button" type="button" class="ghost-button admin-export-button"><span class="button-icon button-icon--download" aria-hidden="true"></span>Скачать все</button>
             </div>
           </section>
 
           <section class="card card--lg admin-reports-table-card">
             <div class="admin-reports-table-head">
+              <div id="admin-reports-found" class="admin-reports-found">Найдено: 0</div>
               <div class="admin-reports-columns" aria-hidden="true">
                 <span></span>
                 <span>Сотрудник / ID</span>
@@ -767,7 +767,6 @@
                 <span>Дата</span>
                 <span>Отчет PDF</span>
               </div>
-              <div id="admin-reports-found" class="admin-reports-found">Найдено: 0</div>
             </div>
             <div id="admin-reports-list" class="admin-reports-list"></div>
             <div class="admin-reports-pagination">
@@ -801,7 +800,7 @@
           <div id="admin-reports-group-dialog-summary" class="admin-prompt-lab-case-picker-summary">Выберите завершенные ассессменты для выгрузки.</div>
           <div id="admin-reports-group-dialog-list" class="admin-prompt-lab-case-dialog-list"></div>
           <div class="admin-prompt-lab-actions">
-            <button id="admin-reports-group-dialog-export" type="button" class="primary-button compact-primary">Скачать архив</button>
+            <button id="admin-reports-group-dialog-export" type="button" class="primary-button compact-primary"><span class="button-icon button-icon--download" aria-hidden="true"></span>Скачать архив</button>
           </div>
         </form>
       </dialog>
@@ -1112,9 +1111,11 @@
               placeholder="Комментарий эксперта появится после завершения ассессмента."
             ></textarea>
             <div class="admin-detail-expert-comment-actions">
-              <span id="admin-report-detail-expert-comment-status" class="admin-inline-status"></span>
-              <button id="admin-report-detail-expert-comment-edit" class="ghost-button compact-ghost" type="button">Редактировать</button>
-              <button id="admin-report-detail-expert-comment-cancel" class="ghost-button compact-ghost" type="button">Отмена</button>
+              <div class="admin-detail-expert-comment-secondary-actions">
+                <span id="admin-report-detail-expert-comment-status" class="admin-inline-status"></span>
+                <button id="admin-report-detail-expert-comment-edit" class="ghost-button compact-ghost" type="button">Редактировать</button>
+                <button id="admin-report-detail-expert-comment-cancel" class="ghost-button compact-ghost" type="button">Отмена</button>
+              </div>
               <button id="admin-report-detail-expert-comment-save" class="primary-button" type="button">Сохранить комментарий</button>
             </div>
           </div>
@@ -1124,13 +1125,12 @@
           <div class="report-card-head">
             <div>
               <p class="section-label accent-label">Компетенции (4К)</p>
-              <h3>Сводные показатели по компетенциям</h3>
             </div>
           </div>
           <section class="admin-detail-skill-radar-section" aria-labelledby="admin-report-detail-skills-radar-title">
             <div class="admin-detail-skill-radar-head">
               <strong id="admin-report-detail-skills-radar-title">Распределение по 13 навыкам</strong>
-              <p>Оценки отдельных навыков, из которых собирается итоговый профиль 4K.</p>
+              <p>Каждая <span class="inline-accent">Компетенция</span> состоит из <span class="inline-accent">Навыков</span>.</p>
             </div>
             <div class="card admin-detail-skills-radar-card">
               <div class="admin-detail-skills-radar-frame">

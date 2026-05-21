@@ -30,7 +30,7 @@
 }
 
 .auth-panel .stack {
-    gap: var(--space-4);
+    gap: var(--space-3);
     margin-top: 0;
 }
 
@@ -48,12 +48,20 @@
     color: rgba(100, 116, 139, 0.5);
 }
 
+.auth-panel input,
 .auth-panel .primary-button {
     width: 100%;
-    min-height: 56px;
-    padding: var(--space-3) var(--space-4);
+    height: 56px;
     font-size: var(--fs-body);
     line-height: var(--lh-snug);
+}
+
+.auth-panel input {
+    padding: 0 var(--space-4);
+}
+
+.auth-panel .primary-button {
+    padding: 0 var(--space-4);
 }
 
 .auth-panel .error {

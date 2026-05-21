@@ -112,7 +112,8 @@
     min-height: 32px;
     padding: 0 var(--space-2);
     border-radius: var(--radius-pill);
-    background: rgba(70, 72, 212, 0.1);
+    border: 0;
+    background: var(--control-bg);
     color: var(--accent);
     font-family: var(--font-heading);
     font-size: var(--fs-caption);

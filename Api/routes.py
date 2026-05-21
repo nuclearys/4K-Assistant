@@ -590,7 +590,7 @@ def _build_dashboard(connection, user: UserResponse) -> UserDashboard:
 
     active_assessment = AssessmentCard(
         code="competencies_4k",
-        title="4K Competency Assessment",
+        title="Компетенции 4К",
         description=(
             "Комплексная оценка критического мышления, креативности, коммуникации и кооперации."
             if assessment_allowed

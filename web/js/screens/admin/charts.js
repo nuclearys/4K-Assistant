@@ -602,10 +602,6 @@ export const renderAdminActivityBarChart = (adminDashboard = {}) => {
           label: 'Завершенные ассессменты',
           data: items.map((item) => item.value),
           backgroundColor: items.map((item) => getAdminActivityShade(item.value, maxPoint)),
-          borderColor: items.map((item) =>
-            item.value ? getRootCssColor('--accent', '#4648d4') : getRootCssColor('--accent-border', '#cbd5e1')
-          ),
-          borderWidth: 1,
           borderRadius: {
             topLeft: 12,
             topRight: 12,

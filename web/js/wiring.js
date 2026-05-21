@@ -100,6 +100,7 @@ import {
   profileBackButton,
   profileAvatarInput,
   profileEmail,
+  profileTelegram,
   newUserExitButton,
   prechatStartButton,
   assessmentActionButton,
@@ -140,6 +141,23 @@ const withScreen = (loader, callback) => {
     const module = await loader();
     await callback(module);
   })();
+};
+
+const isEditableKeyboardTarget = (target) => {
+  if (!(target instanceof Element)) {
+    return false;
+  }
+  return Boolean(target.closest('input, textarea, select, [contenteditable="true"]'));
+};
+
+const changeAdminReportsPage = (direction) => {
+  const nextPage = Math.max(1, (state.adminReportsPage || 1) + direction);
+  if (nextPage === state.adminReportsPage) {
+    return;
+  }
+  state.adminReportsPage = nextPage;
+  persistAssessmentContext();
+  withScreen(loadAdminReports, (module) => module.renderAdminReports());
 };
 
 const handlePhoneLogin = async () => {
@@ -641,19 +659,36 @@ if (adminReportsSearch) {
 
 if (adminReportsPrevButton) {
   adminReportsPrevButton.addEventListener('click', () => {
-    state.adminReportsPage = Math.max(1, (state.adminReportsPage || 1) - 1);
-    persistAssessmentContext();
-    withScreen(loadAdminReports, (module) => module.renderAdminReports());
+    changeAdminReportsPage(-1);
   });
 }
 
 if (adminReportsNextButton) {
   adminReportsNextButton.addEventListener('click', () => {
-    state.adminReportsPage = (state.adminReportsPage || 1) + 1;
-    persistAssessmentContext();
-    withScreen(loadAdminReports, (module) => module.renderAdminReports());
+    changeAdminReportsPage(1);
   });
 }
+
+document.addEventListener('keydown', (event) => {
+  if (
+    state.currentScreen !== 'admin-reports' ||
+    event.altKey ||
+    event.ctrlKey ||
+    event.metaKey ||
+    event.shiftKey ||
+    isEditableKeyboardTarget(event.target)
+  ) {
+    return;
+  }
+  if (event.key === 'ArrowLeft' && adminReportsPrevButton && !adminReportsPrevButton.disabled) {
+    event.preventDefault();
+    changeAdminReportsPage(-1);
+  }
+  if (event.key === 'ArrowRight' && adminReportsNextButton && !adminReportsNextButton.disabled) {
+    event.preventDefault();
+    changeAdminReportsPage(1);
+  }
+});
 
 if (adminReportsPdfButton) {
   adminReportsPdfButton.addEventListener('click', () => {
@@ -1030,6 +1065,27 @@ profileEmail.addEventListener('blur', () => {
     module.saveProfile({
       silent: false,
       successMessage: 'Email обновлен.',
+    }),
+  );
+});
+
+profileTelegram.addEventListener('keydown', (event) => {
+  if (event.key === 'Enter') {
+    event.preventDefault();
+    profileTelegram.blur();
+  }
+});
+
+profileTelegram.addEventListener('blur', () => {
+  const currentTelegram = state.profileSummary?.user?.telegram || state.pendingUser?.telegram || '';
+  const nextTelegram = profileTelegram.value.trim();
+  if (nextTelegram === currentTelegram) {
+    return;
+  }
+  withScreen(loadProfile, (module) =>
+    module.saveProfile({
+      silent: false,
+      successMessage: 'Telegram обновлен.',
     }),
   );
 });

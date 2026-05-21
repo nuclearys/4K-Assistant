@@ -113,7 +113,7 @@
     border-radius: var(--radius-md);
     border: 1px solid rgba(70, 72, 212, 0.16);
     background: #fff;
-    padding: 0 var(--space-3);
+    padding: 0 var(--space-5) 0 var(--space-3);
     font: inherit;
     color: var(--text-main);
 }
@@ -188,7 +188,6 @@
     padding: 3px 9px;
     border: 1px solid rgba(70, 72, 212, 0.18);
     border-radius: var(--radius-pill);
-    background: rgba(70, 72, 212, 0.08);
     color: var(--accent);
     font-size: var(--fs-meta);
     font-weight: var(--fw-bold);

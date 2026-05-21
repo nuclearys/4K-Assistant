@@ -12,14 +12,14 @@
   <link rel="stylesheet" href="/web/styles/base.css?v=20260517-scrollbar">
   <link rel="stylesheet" href="/web/styles/components.css?v=20260516-merged">
   <link rel="stylesheet" href="/web/styles/screens/auth.css?v=20260516-merged">
-  <link rel="stylesheet" href="/web/styles/screens/onboarding.css?v=20260517-onboarding-progress-pad">
+  <link rel="stylesheet" href="/web/styles/screens/onboarding.css?v=20260521-onboarding-progress-transition">
   <link rel="stylesheet" href="/web/styles/screens/processing.css?v=20260516-merged">
   <link rel="stylesheet" href="/web/styles/screens/profile.css?v=20260517-redesign-3">
-  <link rel="stylesheet" href="/web/styles/screens/report.css?v=20260520-report-insight-balance">
+  <link rel="stylesheet" href="/web/styles/screens/report.css?v=20260521-report-mobile-skill-table">
   <link rel="stylesheet" href="/web/styles/screens/ai-welcome.css?v=20260516-merged">
   <link rel="stylesheet" href="/web/styles/screens/prechat.css?v=20260516-merged">
   <link rel="stylesheet" href="/web/styles/screens/chat.css?v=20260517-scroll-fix">
-  <link rel="stylesheet" href="/web/styles/screens/interview.css?v=20260517-mobile-case-dropdown">
+  <link rel="stylesheet" href="/web/styles/screens/interview.css?v=20260521-mobile-compact-input">
   <link rel="stylesheet" href="/web/styles/screens/dashboard.css?v=20260517-dashboard-soon-button">
   <link rel="stylesheet" href="/web/styles/screens/reports.css?v=20260516-merged">
   <link rel="stylesheet" href="/web/styles/screens/app-loader.css?v=20260516-merged">
@@ -28,7 +28,7 @@
   <link rel="stylesheet" href="/web/styles/screens/admin-report-detail.css?v=20260516-merged">
   <link rel="stylesheet" href="/web/styles/screens/admin-methodology.css?v=20260516-merged">
   <link rel="stylesheet" href="/web/styles/screens/admin-prompt-lab.css?v=20260516-merged">
-  <link rel="stylesheet" href="/web/styles/utilities.css?v=20260517-interview-mobile-2">
+  <link rel="stylesheet" href="/web/styles/utilities.css?v=20260521-interview-mobile-compact">
       <!--Favicons-->
   <link rel="icon" href="/favicons/favicon.ico" sizes="any">
   <link rel="icon" type="image/png" sizes="32x32" href="/favicons/favicon-32x32.png">
@@ -61,8 +61,8 @@
         <div id="app-release-badge" class="release-badge">Релиз <span id="app-release-number">1</span></div>
       </div>
       <div class="auth-panel-copy">
-        <h1>Вход в систему</h1>
-        <p class="subtitle">Введите номер телефона, а затем система либо откроет диалог с профилем, либо зарегистрирует нового пользователя.</p>
+        <h1>Добро пожаловать</h1>
+        <p class="subtitle">Введите номер телефона, чтобы продолжить.</p>
       </div>
       <form id="phone-form" class="stack">
         <label class="field">
@@ -123,7 +123,7 @@
 
       <div class="dashboard-hero">
         <h2 id="dashboard-greeting">Добро пожаловать</h2>
-        <p class="dashboard-subtitle">Ваш текущий прогресс развития компетенций за этот квартал</p>
+        <p class="dashboard-subtitle">Ваш текущий прогресс развития компетенций</p>
       </div>
 
       <section class="dashboard-section">
@@ -281,7 +281,6 @@
           <div>
             <p class="section-label accent-label">Административный раздел</p>
             <h2 id="admin-title">Сводный отчет</h2>
-            <p id="admin-subtitle">Комплексный анализ компетенций и ключевых метрик платформы.</p>
           </div>
           <div class="admin-hero-actions">
             <button id="admin-open-methodology-button" type="button" class="ghost-button compact-ghost">Управление кейсами</button>
@@ -751,12 +750,13 @@
                 type="button"
                 class="ghost-button admin-export-button"
               >Выгрузить ассесменты</button>
-              <button id="admin-reports-pdf-button" type="button" class="ghost-button admin-export-button">Печать PDF</button>
+              <button id="admin-reports-pdf-button" type="button" class="ghost-button admin-export-button"><span class="button-icon button-icon--download" aria-hidden="true"></span>Скачать все</button>
             </div>
           </section>
 
           <section class="card card--lg admin-reports-table-card">
             <div class="admin-reports-table-head">
+              <div id="admin-reports-found" class="admin-reports-found">Найдено: 0</div>
               <div class="admin-reports-columns" aria-hidden="true">
                 <span></span>
                 <span>Сотрудник / ID</span>
@@ -767,7 +767,6 @@
                 <span>Дата</span>
                 <span>Отчет PDF</span>
               </div>
-              <div id="admin-reports-found" class="admin-reports-found">Найдено: 0</div>
             </div>
             <div id="admin-reports-list" class="admin-reports-list"></div>
             <div class="admin-reports-pagination">
@@ -801,7 +800,7 @@
           <div id="admin-reports-group-dialog-summary" class="admin-prompt-lab-case-picker-summary">Выберите завершенные ассессменты для выгрузки.</div>
           <div id="admin-reports-group-dialog-list" class="admin-prompt-lab-case-dialog-list"></div>
           <div class="admin-prompt-lab-actions">
-            <button id="admin-reports-group-dialog-export" type="button" class="primary-button compact-primary">Скачать архив</button>
+            <button id="admin-reports-group-dialog-export" type="button" class="primary-button compact-primary"><span class="button-icon button-icon--download" aria-hidden="true"></span>Скачать архив</button>
           </div>
         </form>
       </dialog>
@@ -1112,9 +1111,11 @@
               placeholder="Комментарий эксперта появится после завершения ассессмента."
             ></textarea>
             <div class="admin-detail-expert-comment-actions">
-              <span id="admin-report-detail-expert-comment-status" class="admin-inline-status"></span>
-              <button id="admin-report-detail-expert-comment-edit" class="ghost-button compact-ghost" type="button">Редактировать</button>
-              <button id="admin-report-detail-expert-comment-cancel" class="ghost-button compact-ghost" type="button">Отмена</button>
+              <div class="admin-detail-expert-comment-secondary-actions">
+                <span id="admin-report-detail-expert-comment-status" class="admin-inline-status"></span>
+                <button id="admin-report-detail-expert-comment-edit" class="ghost-button compact-ghost" type="button">Редактировать</button>
+                <button id="admin-report-detail-expert-comment-cancel" class="ghost-button compact-ghost" type="button">Отмена</button>
+              </div>
               <button id="admin-report-detail-expert-comment-save" class="primary-button" type="button">Сохранить комментарий</button>
             </div>
           </div>
@@ -1124,13 +1125,12 @@
           <div class="report-card-head">
             <div>
               <p class="section-label accent-label">Компетенции (4К)</p>
-              <h3>Сводные показатели по компетенциям</h3>
             </div>
           </div>
           <section class="admin-detail-skill-radar-section" aria-labelledby="admin-report-detail-skills-radar-title">
             <div class="admin-detail-skill-radar-head">
               <strong id="admin-report-detail-skills-radar-title">Распределение по 13 навыкам</strong>
-              <p>Оценки отдельных навыков, из которых собирается итоговый профиль 4K.</p>
+              <p>Каждая <span class="inline-accent">Компетенция</span> состоит из <span class="inline-accent">Навыков</span>.</p>
             </div>
             <div class="card admin-detail-skills-radar-card">
               <div class="admin-detail-skills-radar-frame">
@@ -1296,7 +1296,7 @@
           <span>Результаты</span>
         </div>
         <div class="interview-progress-line">
-          <div class="interview-progress-fill"></div>
+          <div id="interview-progress-fill" class="interview-progress-fill"></div>
         </div>
       </div>
 
@@ -1334,7 +1334,7 @@
               <div id="interview-messages" class="interview-messages"></div>
             </div>
             <button id="interview-messages-scroll" class="interview-messages-scroll" type="button" hidden aria-label="К последним сообщениям">
-              <span aria-hidden="true">↓</span>
+              <img src="/web/assets/icons/arrow-down-icon.svg" alt="" aria-hidden="true">
             </button>
           </div>
           <div id="interview-complete-actions" class="interview-complete-actions hidden">
@@ -1404,7 +1404,6 @@
                 <h3>Контактные данные</h3>
                 <p>Email и Telegram сохраняются автоматически. Имя и телефон управляются учетной записью.</p>
               </div>
-              <span class="profile-section-badge">Редактируемое</span>
             </header>
             <div class="profile-fields">
               <label class="profile-field is-readonly">
@@ -1615,6 +1614,7 @@
               <h3 id="report-detail-title">Коммуникация</h3>
             </div>
             <div id="report-tabs" class="report-tabs"></div>
+            <select id="report-tab-select" class="report-tab-select" aria-label="Выберите компетенцию"></select>
           </div>
 
           <div class="report-detail-columns" aria-hidden="true">

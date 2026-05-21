@@ -5,7 +5,6 @@ import {
   adminUserRole,
   adminAvatar,
   adminTitle,
-  adminSubtitle,
   adminActivityTitle,
   adminMetricsGrid,
   adminInsightsGrid,
@@ -39,7 +38,6 @@ export const renderAdminDashboard = () => {
   adminUserRole.textContent = adminPosition;
   adminAvatar.textContent = buildInitials(user.full_name || 'Администратор системы');
   adminTitle.textContent = adminDashboard.title || 'Сводный отчет';
-  adminSubtitle.textContent = adminDashboard.subtitle || 'Комплексный анализ платформы.';
   adminActivityTitle.innerHTML = 'Количество завершенных ассессментов за период';
 
   adminMetricsGrid.innerHTML = '';

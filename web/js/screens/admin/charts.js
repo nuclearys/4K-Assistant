@@ -34,6 +34,8 @@ const adminMbtiPreviewDistribution = [
   { name: 'Sentinels', value: 20 },
   { name: 'Explorers', value: 10 },
 ];
+const adminActivityEmptyFill = '#eef2ff';
+const adminActivityPrimaryGradientStops = ['#e1e0ff', '#6063ee', '#4648d4'];
 
 const adminCompetencyBarValueLabelsPlugin = {
   id: 'adminCompetencyBarValueLabels',
@@ -451,13 +453,72 @@ export const renderAdminMbtiPieChart = (distribution = []) => {
   });
 };
 
+const getRootCssColor = (propertyName, fallback) => {
+  if (
+    typeof window === 'undefined' ||
+    !window.getComputedStyle ||
+    typeof document === 'undefined' ||
+    !document.documentElement
+  ) {
+    return fallback;
+  }
+  return window.getComputedStyle(document.documentElement).getPropertyValue(propertyName).trim() || fallback;
+};
+
+const hexToRgb = (hex) => {
+  const normalized = String(hex || '').replace('#', '').trim();
+  const value =
+    normalized.length === 3
+      ? normalized
+          .split('')
+          .map((part) => part + part)
+          .join('')
+      : normalized;
+
+  if (!/^[\da-f]{6}$/i.test(value)) {
+    return null;
+  }
+
+  return {
+    r: parseInt(value.slice(0, 2), 16),
+    g: parseInt(value.slice(2, 4), 16),
+    b: parseInt(value.slice(4, 6), 16),
+  };
+};
+
+const rgbToHex = ({ r, g, b }) =>
+  '#' +
+  [r, g, b]
+    .map((channel) => Math.max(0, Math.min(255, Math.round(channel))).toString(16).padStart(2, '0'))
+    .join('');
+
+const mixHexColors = (start, end, ratio) => {
+  const startRgb = hexToRgb(start);
+  const endRgb = hexToRgb(end);
+  if (!startRgb || !endRgb) {
+    return end;
+  }
+
+  return rgbToHex({
+    r: startRgb.r + (endRgb.r - startRgb.r) * ratio,
+    g: startRgb.g + (endRgb.g - startRgb.g) * ratio,
+    b: startRgb.b + (endRgb.b - startRgb.b) * ratio,
+  });
+};
+
+const getAdminActivityPrimaryStops = () => [
+  getRootCssColor('--accent-soft', adminActivityPrimaryGradientStops[0]),
+  getRootCssColor('--accent-bright', adminActivityPrimaryGradientStops[1]),
+  getRootCssColor('--accent', adminActivityPrimaryGradientStops[2]),
+];
+
 const getAdminActivityShade = (value, maxValue) => {
   if (!value) {
-    return '#dbe3f3';
+    return getRootCssColor('--accent-surface', adminActivityEmptyFill);
   }
   const ratio = Math.max(0, Math.min(1, value / Math.max(maxValue, 1)));
-  const lightness = Math.round(76 - ratio * 28);
-  return 'hsl(241 68% ' + lightness + '%)';
+  const [start, middle, end] = getAdminActivityPrimaryStops();
+  return ratio < 0.55 ? mixHexColors(start, middle, ratio / 0.55) : mixHexColors(middle, end, (ratio - 0.55) / 0.45);
 };
 
 const normalizeAdminActivityItems = (points = [], labels = []) => {
@@ -541,8 +602,6 @@ export const renderAdminActivityBarChart = (adminDashboard = {}) => {
           label: 'Завершенные ассессменты',
           data: items.map((item) => item.value),
           backgroundColor: items.map((item) => getAdminActivityShade(item.value, maxPoint)),
-          borderColor: items.map((item) => (item.value ? '#4648d4' : '#cbd5e1')),
-          borderWidth: 1,
           borderRadius: {
             topLeft: 12,
             topRight: 12,

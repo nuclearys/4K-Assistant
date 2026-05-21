@@ -14,6 +14,7 @@ import {
   interviewSummary,
   interviewCompleteActions,
   interviewCaseBadge,
+  interviewProgressFill,
   interviewCaseTitle,
   interviewCaseStatus,
   interviewTimerBadge,
@@ -297,6 +298,12 @@ const renderInterviewMeta = () => {
   interviewCaseBadge.textContent = 'Кейс ' + state.assessmentCaseNumber + ' из ' + state.assessmentTotalCases;
   interviewCaseTitle.textContent = state.assessmentCaseTitle || 'Кейс';
   interviewCaseStatus.textContent = '';
+  if (interviewProgressFill) {
+    const totalCases = Math.max(1, Number(state.assessmentTotalCases || 0));
+    const caseNumber = Math.max(1, Math.min(totalCases, Number(state.assessmentCaseNumber || 1)));
+    const caseProgress = totalCases > 1 ? (caseNumber - 1) / (totalCases - 1) : 1;
+    interviewProgressFill.style.width = Math.round(caseProgress * 50) + '%';
+  }
 };
 
 const renderCaseProgress = (assessmentCompleted = false) => {
@@ -333,6 +340,14 @@ const renderCaseProgress = (assessmentCompleted = false) => {
           : outcome === 'Тайм-аут без ответа'
             ? ' outcome-timeout'
             : '';
+    const titleText =
+      index === state.assessmentCaseNumber && state.assessmentCaseTitle
+        ? state.assessmentCaseTitle
+        : statusLabel;
+    const metaText =
+      index === state.assessmentCaseNumber && state.assessmentCaseTitle
+        ? statusLabel
+        : '';
 
     item.innerHTML =
       '<div class="case-progress-index">' +
@@ -342,13 +357,9 @@ const renderCaseProgress = (assessmentCompleted = false) => {
       outcomeClass +
       '">' +
       '<strong>' +
-      (index === state.assessmentCaseNumber && state.assessmentCaseTitle
-        ? state.assessmentCaseTitle
-        : 'Кейс ' + index) +
+      titleText +
       '</strong>' +
-      '<span>' +
-      statusLabel +
-      '</span>' +
+      (metaText ? '<span>' + metaText + '</span>' : '') +
       '</div>';
     caseProgressList.appendChild(item);
   }
@@ -427,16 +438,19 @@ const updateInterviewTimer = () => {
   const remainingMs = getRemainingCaseTimeMs();
   if (remainingMs === null) {
     interviewTimerBadge.textContent = 'Без лимита';
+    interviewTimerBadge.classList.remove('is-low-time');
     return false;
   }
 
   if (remainingMs <= 0) {
     interviewTimerBadge.textContent = '00:00';
+    interviewTimerBadge.classList.add('is-low-time');
     interviewCaseStatus.textContent = 'Кейс завершается автоматически из-за окончания времени.';
     return true;
   }
 
   interviewTimerBadge.textContent = formatRemainingTime(remainingMs);
+  interviewTimerBadge.classList.toggle('is-low-time', remainingMs < 180000);
   return false;
 };
 

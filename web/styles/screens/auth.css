@@ -75,20 +75,48 @@
     display: inline-flex;
     align-items: center;
     gap: var(--space-2);
-    padding: var(--space-2);
+    padding: 7px 10px 7px 8px;
     border-radius: var(--radius-pill);
-    background: #f4f6fd;
-    border: 1px solid rgba(221, 225, 242, 0.96);
-    color: #7c83a1;
+    background: rgba(255, 255, 255, 0.72);
+    border: 1px solid rgba(15, 23, 42, 0.1);
+    color: var(--text-body);
     font-family: var(--font-heading);
     font-size: var(--fs-caption);
     font-weight: var(--fw-bold);
     line-height: 1;
     white-space: nowrap;
+    box-shadow: 0 8px 18px -18px rgba(15, 23, 42, 0.28);
+}
+
+.release-badge::before {
+    content: "";
+    width: 8px;
+    height: 8px;
+    border-radius: var(--radius-pill);
+    background: var(--success);
+    box-shadow: 0 0 0 4px var(--success-soft);
+    flex: 0 0 auto;
+    animation: release-dot-pulse 2.8s ease-in-out infinite;
 }
 
 .release-badge span {
-    color: var(--accent);
+    color: var(--text-strong);
     font-weight: var(--fw-extrabold);
 }
 
+@keyframes release-dot-pulse {
+    0%,
+    100% {
+        box-shadow: 0 0 0 4px var(--success-soft);
+    }
+
+    55% {
+        box-shadow: 0 0 0 8px rgba(33, 192, 4, 0);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .release-badge::before {
+        animation: none;
+    }
+}

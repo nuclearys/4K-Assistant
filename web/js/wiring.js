@@ -100,6 +100,7 @@ import {
   profileBackButton,
   profileAvatarInput,
   profileEmail,
+  profileTelegram,
   newUserExitButton,
   prechatStartButton,
   assessmentActionButton,
@@ -1030,6 +1031,27 @@ profileEmail.addEventListener('blur', () => {
     module.saveProfile({
       silent: false,
       successMessage: 'Email обновлен.',
+    }),
+  );
+});
+
+profileTelegram.addEventListener('keydown', (event) => {
+  if (event.key === 'Enter') {
+    event.preventDefault();
+    profileTelegram.blur();
+  }
+});
+
+profileTelegram.addEventListener('blur', () => {
+  const currentTelegram = state.profileSummary?.user?.telegram || state.pendingUser?.telegram || '';
+  const nextTelegram = profileTelegram.value.trim();
+  if (nextTelegram === currentTelegram) {
+    return;
+  }
+  withScreen(loadProfile, (module) =>
+    module.saveProfile({
+      silent: false,
+      successMessage: 'Telegram обновлен.',
     }),
   );
 });

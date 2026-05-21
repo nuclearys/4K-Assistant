@@ -16,7 +16,7 @@
 }
 
 .card--inset {
-    background: var(--control-bg);
+    background: var(--bg-soft);
 }
 
 .card--accent {
@@ -347,4 +347,3 @@ textarea {
     opacity: 0.5;
     transform: none;
 }
-

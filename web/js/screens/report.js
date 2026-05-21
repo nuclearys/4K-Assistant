@@ -15,6 +15,7 @@ import {
   reportStrengthTitle,
   reportStrengthText,
   reportTabs,
+  reportTabSelect,
   reportDetailTitle,
   reportDetailList,
   reportInfoModal,
@@ -1213,6 +1214,9 @@ export const renderReport = () => {
   }
 
   reportTabs.innerHTML = '';
+  if (reportTabSelect) {
+    reportTabSelect.innerHTML = '';
+  }
   availableTabs.forEach((competency) => {
     const button = document.createElement('button');
     button.type = 'button';
@@ -1223,7 +1227,21 @@ export const renderReport = () => {
       renderReport();
     });
     reportTabs.appendChild(button);
+
+    if (reportTabSelect) {
+      const option = document.createElement('option');
+      option.value = competency;
+      option.textContent = competency;
+      option.selected = state.reportCompetencyTab === competency;
+      reportTabSelect.appendChild(option);
+    }
   });
+  if (reportTabSelect) {
+    reportTabSelect.onchange = () => {
+      state.reportCompetencyTab = reportTabSelect.value;
+      renderReport();
+    };
+  }
 
   reportDetailTitle.textContent = state.reportCompetencyTab;
   reportDetailList.innerHTML = '';

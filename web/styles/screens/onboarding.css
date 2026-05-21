@@ -48,6 +48,7 @@
     max-width: 512px;
     margin-top: var(--space-3);
     color: var(--accent);
+    white-space: pre-line;
 }
 
 .onboarding-copy h2::first-line {
@@ -111,22 +112,24 @@
 }
 
 .step-progress {
-    display: grid;
-    grid-template-columns: 40px 16px 16px;
+    display: flex;
     gap: 6px;
-    width: 78px;
+    width: 84px;
     height: 6px;
 }
 
 .step-progress span {
     display: block;
+    flex: 0 0 16px;
     border-radius: var(--radius-md);
     background: #c0c1ff;
+    transition: flex-basis 220ms ease, background-color 180ms ease;
 }
 
 .onboarding-panel[data-step="1"] .step-progress span:nth-child(1),
 .onboarding-panel[data-step="2"] .step-progress span:nth-child(2),
 .onboarding-panel[data-step="3"] .step-progress span:nth-child(3) {
+    flex-basis: 40px;
     background: var(--accent);
 }
 
@@ -135,14 +138,10 @@
     padding-left: calc(var(--space-2) + 32px + var(--space-2));
 }
 
-.onboarding-panel[data-step="2"] .step-progress {
-    grid-template-columns: 16px 40px 16px;
-    width: 84px;
-}
-
-.onboarding-panel[data-step="3"] .step-progress {
-    grid-template-columns: 16px 16px 40px;
-    width: 84px;
+@media (prefers-reduced-motion: reduce) {
+    .step-progress span {
+        transition: none;
+    }
 }
 
 .feature-list {
@@ -486,16 +485,21 @@
 
 @media (max-width: 760px) {
     .onboarding-panel {
+        height: 100dvh;
         min-height: 100dvh;
         padding: var(--space-4);
         overflow-y: auto;
+        overscroll-behavior: contain;
+        -webkit-overflow-scrolling: touch;
+        scroll-padding-bottom: calc(172px + env(safe-area-inset-bottom));
     }
 
-    .onboarding-shell {
-        min-height: calc(100dvh - (var(--space-4) * 2));
+    .onboarding-panel .onboarding-shell {
+        min-height: 100%;
         display: flex;
         flex-direction: column;
         gap: var(--space-4);
+        padding-bottom: calc(172px + env(safe-area-inset-bottom));
     }
 
     .onboarding-topbar {
@@ -507,7 +511,6 @@
         display: flex;
         flex-direction: column;
         min-height: 0;
-        padding-bottom: calc(148px + env(safe-area-inset-bottom));
     }
 
     .onboarding-copy h2,

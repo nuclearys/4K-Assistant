@@ -45,7 +45,7 @@ import {
 } from './admin/charts.js';
 import { destroyReportCompetencyBarChart } from './report.js';
 import { destroyAdminSkillRadarChart } from './admin/skill-radar.js';
-import { stopAssessmentPreparationPolling } from './assessment.js';
+import { beginAssessmentPreparation, stopAssessmentPreparationPolling } from './assessment.js';
 import { openDashboard } from './dashboard.js';
 import { openOnboardingScreen } from '../screen-loaders.js';
 
@@ -400,6 +400,9 @@ export const sendChatMessage = async (text, displayText = null) => {
     persistAssessmentContext();
 
     if (state.completed) {
+      if (state.isNewUserFlow && !data.blocked) {
+        void beginAssessmentPreparation();
+      }
       state.isChatSubmitting = false;
       chatForm.classList.add('hidden');
       chatInput.disabled = true;

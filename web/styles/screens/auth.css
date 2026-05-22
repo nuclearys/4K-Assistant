@@ -64,10 +64,6 @@
     padding: 0 var(--space-4);
 }
 
-.auth-panel .error {
-    text-align: left;
-}
-
 .auth-panel-head {
     display: flex;
     align-items: flex-start;

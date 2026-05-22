@@ -166,13 +166,13 @@ const handlePhoneLogin = async () => {
   const rawPhone = phoneInput.value.trim();
   const normalizedPhone = rawPhone.replace(/\D/g, '');
   if (!normalizedPhone) {
-    showError(authError, 'Введите номер телефона.');
+    showError(authError, 'введите номер телефона');
     phoneInput.focus();
     return;
   }
 
   if (normalizedPhone.length < 10) {
-    showError(authError, 'Введите телефон в полном формате.');
+    showError(authError, 'введите телефон в полном формате');
     phoneInput.focus();
     return;
   }
@@ -248,17 +248,12 @@ const handlePhoneLogin = async () => {
 
 export const initWiring = () => {
 phoneForm.addEventListener('submit', (event) => {
+  if (!phoneForm.reportValidity()) {
+    return;
+  }
   event.preventDefault();
   void handlePhoneLogin();
 });
-
-const phoneSubmitButton = phoneForm.querySelector('button[type="submit"]');
-if (phoneSubmitButton) {
-  phoneSubmitButton.addEventListener('click', (event) => {
-    event.preventDefault();
-    void handlePhoneLogin();
-  });
-}
 
 
 

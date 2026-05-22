@@ -1,0 +1,2 @@
+import{Dh as i,Ph as l,Ug as e,Vg as r,fh as s}from"/web/dist/main-f861vsv3.js";var f=(t="",a="")=>{s.textContent=t,s.className="profile-save-status"+(a?" "+a:""),s.hidden=!t},m=(t)=>{let a=i.profileAvatarDraft!=null?i.profileAvatarDraft:t?.avatar_data_url||null;if(e.textContent=l(t?.full_name||"Пользователь"),a){r.src=a,r.classList.remove("hidden"),e.classList.add("hidden");return}r.removeAttribute("src"),r.classList.add("hidden"),e.classList.remove("hidden")};
+export{f as Fa,m as Ga};

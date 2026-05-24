@@ -5,6 +5,7 @@ import {
   authError,
   chatForm,
   chatInput,
+  chatMicButton,
   restartButton,
   dashboardRestartButton,
   dashboardProfileButton,
@@ -83,6 +84,7 @@ import {
   adminMethodologyTabPassports,
   interviewForm,
   interviewTextarea,
+  interviewMicButton,
   interviewSubmitButton,
   interviewFinishButton,
   interviewError,
@@ -148,6 +150,106 @@ const isEditableKeyboardTarget = (target) => {
     return false;
   }
   return Boolean(target.closest('input, textarea, select, [contenteditable="true"]'));
+};
+
+const appendTranscript = (field, transcript) => {
+  const cleanTranscript = String(transcript || '').trim();
+  if (!field || !cleanTranscript) {
+    return;
+  }
+
+  const value = field.value || '';
+  const selectionStart = typeof field.selectionStart === 'number' ? field.selectionStart : value.length;
+  const selectionEnd = typeof field.selectionEnd === 'number' ? field.selectionEnd : selectionStart;
+  const before = value.slice(0, selectionStart);
+  const after = value.slice(selectionEnd);
+  const prefix = before && !/\s$/.test(before) ? ' ' : '';
+  const suffix = after && !/^\s/.test(after) ? ' ' : '';
+  const insertion = prefix + cleanTranscript + suffix;
+
+  field.value = before + insertion + after;
+  const nextPosition = before.length + insertion.length;
+  if (typeof field.setSelectionRange === 'function') {
+    field.setSelectionRange(nextPosition, nextPosition);
+  }
+  field.dispatchEvent(new Event('input', { bubbles: true }));
+  field.focus();
+};
+
+const setupSpeechInput = (button, field) => {
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!button || !field || !SpeechRecognition) {
+    return;
+  }
+
+  let recognition = null;
+  let listening = false;
+  let shouldListen = false;
+
+  const syncDisabled = () => {
+    button.disabled = field.disabled;
+    if (field.disabled && recognition && listening) {
+      shouldListen = false;
+      recognition.abort();
+    }
+  };
+
+  const setListening = (nextListening) => {
+    listening = nextListening;
+    button.classList.toggle('is-listening', listening);
+    button.setAttribute('aria-pressed', listening ? 'true' : 'false');
+    button.title = listening ? 'Остановить диктовку' : 'Продиктовать ответ';
+    button.setAttribute('aria-label', button.title);
+  };
+
+  button.classList.remove('hidden');
+  button.setAttribute('aria-pressed', 'false');
+  syncDisabled();
+
+  const disabledObserver = new MutationObserver(syncDisabled);
+  disabledObserver.observe(field, { attributes: true, attributeFilter: ['disabled'] });
+
+  button.addEventListener('click', () => {
+    if (field.disabled) {
+      return;
+    }
+    if (recognition && listening) {
+      shouldListen = false;
+      recognition.stop();
+      return;
+    }
+
+    shouldListen = true;
+    recognition = new SpeechRecognition();
+    recognition.lang = 'ru-RU';
+    recognition.interimResults = false;
+    recognition.continuous = true;
+    recognition.maxAlternatives = 1;
+
+    recognition.addEventListener('start', () => setListening(true));
+    recognition.addEventListener('end', () => {
+      setListening(false);
+      if (shouldListen && !field.disabled) {
+        recognition.start();
+      }
+    });
+    recognition.addEventListener('error', (event) => {
+      if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+        shouldListen = false;
+      }
+      setListening(false);
+    });
+    recognition.addEventListener('result', (event) => {
+      const transcript = Array.from(event.results)
+        .slice(event.resultIndex)
+        .filter((result) => result.isFinal)
+        .map((result) => result[0]?.transcript || '')
+        .join(' ');
+      appendTranscript(field, transcript);
+    });
+
+    recognition.start();
+  });
 };
 
 const changeAdminReportsPage = (direction) => {
@@ -258,6 +360,9 @@ phoneForm.addEventListener('submit', (event) => {
 
 
 
+
+setupSpeechInput(chatMicButton, chatInput);
+setupSpeechInput(interviewMicButton, interviewTextarea);
 
 chatForm.addEventListener('submit', async (event) => {
   event.preventDefault();

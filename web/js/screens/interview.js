@@ -24,7 +24,6 @@ import {
   interviewTextarea,
   interviewSubmitButton,
   interviewFinishButton,
-  interviewFooterText,
   interviewError,
   caseProgressList,
   interviewRouteLabel,
@@ -526,7 +525,6 @@ const handleAssessmentResponse = (data) => {
     interviewTextarea.disabled = true;
     interviewSubmitButton.disabled = true;
     interviewFinishButton.disabled = true;
-    interviewFooterText.textContent = 'Ассессмент завершен';
     interviewPanel.classList.add('completed');
     interviewCompleteActions.classList.remove('hidden');
     safeStorage.setItem(STORAGE_KEYS.completionPending, '1');
@@ -541,11 +539,6 @@ const handleAssessmentResponse = (data) => {
     interviewPanel.classList.remove('completed');
     interviewCompleteActions.classList.add('hidden');
     interviewCaseStatus.textContent = 'Кейс будет автоматически завершен.';
-    interviewFooterText.textContent = !isDialogCase
-      ? 'Ответ сохранен. Автоматически завершаем кейс и переходим дальше.'
-      : suppressAssistantBubble
-        ? 'Ответ сохранен. Автоматически завершаем кейс и переходим дальше.'
-        : 'Показываем итоговое сообщение и затем завершаем кейс.';
     const delayMs = Math.max(800, Number(data.auto_finish_delay_ms || 2200));
     state.assessmentAutoFinishTimerId = window.setTimeout(() => {
       state.assessmentAutoFinishTimerId = null;

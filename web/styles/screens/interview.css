@@ -741,6 +741,7 @@
 .interview-form-footer {
     padding-top: var(--space-3);
     border-top: 1px solid var(--panel-border);
+    justify-content: flex-end;
 }
 
 .interview-form-footer span,

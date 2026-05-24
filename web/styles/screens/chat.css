@@ -333,6 +333,14 @@
     font-weight: var(--fw-medium);
 }
 
+.chat-role-option-button--quiet .chat-role-option-title {
+    color: inherit;
+    font-family: inherit;
+    font-size: inherit;
+    font-weight: inherit;
+    line-height: inherit;
+}
+
 .chat-role-option-button--quiet:hover,
 .chat-role-option-button--quiet:focus-visible {
     background: var(--control-bg);
@@ -343,7 +351,7 @@
 
 .chat-form {
     display: grid;
-    grid-template-columns: 1fr auto;
+    grid-template-columns: 1fr auto auto;
     gap: var(--space-2);
 }
 
@@ -488,7 +496,7 @@
     align-self: flex-end;
     margin-left: 0;
     padding: var(--space-2) var(--space-3);
-    border: 0;
+    border: 1px solid rgba(70, 72, 212, 0.22);
     background: var(--accent-bright);
     color: #fff;
     white-space: normal;
@@ -503,7 +511,7 @@
 .chat-panel .chat-form {
     flex: 0 0 auto;
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr) auto auto;
     gap: var(--space-2);
     align-items: center;
     padding: var(--space-2);
@@ -518,7 +526,7 @@
 
 .chat-panel .chat-form input {
     height: 44px;
-    border: 0;
+    border: 1px solid rgba(70, 72, 212, 0.18);
     border-radius: var(--radius-sm);
     padding: 0 var(--space-2);
     background: transparent;
@@ -539,6 +547,62 @@
     font-size: var(--fs-body-sm);
     font-weight: var(--fw-bold);
     line-height: var(--lh-snug);
+}
+
+.mic-button {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    min-width: 44px;
+    min-height: 44px;
+    height: 100%;
+    padding: 0;
+    border: 1px solid rgba(70, 72, 212, 0.28);
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--accent);
+    cursor: pointer;
+    transition: background 160ms ease, border-color 160ms ease, color 160ms ease, transform 160ms ease;
+}
+
+.mic-button-icon {
+    display: block;
+    width: 15px;
+    height: 21px;
+    object-fit: contain;
+}
+
+.mic-button-icon-active,
+.mic-button.is-listening .mic-button-icon-idle {
+    display: none;
+}
+
+.mic-button.is-listening .mic-button-icon-active {
+    display: block;
+}
+
+.mic-button:hover,
+.mic-button:focus-visible {
+    background: rgba(70, 72, 212, 0.08);
+    border-color: rgba(70, 72, 212, 0.38);
+}
+
+.mic-button:active:not(:disabled):not([disabled]):not(.disabled) {
+    transform: translateY(1px);
+}
+
+.mic-button.is-listening {
+    border-color: rgba(70, 72, 212, 0.38);
+    background: rgba(70, 72, 212, 0.08);
+    color: var(--danger);
+}
+
+.mic-button:disabled {
+    opacity: 0.48;
+    cursor: not-allowed;
+    transform: none;
 }
 
 .chat-panel .chat-role-options {
@@ -627,11 +691,20 @@
         right: var(--space-3);
         bottom: max(var(--space-3), env(safe-area-inset-bottom, 0px));
         z-index: 20;
-        grid-template-columns: 1fr;
+        grid-template-columns: minmax(0, 1fr) auto;
         width: auto;
         min-height: calc(var(--mobile-chat-form-height) - var(--space-3));
         margin: 0;
         box-shadow: 0 -12px 28px -24px rgba(45, 48, 87, 0.5);
+    }
+
+    .chat-panel .chat-form .primary-button {
+        grid-column: 1 / -1;
+    }
+
+    .chat-panel .chat-form .mic-button {
+        height: 44px;
+        min-height: 44px;
     }
 
     .chat-panel .chat-form .primary-button,
@@ -663,7 +736,6 @@
         padding: var(--space-4) var(--space-3);
     }
 
-    .interview-form-footer,
     .interview-action-buttons {
         flex-direction: column;
         align-items: stretch;

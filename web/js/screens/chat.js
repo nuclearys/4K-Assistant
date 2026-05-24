@@ -49,6 +49,8 @@ import { beginAssessmentPreparation, stopAssessmentPreparationPolling } from './
 import { openDashboard } from './dashboard.js';
 import { openOnboardingScreen } from '../screen-loaders.js';
 
+const getChatSubmitButton = () => chatForm.querySelector('button[type="submit"]');
+
 export const clearProcessingTimer = () => {
   if (state.processingTimerId) {
     window.clearTimeout(state.processingTimerId);
@@ -141,7 +143,7 @@ export const resetChat = () => {
   messages.innerHTML = '';
   chatInput.value = '';
   chatInput.disabled = false;
-  chatForm.querySelector('button').disabled = false;
+  getChatSubmitButton().disabled = false;
   chatForm.classList.remove('hidden');
   showError(chatError, '');
   showError(authError, '');
@@ -269,7 +271,7 @@ export const renderChatRoleOptions = () => {
   options.forEach((option) => {
     const button = document.createElement('button');
     button.type = 'button';
-    button.className = 'chat-role-option-button';
+    button.className = 'chat-role-option-button chat-role-option-button--quiet';
     const title = document.createElement('span');
     title.className = 'chat-role-option-title';
     title.textContent = option.name;
@@ -283,8 +285,8 @@ export const renderChatRoleOptions = () => {
     const button = document.createElement('button');
     button.type = 'button';
     button.className = state.pendingConsentText
-      ? 'chat-role-option-button chat-consent-accept-button'
-      : 'chat-role-option-button';
+      ? 'chat-role-option-button chat-role-option-button--quiet chat-consent-accept-button'
+      : 'chat-role-option-button chat-role-option-button--quiet';
     if (state.pendingConsentText) {
       const checkbox = document.createElement('span');
       checkbox.className = 'chat-consent-accept-checkbox';
@@ -312,7 +314,7 @@ export const openChat = () => {
   chatPanel.classList.remove('hidden');
   messages.innerHTML = '';
   chatInput.disabled = state.completed || state.isChatSubmitting;
-  chatForm.querySelector('button').disabled = state.completed || state.isChatSubmitting;
+  getChatSubmitButton().disabled = state.completed || state.isChatSubmitting;
   chatForm.classList.toggle('hidden', state.completed);
   setStatus(state.pendingUser ? { user: state.pendingUser } : {});
   if (
@@ -355,7 +357,7 @@ export const sendChatMessage = async (text, displayText = null) => {
   showError(chatError, '');
   state.isChatSubmitting = true;
   chatInput.disabled = true;
-  chatForm.querySelector('button').disabled = true;
+  getChatSubmitButton().disabled = true;
   showAgentTyping();
 
   try {
@@ -406,7 +408,7 @@ export const sendChatMessage = async (text, displayText = null) => {
       state.isChatSubmitting = false;
       chatForm.classList.add('hidden');
       chatInput.disabled = true;
-      chatForm.querySelector('button').disabled = true;
+      getChatSubmitButton().disabled = true;
 
       window.setTimeout(() => {
         if (data.blocked) {
@@ -432,7 +434,7 @@ export const sendChatMessage = async (text, displayText = null) => {
       state.isChatSubmitting = false;
       if (!chatForm.classList.contains('hidden')) {
         chatInput.disabled = false;
-        chatForm.querySelector('button').disabled = false;
+        getChatSubmitButton().disabled = false;
         chatInput.focus();
       }
     }
@@ -449,7 +451,7 @@ export const sendChatMessage = async (text, displayText = null) => {
     state.isChatSubmitting = false;
     if (!chatForm.classList.contains('hidden')) {
       chatInput.disabled = false;
-      chatForm.querySelector('button').disabled = false;
+      getChatSubmitButton().disabled = false;
       chatInput.focus();
     }
     showError(chatError, error.message);

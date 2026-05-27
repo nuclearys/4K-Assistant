@@ -120,6 +120,10 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+    .auth-background-stripe {
+        animation: none;
+    }
+
     .release-badge::before {
         animation: none;
     }

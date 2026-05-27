@@ -9,9 +9,9 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Manrope:wght@600;700;800&display=swap" rel="stylesheet">
   <!-- CSS is modularized under /web/styles/. Load order: tokens → base → components → screens → utilities. -->
   <link rel="stylesheet" href="/web/styles/tokens.css?v=20260516-merged">
-  <link rel="stylesheet" href="/web/styles/base.css?v=20260517-scrollbar">
+  <link rel="stylesheet" href="/web/styles/base.css?v=20260526-auth-background">
   <link rel="stylesheet" href="/web/styles/components.css?v=20260516-merged">
-  <link rel="stylesheet" href="/web/styles/screens/auth.css?v=20260516-merged">
+  <link rel="stylesheet" href="/web/styles/screens/auth.css?v=20260526-auth-background">
   <link rel="stylesheet" href="/web/styles/screens/onboarding.css?v=20260521-onboarding-progress-transition">
   <link rel="stylesheet" href="/web/styles/screens/processing.css?v=20260516-merged">
   <link rel="stylesheet" href="/web/styles/screens/profile.css?v=20260517-redesign-3">
@@ -56,6 +56,18 @@
   </div>
   <main class="shell">
     <section class="panel auth-panel" id="auth-panel">
+      <div class="auth-background" aria-hidden="true">
+        <div class="auth-background-plane">
+          <div class="auth-background-stripe auth-background-stripe-user-report"></div>
+          <div class="auth-background-stripe auth-background-stripe-admin-dashboard"></div>
+          <div class="auth-background-stripe auth-background-stripe-admin-cases"></div>
+          <div class="auth-background-stripe auth-background-stripe-user-dashboard"></div>
+          <div class="auth-background-stripe auth-background-stripe-admin-prompt-lab"></div>
+          <div class="auth-background-stripe auth-background-stripe-admin-case-lib"></div>
+          <div class="auth-background-stripe auth-background-stripe-user-report"></div>
+          <div class="auth-background-stripe auth-background-stripe-admin-cases"></div>
+        </div>
+      </div>
       <div class="auth-panel-head">
         <div class="brand">4K Ассистент</div>
         <div id="app-release-badge" class="release-badge">Релиз <span id="app-release-number">1</span></div>

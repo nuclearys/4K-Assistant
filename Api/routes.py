@@ -49,6 +49,9 @@ from Api.schemas import (
     AdminDetailedReportsResponse,
     AdminExpertCommentUpdateRequest,
     AdminExpertGroupExportRequest,
+    AdminAnalyticsCompetencyPoint,
+    AdminAnalyticsGroupItem,
+    AdminGroupAnalyticsResponse,
     AdminInsightCard,
     AdminMetricCard,
     PromptLabCaseOption,
@@ -950,6 +953,153 @@ def _build_admin_dashboard(connection, period_key: str = "30d") -> AdminDashboar
         activity_period_key=period_key if period_key in ADMIN_PERIODS else "30d",
         activity_period_label=activity_period_label,
     )
+
+
+def _db_column_exists(connection, table_name: str, column_name: str) -> bool:
+    row = connection.execute(
+        """
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = %s
+          AND column_name = %s
+        LIMIT 1
+        """,
+        (table_name, column_name),
+    ).fetchone()
+    return row is not None
+
+
+def _db_table_exists(connection, table_name: str) -> bool:
+    row = connection.execute("SELECT to_regclass(%s) AS table_ref", (f"public.{table_name}",)).fetchone()
+    return row is not None and row["table_ref"] is not None
+
+
+def _empty_admin_group_analytics(dimension: str) -> AdminGroupAnalyticsResponse:
+    is_role = dimension == "role"
+    return AdminGroupAnalyticsResponse(
+        title="Сравнение по ролям" if is_role else "Сравнение по департаментам",
+        subtitle=(
+            "Средние результаты и доминирующие компетенции по ролям."
+            if is_role
+            else "Средние результаты и доминирующие компетенции по группам сотрудников."
+        ),
+        dimension=dimension,
+        items=[],
+    )
+
+
+def _build_admin_group_analytics(connection, dimension: str = "department") -> AdminGroupAnalyticsResponse:
+    normalized_dimension = "role" if str(dimension or "").strip().lower() == "role" else "department"
+    required_tables = {"users", "user_sessions", "session_skill_assessments", "assessment_level_weights"}
+    if any(not _db_table_exists(connection, table_name) for table_name in required_tables):
+        return _empty_admin_group_analytics(normalized_dimension)
+
+    if normalized_dimension == "department":
+        if not _db_column_exists(connection, "users", "company_industry"):
+            return _empty_admin_group_analytics(normalized_dimension)
+        group_expression = "COALESCE(NULLIF(TRIM(u.company_industry), ''), 'Не указана')"
+        joins = ""
+    else:
+        has_roles = _db_table_exists(connection, "roles") and _db_column_exists(connection, "users", "role_id")
+        joins = "LEFT JOIN roles r ON r.id = u.role_id" if has_roles else ""
+        role_name_source = "NULLIF(TRIM(r.name), ''), " if has_roles else ""
+        job_description_source = "NULLIF(TRIM(u.job_description), ''), " if _db_column_exists(connection, "users", "job_description") else ""
+        if not role_name_source and not job_description_source:
+            return _empty_admin_group_analytics(normalized_dimension)
+        group_expression = f"COALESCE({role_name_source}{job_description_source}'Не указана')"
+
+    rows = connection.execute(
+        f"""
+        WITH session_scores AS (
+            SELECT
+                us.id AS session_id,
+                {group_expression} AS group_label,
+                ssa.competency_name,
+                AVG(alw.percent_value)::numeric AS competency_percent
+            FROM user_sessions us
+            JOIN users u ON u.id = us.user_id
+            {joins}
+            JOIN session_skill_assessments ssa ON ssa.session_id = us.id
+            JOIN assessment_level_weights alw ON alw.level_code = ssa.assessed_level_code
+            WHERE us.assessment_code = 'competencies_4k'
+              AND us.status = 'completed'
+              AND ssa.assessed_level_code IS NOT NULL
+              AND regexp_replace(COALESCE(u.phone, ''), '\\D', '', 'g') <> %s
+            GROUP BY us.id, group_label, ssa.competency_name
+        ),
+        competency_scores AS (
+            SELECT
+                group_label,
+                competency_name,
+                ROUND(AVG(competency_percent))::int AS avg_percent
+            FROM session_scores
+            GROUP BY group_label, competency_name
+        ),
+        group_scores AS (
+            SELECT
+                group_label,
+                COUNT(DISTINCT session_id)::int AS completed_sessions,
+                ROUND(AVG(competency_percent)::numeric, 1)::numeric AS avg_score_percent
+            FROM session_scores
+            GROUP BY group_label
+        ),
+        total_sessions AS (
+            SELECT
+                {group_expression} AS group_label,
+                COUNT(DISTINCT us.id)::int AS total_sessions
+            FROM user_sessions us
+            JOIN users u ON u.id = us.user_id
+            {joins}
+            WHERE us.assessment_code = 'competencies_4k'
+              AND regexp_replace(COALESCE(u.phone, ''), '\\D', '', 'g') <> %s
+            GROUP BY group_label
+        )
+        SELECT
+            gs.group_label,
+            COALESCE(ts.total_sessions, gs.completed_sessions)::int AS total_sessions,
+            gs.completed_sessions,
+            gs.avg_score_percent,
+            ARRAY_AGG(
+                json_build_object(
+                    'name', COALESCE(cs.competency_name, 'Без категории'),
+                    'value', cs.avg_percent
+                )
+                ORDER BY cs.competency_name
+            ) AS competency_average
+        FROM group_scores gs
+        LEFT JOIN total_sessions ts ON ts.group_label = gs.group_label
+        JOIN competency_scores cs ON cs.group_label = gs.group_label
+        GROUP BY gs.group_label, ts.total_sessions, gs.completed_sessions, gs.avg_score_percent
+        ORDER BY gs.completed_sessions DESC, gs.avg_score_percent DESC NULLS LAST, gs.group_label ASC
+        """,
+        (ADMIN_PHONE, ADMIN_PHONE),
+    ).fetchall()
+
+    items: list[AdminAnalyticsGroupItem] = []
+    for row in rows:
+        competencies = [
+            AdminAnalyticsCompetencyPoint(name=str(item.get("name") or "Без категории"), value=int(item.get("value") or 0))
+            for item in (row["competency_average"] or [])
+        ]
+        dominant = max(competencies, key=lambda item: item.value).name if competencies else None
+        label = str(row["group_label"] or "Не указана")
+        items.append(
+            AdminAnalyticsGroupItem(
+                key=label,
+                label=label,
+                dimension=normalized_dimension,
+                total_sessions=int(row["total_sessions"] or 0),
+                completed_sessions=int(row["completed_sessions"] or 0),
+                avg_score_percent=float(row["avg_score_percent"]) if row["avg_score_percent"] is not None else None,
+                dominant_competency=dominant,
+                competency_average=competencies,
+            )
+        )
+
+    response = _empty_admin_group_analytics(normalized_dimension)
+    response.items = items
+    return response
 
 
 def _build_admin_reports(connection) -> AdminDetailedReportsResponse:
@@ -2376,6 +2526,18 @@ def get_admin_dashboard(request: Request, period: str = "30d") -> AdminDashboard
         if not _is_admin_user(connection, user):
             raise HTTPException(status_code=403, detail="Admin access required")
         return _build_admin_dashboard(connection, period)
+
+
+@router.get("/admin/group-analytics", response_model=AdminGroupAnalyticsResponse)
+def get_admin_group_analytics(request: Request, dimension: str = "department") -> AdminGroupAnalyticsResponse:
+    token = request.cookies.get(SESSION_COOKIE_NAME)
+    user = web_session_service.get_user_by_token(token)
+    if user is None:
+        raise HTTPException(status_code=401, detail="Admin session not found")
+    with get_connection() as connection:
+        if not _is_admin_user(connection, user):
+            raise HTTPException(status_code=403, detail="Admin access required")
+        return _build_admin_group_analytics(connection, dimension)
 
 
 @router.get("/admin/reports", response_model=AdminDetailedReportsResponse)

@@ -15,6 +15,8 @@ import {
   adminOpenPromptLabButton,
   adminOpenMethodologyButton,
   adminPeriodSelect,
+  adminGroupDepartmentButton,
+  adminGroupRoleButton,
   adminReportsBackButton,
   adminReportsSearch,
   adminReportsPrevButton,
@@ -413,6 +415,31 @@ if (adminPeriodSelect) {
         console.error('Failed to refresh admin dashboard', error);
       }
     })();
+  });
+}
+
+const refreshAdminGroupAnalytics = (dimension) => {
+  void (async () => {
+    try {
+      state.adminGroupAnalyticsDimension = dimension === 'role' ? 'role' : 'department';
+      const module = await loadAdminDashboard();
+      await module.loadAdminGroupAnalytics(state.adminGroupAnalyticsDimension);
+      module.renderAdminGroupAnalytics();
+    } catch (error) {
+      console.error('Failed to refresh admin group analytics', error);
+    }
+  })();
+};
+
+if (adminGroupDepartmentButton) {
+  adminGroupDepartmentButton.addEventListener('click', () => {
+    refreshAdminGroupAnalytics('department');
+  });
+}
+
+if (adminGroupRoleButton) {
+  adminGroupRoleButton.addEventListener('click', () => {
+    refreshAdminGroupAnalytics('role');
   });
 }
 

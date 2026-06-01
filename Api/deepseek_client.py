@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import ast
+import hashlib
 import json
+import logging
 import re
+import time
 import zlib
 from dataclasses import dataclass
 from typing import Any
@@ -15,6 +18,8 @@ from Api.case_context_builder import build_case_context
 from Api.case_text_cleanup import cleanup_case_list, cleanup_case_text, join_case_list
 from Api.config import settings
 from Api.database import get_active_interviewer_prompt, get_connection
+
+logger = logging.getLogger("agent4k.deepseek")
 
 FORBIDDEN_EXTERNAL_RESOURCE_PATTERNS = (
     r"https?://\S+",
@@ -127,6 +132,11 @@ class DeepSeekClient:
         key_basis = self._build_deepseek_routing_key(routing_key, messages)
         start_index = zlib.crc32(key_basis.encode("utf-8")) % len(self.api_keys)
         return [self.api_keys[(start_index + offset) % len(self.api_keys)] for offset in range(len(self.api_keys))]
+
+    def _deepseek_key_fingerprint(self, api_key: str) -> str:
+        if not api_key:
+            return "empty"
+        return hashlib.sha256(api_key.encode("utf-8")).hexdigest()[:10]
 
     def _get_interviewer_prompt_text(self, prompt_code: str, fallback_text: str, **format_values: str) -> str:
         stored_text: str | None = None
@@ -444,7 +454,12 @@ class DeepSeekClient:
             }
         ).encode("utf-8")
         last_error: Exception | None = None
-        for api_key in self._get_deepseek_key_chain(routing_key, messages):
+        key_chain = self._get_deepseek_key_chain(routing_key, messages)
+        request_started_at = time.perf_counter()
+        route = self._build_deepseek_routing_key(routing_key, messages)
+        for attempt_index, api_key in enumerate(key_chain, start=1):
+            attempt_started_at = time.perf_counter()
+            key_fingerprint = self._deepseek_key_fingerprint(api_key)
             req = request.Request(
                 url=f"{self.base_url}/chat/completions",
                 data=payload,
@@ -455,17 +470,81 @@ class DeepSeekClient:
                 method="POST",
             )
             try:
+                logger.info(
+                    "DeepSeek call start model=%s route=%s attempt=%s/%s key=%s timeout_sec=%s temperature=%s",
+                    self.model,
+                    route,
+                    attempt_index,
+                    len(key_chain),
+                    key_fingerprint,
+                    timeout_sec,
+                    temperature,
+                )
                 with request.urlopen(req, timeout=timeout_sec) as response:
                     body = json.loads(response.read().decode("utf-8"))
+                elapsed_ms = round((time.perf_counter() - attempt_started_at) * 1000)
+                total_elapsed_ms = round((time.perf_counter() - request_started_at) * 1000)
+                logger.info(
+                    "DeepSeek call success model=%s route=%s attempt=%s/%s key=%s status=%s elapsed_ms=%s total_elapsed_ms=%s",
+                    self.model,
+                    route,
+                    attempt_index,
+                    len(key_chain),
+                    key_fingerprint,
+                    response.status,
+                    elapsed_ms,
+                    total_elapsed_ms,
+                )
                 return body["choices"][0]["message"]["content"]
             except TimeoutError as exc:
                 last_error = RuntimeError("DeepSeek request timed out")
+                elapsed_ms = round((time.perf_counter() - attempt_started_at) * 1000)
+                logger.warning(
+                    "DeepSeek call timeout model=%s route=%s attempt=%s/%s key=%s elapsed_ms=%s",
+                    self.model,
+                    route,
+                    attempt_index,
+                    len(key_chain),
+                    key_fingerprint,
+                    elapsed_ms,
+                )
             except error.HTTPError as exc:
                 last_error = RuntimeError(f"DeepSeek request failed with HTTP {exc.code}")
+                elapsed_ms = round((time.perf_counter() - attempt_started_at) * 1000)
+                logger.warning(
+                    "DeepSeek call http_error model=%s route=%s attempt=%s/%s key=%s status=%s elapsed_ms=%s",
+                    self.model,
+                    route,
+                    attempt_index,
+                    len(key_chain),
+                    key_fingerprint,
+                    exc.code,
+                    elapsed_ms,
+                )
             except error.URLError as exc:
                 last_error = RuntimeError(f"DeepSeek request failed: {exc}")
+                elapsed_ms = round((time.perf_counter() - attempt_started_at) * 1000)
+                logger.warning(
+                    "DeepSeek call url_error model=%s route=%s attempt=%s/%s key=%s elapsed_ms=%s error=%s",
+                    self.model,
+                    route,
+                    attempt_index,
+                    len(key_chain),
+                    key_fingerprint,
+                    elapsed_ms,
+                    exc.reason,
+                )
 
         if last_error is not None:
+            total_elapsed_ms = round((time.perf_counter() - request_started_at) * 1000)
+            logger.error(
+                "DeepSeek call failed model=%s route=%s attempts=%s total_elapsed_ms=%s error=%s",
+                self.model,
+                route,
+                len(key_chain),
+                total_elapsed_ms,
+                last_error,
+            )
             raise last_error
         raise RuntimeError("DeepSeek request failed: no available API keys")
 

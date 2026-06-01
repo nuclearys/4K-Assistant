@@ -551,6 +551,29 @@ class AdminDashboard(BaseModel):
     activity_period_label: str
 
 
+class AdminAnalyticsCompetencyPoint(BaseModel):
+    name: str
+    value: int
+
+
+class AdminAnalyticsGroupItem(BaseModel):
+    key: str
+    label: str
+    dimension: str
+    total_sessions: int
+    completed_sessions: int
+    avg_score_percent: float | None = None
+    dominant_competency: str | None = None
+    competency_average: list[AdminAnalyticsCompetencyPoint]
+
+
+class AdminGroupAnalyticsResponse(BaseModel):
+    title: str
+    subtitle: str
+    dimension: str
+    items: list[AdminAnalyticsGroupItem]
+
+
 class AdminDetailedReportItem(BaseModel):
     session_id: int
     user_id: int

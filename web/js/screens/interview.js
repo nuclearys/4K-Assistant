@@ -37,6 +37,7 @@ import { hideAllPanels, syncUrlState } from '../router.js';
 import { showError } from '../components/errors.js';
 import {
   canReusePreparedAssessment,
+  isAssessmentPreparing,
   renderAssessmentPreparationState,
   beginAssessmentPreparation,
 } from './assessment.js';
@@ -652,11 +653,11 @@ const startAssessmentInterview = async () => {
 };
 
 export const handleAssessmentEntryClick = () => {
-  if (canReusePreparedAssessment()) {
-    openPrechat();
-    return;
+  const reusable = canReusePreparedAssessment();
+  openPrechat();
+  if (!reusable && !isAssessmentPreparing()) {
+    void beginAssessmentPreparation({ force: true });
   }
-  void beginAssessmentPreparation({ force: true });
 };
 
 export const initInterview = () => {

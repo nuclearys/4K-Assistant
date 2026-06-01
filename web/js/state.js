@@ -53,6 +53,8 @@ export const state = {
   adminReportsPage: 1,
   adminReportsSelectedSessionIds: [],
   adminPeriodKey: '30d',
+  adminGroupAnalytics: null,
+  adminGroupAnalyticsDimension: 'department',
   pendingRoleOptions: [],
   pendingNoChangesQuickReply: false,
   assessmentSessionCode: null,
@@ -120,6 +122,8 @@ export const STORAGE_KEYS = {
   adminReportsSearch: 'agent4k.adminReportsSearch',
   adminReportsPage: 'agent4k.adminReportsPage',
   adminPeriodKey: 'agent4k.adminPeriodKey',
+  adminGroupAnalytics: 'agent4k.adminGroupAnalytics',
+  adminGroupAnalyticsDimension: 'agent4k.adminGroupAnalyticsDimension',
   pendingRoleOptions: 'agent4k.pendingRoleOptions',
   pendingNoChangesQuickReply: 'agent4k.pendingNoChangesQuickReply',
   assessmentSessionId: 'agent4k.assessmentSessionId',
@@ -228,6 +232,10 @@ export const persistAssessmentContext = () => {
   if (state.adminPeriodKey) {
     safeStorage.setItem(STORAGE_KEYS.adminPeriodKey, state.adminPeriodKey);
   }
+  if (state.adminGroupAnalytics) {
+    safeStorage.setItem(STORAGE_KEYS.adminGroupAnalytics, JSON.stringify(state.adminGroupAnalytics));
+  }
+  safeStorage.setItem(STORAGE_KEYS.adminGroupAnalyticsDimension, state.adminGroupAnalyticsDimension || 'department');
   safeStorage.setItem(STORAGE_KEYS.adminMethodologySearch, state.adminMethodologySearch || '');
   safeStorage.setItem(STORAGE_KEYS.adminMethodologyTab, state.adminMethodologyTab || 'library');
   safeStorage.setItem(STORAGE_KEYS.pendingRoleOptions, JSON.stringify(state.pendingRoleOptions || []));
@@ -268,6 +276,8 @@ export const restoreAssessmentContext = () => {
     const storedPendingNoChangesQuickReply = safeStorage.getItem(STORAGE_KEYS.pendingNoChangesQuickReply);
     const storedAdminReportsSearch = safeStorage.getItem(STORAGE_KEYS.adminReportsSearch);
     const storedAdminReportsPage = safeStorage.getItem(STORAGE_KEYS.adminReportsPage);
+    const storedAdminGroupAnalytics = safeStorage.getItem(STORAGE_KEYS.adminGroupAnalytics);
+    const storedAdminGroupAnalyticsDimension = safeStorage.getItem(STORAGE_KEYS.adminGroupAnalyticsDimension);
     const storedSessionCode = safeStorage.getItem(STORAGE_KEYS.assessmentSessionCode);
     const storedTotalCases = safeStorage.getItem(STORAGE_KEYS.assessmentTotalCases);
     const storedConversationSessionId = safeStorage.getItem(STORAGE_KEYS.sessionId);
@@ -331,6 +341,12 @@ export const restoreAssessmentContext = () => {
     if (storedAdminReportsPage) {
       state.adminReportsPage = Number(storedAdminReportsPage) || 1;
     }
+    if (storedAdminGroupAnalytics) {
+      state.adminGroupAnalytics = JSON.parse(storedAdminGroupAnalytics);
+    }
+    if (storedAdminGroupAnalyticsDimension) {
+      state.adminGroupAnalyticsDimension = storedAdminGroupAnalyticsDimension === 'role' ? 'role' : 'department';
+    }
     if (storedSessionId) {
       state.assessmentSessionId = Number(storedSessionId);
     }
@@ -378,8 +394,50 @@ export const clearAssessmentStorage = () => {
   });
 };
 
+export const resetRuntimeContext = () => {
+  state.sessionId = null;
+  state.completed = false;
+  state.isChatSubmitting = false;
+  state.pendingAgentMessage = null;
+  state.pendingActionOptions = [];
+  state.pendingConsentTitle = null;
+  state.pendingConsentText = null;
+  state.pendingUser = null;
+  state.dashboard = null;
+  state.isAdmin = false;
+  state.adminDashboard = null;
+  state.pendingRoleOptions = [];
+  state.pendingNoChangesQuickReply = false;
+  state.assessmentSessionCode = null;
+  state.assessmentCaseNumber = 0;
+  state.assessmentTotalCases = 0;
+  state.assessmentCaseTitle = null;
+  state.isNewUserFlow = false;
+  state.assessmentSessionId = null;
+  state.assessmentPreparationStatus = 'idle';
+  state.assessmentPreparationProgressPercent = 0;
+  state.assessmentPreparationTitle = '';
+  state.assessmentPreparationMessage = '';
+  state.assessmentPreparationOperationId = null;
+  state.preparedAssessmentStartResponse = null;
+  state.currentScreen = 'auth';
+  if (state.assessmentPreparationPollId) {
+    window.clearInterval(state.assessmentPreparationPollId);
+    state.assessmentPreparationPollId = null;
+  }
+  if (state.assessmentTimerId) {
+    window.clearInterval(state.assessmentTimerId);
+    state.assessmentTimerId = null;
+  }
+  if (state.processingTimerId) {
+    window.clearTimeout(state.processingTimerId);
+    state.processingTimerId = null;
+  }
+};
+
 export const clearAssessmentContext = () => {
   clearAssessmentStorage();
+  resetRuntimeContext();
   state.reportInterpretation = null;
 };
 

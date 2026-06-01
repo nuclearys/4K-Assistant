@@ -3074,7 +3074,7 @@ class InterviewerAgent:
                 user=state.user,
             )
 
-        if _means_no_changes(text):
+        if state.stage == ConversationStage.ASK_POSITION and _means_no_changes(text):
             missing_stage = self._get_missing_profile_stage_for_existing_user(state.user)
             if missing_stage == ConversationStage.ASK_PERSONAL_DATA_CONSENT:
                 state.stage = ConversationStage.ASK_PERSONAL_DATA_CONSENT

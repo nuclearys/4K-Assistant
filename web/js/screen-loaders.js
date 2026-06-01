@@ -113,7 +113,8 @@ export const openAdminDashboardScreen = async () => {
 
 export const loadAdminDashboardData = async (periodKey) => {
   const module = await loadAdminDashboard();
-  return module.loadAdminDashboard(periodKey);
+  await module.loadAdminDashboard(periodKey);
+  return module.loadAdminGroupAnalytics?.();
 };
 
 export const openAdminPromptLabScreen = async () => {

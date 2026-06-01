@@ -6,6 +6,9 @@ import {
   adminMbtiPieChartCanvas,
   adminMbtiChartFallback,
   adminMbtiPreviewPill,
+  adminGroupAnalyticsChart,
+  adminGroupAnalyticsBarChartCanvas,
+  adminGroupAnalyticsChartFallback,
   adminActivityChart,
   adminActivityBarChartCanvas,
   adminActivityChartFallback,
@@ -15,6 +18,7 @@ import { getCompetencyPalette, getCompetencySortIndex } from '../../utils/compet
 
 let adminCompetencyBarChart = null;
 let adminMbtiPieChart = null;
+let adminGroupAnalyticsBarChart = null;
 let adminActivityBarChart = null;
 
 const resolveElement = (cachedElement, id) => cachedElement || document.getElementById(id);
@@ -34,8 +38,20 @@ const adminMbtiPreviewDistribution = [
   { name: 'Sentinels', value: 20 },
   { name: 'Explorers', value: 10 },
 ];
+const adminChartBodyFontFamily = 'Inter, "Segoe UI", Arial, sans-serif';
+const adminChartHeadingFontFamily = 'Manrope, Inter, "Segoe UI", Arial, sans-serif';
 const adminActivityEmptyFill = '#eef2ff';
 const adminActivityPrimaryGradientStops = ['#e1e0ff', '#6063ee', '#4648d4'];
+
+const redrawChartWhenFontsAreReady = (chart) => {
+  if (!chart || typeof document === 'undefined' || !document.fonts?.ready) {
+    return;
+  }
+
+  void document.fonts.ready.then(() => {
+    chart.update('none');
+  });
+};
 
 const adminCompetencyBarValueLabelsPlugin = {
   id: 'adminCompetencyBarValueLabels',
@@ -48,7 +64,7 @@ const adminCompetencyBarValueLabelsPlugin = {
     const context = chart.ctx;
     context.save();
     context.fillStyle = '#4648d4';
-    context.font = '700 13px Inter, sans-serif';
+    context.font = '700 13px ' + adminChartBodyFontFamily;
     context.textAlign = 'center';
     context.textBaseline = 'bottom';
     meta.data.forEach((bar, index) => {
@@ -71,7 +87,7 @@ const adminActivityBarValueLabelsPlugin = {
     const barSlotsAreReadable = chart.chartArea.width / Math.max(dataset.data.length, 1) >= 24;
     context.save();
     context.fillStyle = '#475569';
-    context.font = '700 11px Inter, sans-serif';
+    context.font = '700 11px ' + adminChartBodyFontFamily;
     context.textAlign = 'center';
     context.textBaseline = 'bottom';
     meta.data.forEach((bar, index) => {
@@ -80,6 +96,43 @@ const adminActivityBarValueLabelsPlugin = {
         return;
       }
       context.fillText(String(value), bar.x, bar.y - 7);
+    });
+    context.restore();
+  },
+};
+
+const adminGroupAnalyticsValueLabelsPlugin = {
+  id: 'adminGroupAnalyticsValueLabels',
+  afterDatasetsDraw(chart) {
+    const meta = chart.getDatasetMeta(0);
+    if (!meta || meta.hidden) {
+      return;
+    }
+    const dataset = chart.data.datasets[0];
+    const context = chart.ctx;
+    const chartArea = chart.chartArea;
+    const chartItems = chart.options.plugins?.adminGroupAnalyticsValueLabels?.items || [];
+    context.save();
+    context.fillStyle = '#2f3437';
+    context.font = '700 11px ' + adminChartBodyFontFamily;
+    context.textBaseline = 'middle';
+    meta.data.forEach((bar, index) => {
+      const value = Number(dataset.data[index]) || 0;
+      const label = value + '%';
+      const labelX = bar.x + 8;
+      const hasRoomAfterBar = labelX + 28 < chartArea.right;
+      context.textAlign = hasRoomAfterBar ? 'left' : 'right';
+      context.fillText(label, hasRoomAfterBar ? labelX : chartArea.right - 2, bar.y);
+    });
+    context.fillStyle = '#64748b';
+    context.font = '600 11px ' + adminChartBodyFontFamily;
+    context.textAlign = 'right';
+    meta.data.forEach((bar, index) => {
+      const item = chartItems[index];
+      if (!item) {
+        return;
+      }
+      context.fillText(item.completed + ' / ' + item.total, chart.width - 2, bar.y);
     });
     context.restore();
   },
@@ -113,6 +166,14 @@ export const formatAdminChartLabel = (text) => {
   return lines.length > 1 ? lines : rawText;
 };
 
+const formatAdminGroupChartLabel = (text) => {
+  const rawText = String(text || 'Без названия').trim();
+  const compactText = rawText.length > 36 ? rawText.slice(0, 33).trimEnd() + '...' : rawText;
+  return formatAdminChartLabel(compactText);
+};
+
+const getAdminGroupAnalyticsChartHeight = (itemCount) => Math.max(340, Math.min(640, itemCount * 52 + 84));
+
 export const destroyAdminCompetencyBarChart = () => {
   if (adminCompetencyBarChart) {
     adminCompetencyBarChart.destroy();
@@ -124,6 +185,13 @@ export const destroyAdminMbtiPieChart = () => {
   if (adminMbtiPieChart) {
     adminMbtiPieChart.destroy();
     adminMbtiPieChart = null;
+  }
+};
+
+export const destroyAdminGroupAnalyticsBarChart = () => {
+  if (adminGroupAnalyticsBarChart) {
+    adminGroupAnalyticsBarChart.destroy();
+    adminGroupAnalyticsBarChart = null;
   }
 };
 
@@ -252,12 +320,12 @@ export const renderAdminCompetencyBarChart = (competencies = []) => {
           backgroundColor: '#191c1e',
           displayColors: false,
           titleFont: {
-            family: 'Inter',
+            family: adminChartHeadingFontFamily,
             size: 13,
             weight: '600',
           },
           bodyFont: {
-            family: 'Inter',
+            family: adminChartBodyFontFamily,
             size: 12,
             weight: '500',
           },
@@ -285,7 +353,7 @@ export const renderAdminCompetencyBarChart = (competencies = []) => {
             maxRotation: 0,
             minRotation: 0,
             font: {
-              family: 'Inter',
+              family: adminChartHeadingFontFamily,
               size: 12,
               weight: '700',
             },
@@ -302,7 +370,7 @@ export const renderAdminCompetencyBarChart = (competencies = []) => {
               return value + '%';
             },
             font: {
-              family: 'Inter',
+              family: adminChartBodyFontFamily,
               size: 11,
               weight: '600',
             },
@@ -317,6 +385,7 @@ export const renderAdminCompetencyBarChart = (competencies = []) => {
       },
     },
   });
+  redrawChartWhenFontsAreReady(adminCompetencyBarChart);
 };
 
 const buildAdminMbtiFallbackMarkup = (items) =>
@@ -422,7 +491,7 @@ export const renderAdminMbtiPieChart = (distribution = []) => {
             pointStyle: 'circle',
             usePointStyle: true,
             font: {
-              family: 'Inter',
+              family: adminChartBodyFontFamily,
               size: 12,
               weight: '700',
             },
@@ -432,12 +501,12 @@ export const renderAdminMbtiPieChart = (distribution = []) => {
           backgroundColor: '#191c1e',
           displayColors: false,
           titleFont: {
-            family: 'Inter',
+            family: adminChartHeadingFontFamily,
             size: 13,
             weight: '600',
           },
           bodyFont: {
-            family: 'Inter',
+            family: adminChartBodyFontFamily,
             size: 12,
             weight: '500',
           },
@@ -451,6 +520,188 @@ export const renderAdminMbtiPieChart = (distribution = []) => {
       },
     },
   });
+  redrawChartWhenFontsAreReady(adminMbtiPieChart);
+};
+
+const normalizeAdminGroupAnalyticsItems = (items = []) =>
+  (Array.isArray(items) ? items : [])
+    .map((item) => ({
+      label: String(item.label || item.key || 'Не указана'),
+      value: Math.max(0, Math.min(100, Number(item.avg_score_percent) || 0)),
+      completed: Math.max(0, Number(item.completed_sessions) || 0),
+      total: Math.max(0, Number(item.total_sessions) || Number(item.completed_sessions) || 0),
+      dominantCompetency: String(item.dominant_competency || 'Нет данных'),
+    }))
+    .sort((a, b) => b.completed - a.completed || b.value - a.value || a.label.localeCompare(b.label, 'ru'))
+    .slice(0, 12);
+
+const buildAdminGroupAnalyticsFallbackMarkup = (items) =>
+  items
+    .map((item) => {
+      const palette = getCompetencyPalette(item.dominantCompetency);
+      return (
+        '<div class="admin-group-chart-row">' +
+        '<span>' +
+        escapeHtml(item.label) +
+        '</span>' +
+        '<div class="admin-group-chart-track"><span style="width:' +
+        item.value +
+        '%; background:' +
+        palette.chartFill +
+        '"></span></div>' +
+        '<strong>' +
+        item.value +
+        '%</strong><span>' +
+        item.completed +
+        ' / ' +
+        item.total +
+        '</span>' +
+        '</div>'
+      );
+    })
+    .join('');
+
+export const renderAdminGroupAnalyticsBarChart = (groups = []) => {
+  const chartContainer = resolveElement(adminGroupAnalyticsChart, 'admin-group-analytics-chart');
+  const chartCanvas = resolveElement(adminGroupAnalyticsBarChartCanvas, 'admin-group-analytics-bar-chart');
+  const fallback = resolveElement(adminGroupAnalyticsChartFallback, 'admin-group-analytics-chart-fallback');
+
+  if (!chartContainer) {
+    return;
+  }
+
+  destroyAdminGroupAnalyticsBarChart();
+
+  const items = normalizeAdminGroupAnalyticsItems(groups);
+
+  if (chartCanvas) {
+    chartCanvas.classList.add('hidden');
+  }
+  if (fallback) {
+    fallback.classList.add('hidden');
+    fallback.innerHTML = '';
+  }
+
+  if (!items.length) {
+    chartContainer.style.removeProperty('height');
+    chartContainer.style.removeProperty('min-height');
+    if (fallback) {
+      fallback.textContent = 'Недостаточно данных для сравнения групп.';
+      fallback.classList.remove('hidden');
+    }
+    return;
+  }
+
+  if (typeof window.Chart !== 'function' || !chartCanvas) {
+    if (fallback) {
+      fallback.innerHTML = buildAdminGroupAnalyticsFallbackMarkup(items);
+      fallback.classList.remove('hidden');
+    }
+    return;
+  }
+
+  const chartHeight = getAdminGroupAnalyticsChartHeight(items.length);
+  chartContainer.style.height = chartHeight + 'px';
+  chartContainer.style.minHeight = chartHeight + 'px';
+
+  const context = chartCanvas.getContext('2d');
+  if (!context) {
+    if (fallback) {
+      fallback.innerHTML = buildAdminGroupAnalyticsFallbackMarkup(items);
+      fallback.classList.remove('hidden');
+    }
+    return;
+  }
+
+  chartCanvas.classList.remove('hidden');
+  adminGroupAnalyticsBarChart = new window.Chart(context, {
+    type: 'bar',
+    data: {
+      labels: items.map((item) => formatAdminGroupChartLabel(item.label)),
+      datasets: [
+        {
+          data: items.map((item) => item.value),
+          backgroundColor: items.map((item) => getCompetencyPalette(item.dominantCompetency).chartFill),
+          borderColor: items.map((item) => getCompetencyPalette(item.dominantCompetency).stroke),
+          borderWidth: 1,
+          borderRadius: {
+            topLeft: 0,
+            topRight: 10,
+            bottomLeft: 0,
+            bottomRight: 10,
+          },
+          borderSkipped: false,
+          barPercentage: 0.62,
+          categoryPercentage: 0.72,
+        },
+      ],
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: false,
+      layout: {
+        padding: {
+          right: 76,
+        },
+      },
+      plugins: {
+        legend: { display: false },
+        adminGroupAnalyticsValueLabels: { items },
+        tooltip: {
+          backgroundColor: '#191c1e',
+          displayColors: false,
+          callbacks: {
+            title(contextItems) {
+              return items[contextItems[0]?.dataIndex ?? 0]?.label || 'Группа';
+            },
+            label(context) {
+              const item = items[context.dataIndex];
+              return (
+                context.formattedValue +
+                '% · ' +
+                item.completed +
+                ' / ' +
+                item.total +
+                ' сессий · ' +
+                item.dominantCompetency
+              );
+            },
+          },
+        },
+      },
+      scales: {
+        x: {
+          beginAtZero: true,
+          min: 0,
+          max: 100,
+          ticks: {
+            color: '#64748b',
+            callback(value) {
+              return value + '%';
+            },
+            font: { family: adminChartBodyFontFamily, size: 11, weight: '600' },
+          },
+          grid: { color: 'rgba(100, 116, 139, 0.14)' },
+          border: { display: false },
+        },
+        y: {
+          grid: { display: false },
+          border: { display: false },
+          ticks: {
+            autoSkip: false,
+            color: '#2f3437',
+            crossAlign: 'far',
+            padding: 8,
+            font: { family: adminChartHeadingFontFamily, size: 11, weight: '700' },
+          },
+        },
+      },
+    },
+    plugins: [adminGroupAnalyticsValueLabelsPlugin],
+  });
+  redrawChartWhenFontsAreReady(adminGroupAnalyticsBarChart);
 };
 
 const getRootCssColor = (propertyName, fallback) => {
@@ -635,12 +886,12 @@ export const renderAdminActivityBarChart = (adminDashboard = {}) => {
           backgroundColor: '#191c1e',
           displayColors: false,
           titleFont: {
-            family: 'Inter',
+            family: adminChartHeadingFontFamily,
             size: 13,
             weight: '600',
           },
           bodyFont: {
-            family: 'Inter',
+            family: adminChartBodyFontFamily,
             size: 12,
             weight: '500',
           },
@@ -667,7 +918,7 @@ export const renderAdminActivityBarChart = (adminDashboard = {}) => {
             autoSkip: true,
             maxTicksLimit: 14,
             font: {
-              family: 'Inter',
+              family: adminChartBodyFontFamily,
               size: 11,
               weight: '700',
             },
@@ -681,7 +932,7 @@ export const renderAdminActivityBarChart = (adminDashboard = {}) => {
             precision: 0,
             color: '#64748b',
             font: {
-              family: 'Inter',
+              family: adminChartBodyFontFamily,
               size: 11,
               weight: '600',
             },
@@ -696,4 +947,5 @@ export const renderAdminActivityBarChart = (adminDashboard = {}) => {
       },
     },
   });
+  redrawChartWhenFontsAreReady(adminActivityBarChart);
 };

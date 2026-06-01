@@ -23,7 +23,7 @@
   <link rel="stylesheet" href="/web/styles/screens/dashboard.css?v=20260517-dashboard-soon-button">
   <link rel="stylesheet" href="/web/styles/screens/reports.css?v=20260516-merged">
   <link rel="stylesheet" href="/web/styles/screens/app-loader.css?v=20260516-merged">
-  <link rel="stylesheet" href="/web/styles/screens/admin.css?v=20260518-mbti-preview">
+  <link rel="stylesheet" href="/web/styles/screens/admin.css?v=20260527-group-analytics">
   <link rel="stylesheet" href="/web/styles/screens/admin-reports.css?v=20260516-merged">
   <link rel="stylesheet" href="/web/styles/screens/admin-report-detail.css?v=20260516-merged">
   <link rel="stylesheet" href="/web/styles/screens/admin-methodology.css?v=20260516-merged">
@@ -342,6 +342,27 @@
             </div>
           </div>
           <div id="admin-insights-grid" class="admin-insights-grid"></div>
+        </section>
+
+        <section class="card card--lg admin-group-analytics-card">
+          <div class="report-card-head admin-group-analytics-head">
+            <div>
+              <p class="section-label accent-label">Сравнение</p>
+              <h3 id="admin-group-analytics-title">Сравнение групп</h3>
+            </div>
+            <div class="admin-segmented-control" aria-label="Группировка аналитики">
+              <button id="admin-group-department-button" type="button" class="active" data-dimension="department">Департаменты</button>
+              <button id="admin-group-role-button" type="button" data-dimension="role">Роли</button>
+            </div>
+          </div>
+          <p id="admin-group-analytics-subtitle" class="admin-group-analytics-subtitle"></p>
+          <div class="admin-group-analytics-layout">
+            <div id="admin-group-analytics-chart" class="admin-group-analytics-chart">
+              <canvas id="admin-group-analytics-bar-chart" aria-label="Сравнение среднего результата по группам"></canvas>
+              <div id="admin-group-analytics-chart-fallback" class="admin-group-analytics-chart-fallback hidden"></div>
+            </div>
+            <div id="admin-group-analytics-list" class="admin-group-analytics-list"></div>
+          </div>
         </section>
 
         <section class="card card--lg admin-activity-card">
@@ -1682,6 +1703,6 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js" defer></script>
-  <script type="module" src="/web/dist/main.js?v=20260518-admin-mbti-preview"></script>
+  <script type="module" src="/web/dist/main.js?v=20260527-admin-group-analytics"></script>
 </body>
 </html>

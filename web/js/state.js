@@ -61,6 +61,8 @@ export const state = {
   assessmentCaseNumber: 0,
   assessmentTotalCases: 0,
   assessmentCaseTitle: null,
+  assessmentCaseContext: null,
+  assessmentCaseTask: null,
   onboardingIndex: 0,
   isNewUserFlow: false,
   onboardingShown: false,

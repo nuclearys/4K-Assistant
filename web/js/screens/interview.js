@@ -294,6 +294,35 @@ const renderSingleTurnCaseCard = (text) => {
   interviewSummary.classList.remove('hidden');
 };
 
+const renderDialogCaseCard = (context, task) => {
+  const cleanContext = String(context || '').trim();
+  const cleanTask = String(task || '').trim();
+
+  interviewSummary.innerHTML = '';
+  interviewSummary.textContent = '';
+
+  if (cleanContext) {
+    interviewSummary.appendChild(
+      renderInterviewStructuredBlock({
+        label: 'Ситуация',
+        body: normalizeInterviewSituationText(cleanContext) || cleanContext,
+      }),
+    );
+  }
+
+  if (cleanTask) {
+    interviewSummary.appendChild(
+      renderInterviewStructuredBlock({
+        label: 'Что нужно сделать',
+        body: cleanTask,
+        variant: 'task',
+      }),
+    );
+  }
+
+  interviewSummary.classList.toggle('hidden', !cleanContext && !cleanTask);
+};
+
 const renderInterviewMeta = () => {
   interviewCaseBadge.textContent = 'Кейс ' + state.assessmentCaseNumber + ' из ' + state.assessmentTotalCases;
   interviewCaseTitle.textContent = state.assessmentCaseTitle || 'Кейс';
@@ -485,9 +514,18 @@ const handleAssessmentResponse = (data) => {
 
   if (caseChanged) {
     interviewMessages.innerHTML = '';
+    state.assessmentCaseContext = null;
+    state.assessmentCaseTask = null;
   }
 
-  let assistantMessage = data.message;
+  if (typeof data.case_context === 'string') {
+    state.assessmentCaseContext = data.case_context;
+  }
+  if (typeof data.case_task === 'string') {
+    state.assessmentCaseTask = data.case_task;
+  }
+
+  let assistantMessage = String(data.message || '');
   if (caseChanged && assistantMessage.includes('\n\nСледующий кейс:\n')) {
     assistantMessage = assistantMessage.split('\n\nСледующий кейс:\n')[1];
   }
@@ -509,13 +547,11 @@ const handleAssessmentResponse = (data) => {
     renderSingleTurnCaseCard(assistantMessage);
   } else {
     if (isDialogCase) {
-      interviewSummary.classList.add('hidden');
-      interviewSummary.textContent = '';
-      interviewSummary.innerHTML = '';
+      renderDialogCaseCard(state.assessmentCaseContext, state.assessmentCaseTask);
     }
   }
 
-  if (isDialogCase && !suppressAssistantBubble) {
+  if (isDialogCase && assistantMessage.trim() && !suppressAssistantBubble) {
     addInterviewMessage('assistant', assistantMessage);
   }
 

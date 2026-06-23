@@ -3454,6 +3454,8 @@ class InterviewerAgent:
             history_flag=reply.history_flag,
             history_is_new=reply.history_is_new,
             is_dialog_case=reply.is_dialog_case,
+            case_context=reply.case_context,
+            case_task=reply.case_task,
             pending_auto_finish=reply.pending_auto_finish,
             auto_finish_delay_ms=reply.auto_finish_delay_ms,
         )
@@ -3489,6 +3491,8 @@ class InterviewerAgent:
             history_flag=reply.history_flag,
             history_is_new=reply.history_is_new,
             is_dialog_case=reply.is_dialog_case,
+            case_context=reply.case_context,
+            case_task=reply.case_task,
             pending_auto_finish=reply.pending_auto_finish,
             auto_finish_delay_ms=reply.auto_finish_delay_ms,
         )

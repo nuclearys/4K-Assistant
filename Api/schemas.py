@@ -751,6 +751,8 @@ class AssessmentStartResponse(BaseModel):
     history_flag: str | None = None
     history_is_new: bool = False
     is_dialog_case: bool = False
+    case_context: str | None = None
+    case_task: str | None = None
     pending_auto_finish: bool = False
     auto_finish_delay_ms: int | None = None
 
@@ -796,6 +798,8 @@ class AssessmentMessageResponse(BaseModel):
     history_flag: str | None = None
     history_is_new: bool = False
     is_dialog_case: bool = False
+    case_context: str | None = None
+    case_task: str | None = None
     pending_auto_finish: bool = False
     auto_finish_delay_ms: int | None = None
 

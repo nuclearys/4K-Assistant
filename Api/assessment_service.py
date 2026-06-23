@@ -56,6 +56,8 @@ class AssessmentTurnReply:
     history_flag: str | None = None
     history_is_new: bool = False
     is_dialog_case: bool = False
+    case_context: str | None = None
+    case_task: str | None = None
     pending_auto_finish: bool = False
     auto_finish_delay_ms: int | None = None
 
@@ -2019,6 +2021,7 @@ class AssessmentService:
                     opening_message=plan.opening_message,
                 )
 
+            current_case_context_fields = self._get_session_case_context_fields(connection, plan.current_session_case_id)
             existing_message = connection.execute(
                 """
                 SELECT message_text
@@ -2075,22 +2078,29 @@ class AssessmentService:
                         plan.current_case_time_limit_minutes,
                     ),
                     is_dialog_case=self._get_is_dialog_case_for_session_case(connection, plan.current_session_case_id),
+                    **current_case_context_fields,
                     **history_fields,
                 )
 
             case_row = self._get_case_for_session_case(connection, plan.current_session_case_id)
-            opening_message = deepseek_client.build_opening_message(
-                case_title=case_row["title"],
-                case_context=self._get_personalized_case_context(connection, plan.current_session_case_id, case_row),
-                case_task=self._get_personalized_case_task(connection, plan.current_session_case_id, case_row),
+            methodical_context = self._get_case_methodical_context(connection, case_row)
+            is_dialog_opening = deepseek_client._is_dialog_interactivity_mode(
+                methodical_context.get("interactivity_mode"),
             )
-            connection.execute(
-                """
-                INSERT INTO session_case_messages (session_case_id, session_id, role, message_text)
-                VALUES (%s, %s, 'assistant', %s)
-                """,
-                (plan.current_session_case_id, plan.session_id, opening_message),
-            )
+            opening_message = ""
+            if not is_dialog_opening:
+                opening_message = deepseek_client.build_opening_message(
+                    case_title=case_row["title"],
+                    case_context=current_case_context_fields["case_context"],
+                    case_task=current_case_context_fields["case_task"],
+                )
+                connection.execute(
+                    """
+                    INSERT INTO session_case_messages (session_case_id, session_id, role, message_text)
+                    VALUES (%s, %s, 'assistant', %s)
+                    """,
+                    (plan.current_session_case_id, plan.session_id, opening_message),
+                )
             connection.execute(
                 """
                 UPDATE session_cases
@@ -2128,9 +2138,8 @@ class AssessmentService:
                     started_row["started_at"] if started_row else plan.current_case_started_at,
                     plan.current_case_time_limit_minutes,
                 ),
-                is_dialog_case=deepseek_client._is_dialog_interactivity_mode(
-                    self._get_case_methodical_context(connection, case_row).get("interactivity_mode"),
-                ),
+                is_dialog_case=is_dialog_opening,
+                **current_case_context_fields,
                 **history_fields,
             )
 
@@ -2186,6 +2195,7 @@ class AssessmentService:
                     opening_message=plan.opening_message,
                 )
             history_fields = self._get_session_case_history_fields(connection, plan.current_session_case_id)
+            current_case_context_fields = self._get_session_case_context_fields(connection, plan.current_session_case_id)
 
             case_meta = connection.execute(
                 """
@@ -2494,6 +2504,7 @@ class AssessmentService:
                     is_dialog_case=is_dialog_case,
                     pending_auto_finish=False,
                     auto_finish_delay_ms=None,
+                    **current_case_context_fields,
                     **history_fields,
                 )
 
@@ -2536,6 +2547,7 @@ class AssessmentService:
                     is_dialog_case=is_dialog_case,
                     pending_auto_finish=False,
                     auto_finish_delay_ms=None,
+                    **current_case_context_fields,
                     **history_fields,
                 )
 
@@ -2608,6 +2620,7 @@ class AssessmentService:
                     is_dialog_case=is_dialog_case,
                     pending_auto_finish=True,
                     auto_finish_delay_ms=self.CASE_AUTO_FINISH_DELAY_MS,
+                    **current_case_context_fields,
                     **history_fields,
                 )
 
@@ -2647,6 +2660,7 @@ class AssessmentService:
                     is_dialog_case=False,
                     pending_auto_finish=True,
                     auto_finish_delay_ms=self.CASE_AUTO_FINISH_DELAY_MS,
+                    **current_case_context_fields,
                     **history_fields,
                 )
 
@@ -2719,6 +2733,7 @@ class AssessmentService:
                     plan.current_case_time_limit_minutes,
                 ),
                 is_dialog_case=True,
+                **current_case_context_fields,
                 **history_fields,
             )
 
@@ -2781,22 +2796,30 @@ class AssessmentService:
                 ),
                 time_expired=time_expired,
                 is_dialog_case=self._get_is_dialog_case_for_session_case(connection, plan.current_session_case_id),
+                **self._get_session_case_context_fields(connection, plan.current_session_case_id),
                 **self._get_session_case_history_fields(connection, plan.current_session_case_id),
             )
 
         next_case_row = self._get_case_for_session_case(connection, next_plan.current_session_case_id)
-        intro_message = deepseek_client.build_opening_message(
-            case_title=next_case_row["title"],
-            case_context=self._get_personalized_case_context(connection, next_plan.current_session_case_id, next_case_row),
-            case_task=self._get_personalized_case_task(connection, next_plan.current_session_case_id, next_case_row),
+        next_methodical_context = self._get_case_methodical_context(connection, next_case_row)
+        next_case_context_fields = self._get_session_case_context_fields(connection, next_plan.current_session_case_id)
+        next_is_dialog_case = deepseek_client._is_dialog_interactivity_mode(
+            next_methodical_context.get("interactivity_mode"),
         )
-        connection.execute(
-            """
-            INSERT INTO session_case_messages (session_case_id, session_id, role, message_text)
-            VALUES (%s, %s, 'assistant', %s)
-            """,
-            (next_plan.current_session_case_id, session_row["id"], intro_message),
-        )
+        intro_message = ""
+        if not next_is_dialog_case:
+            intro_message = deepseek_client.build_opening_message(
+                case_title=next_case_row["title"],
+                case_context=next_case_context_fields["case_context"],
+                case_task=next_case_context_fields["case_task"],
+            )
+            connection.execute(
+                """
+                INSERT INTO session_case_messages (session_case_id, session_id, role, message_text)
+                VALUES (%s, %s, 'assistant', %s)
+                """,
+                (next_plan.current_session_case_id, session_row["id"], intro_message),
+            )
         connection.execute(
             """
             UPDATE session_cases
@@ -2838,9 +2861,8 @@ class AssessmentService:
                 next_plan.current_case_time_limit_minutes,
             ),
             time_expired=time_expired,
-            is_dialog_case=deepseek_client._is_dialog_interactivity_mode(
-                self._get_case_methodical_context(connection, next_case_row).get("interactivity_mode"),
-            ),
+            is_dialog_case=next_is_dialog_case,
+            **next_case_context_fields,
             **self._get_session_case_history_fields(connection, next_plan.current_session_case_id),
         )
 
@@ -3010,6 +3032,13 @@ class AssessmentService:
             if task_text:
                 return task_text
         return case_row["task_for_user"] or ""
+
+    def _get_session_case_context_fields(self, connection, session_case_id: int) -> dict[str, str]:
+        case_row = self._get_case_for_session_case(connection, session_case_id)
+        return {
+            "case_context": self._get_personalized_case_context(connection, session_case_id, case_row),
+            "case_task": self._get_personalized_case_task(connection, session_case_id, case_row),
+        }
 
     def _get_case_skill_names(self, connection, session_case_id: int) -> list[str]:
         rows = connection.execute(

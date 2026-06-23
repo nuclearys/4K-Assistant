@@ -5,7 +5,6 @@ import {
   adminUserRole,
   adminAvatar,
   adminTitle,
-  adminSubtitle,
   adminActivityTitle,
   adminMetricsGrid,
   adminInsightsGrid,
@@ -19,6 +18,14 @@ import {
   renderAdminActivityBarChart,
 } from './charts.js';
 
+const renderAdminSection = (sectionName, render) => {
+  try {
+    render();
+  } catch (error) {
+    console.error('Failed to render admin dashboard section:', sectionName, error);
+  }
+};
+
 export const renderAdminDashboard = () => {
   const adminDashboard = state.adminDashboard;
   const user = state.pendingUser;
@@ -31,7 +38,6 @@ export const renderAdminDashboard = () => {
   adminUserRole.textContent = adminPosition;
   adminAvatar.textContent = buildInitials(user.full_name || 'Администратор системы');
   adminTitle.textContent = adminDashboard.title || 'Сводный отчет';
-  adminSubtitle.textContent = adminDashboard.subtitle || 'Комплексный анализ платформы.';
   adminActivityTitle.innerHTML = 'Количество завершенных ассессментов за период';
 
   adminMetricsGrid.innerHTML = '';
@@ -51,9 +57,13 @@ export const renderAdminDashboard = () => {
     adminMetricsGrid.appendChild(card);
   });
 
-  renderAdminCompetencyBarChart(adminDashboard.competency_average || []);
+  renderAdminSection('competency chart', () => {
+    renderAdminCompetencyBarChart(adminDashboard.competency_average || []);
+  });
 
-  renderAdminMbtiPieChart(adminDashboard.mbti_distribution || []);
+  renderAdminSection('mbti chart', () => {
+    renderAdminMbtiPieChart(adminDashboard.mbti_distribution || []);
+  });
 
   adminInsightsGrid.innerHTML = '';
   (adminDashboard.insights || []).forEach((item) => {
@@ -63,7 +73,9 @@ export const renderAdminDashboard = () => {
     adminInsightsGrid.appendChild(card);
   });
 
-  renderAdminActivityBarChart(adminDashboard);
+  renderAdminSection('activity chart', () => {
+    renderAdminActivityBarChart(adminDashboard);
+  });
 };
 
 export const loadAdminDashboard = async (periodKey = state.adminPeriodKey || '30d') => {
@@ -81,6 +93,6 @@ export const openAdminDashboard = () => {
   persistAssessmentContext();
   syncUrlState('admin');
   hideAllPanels();
-  renderAdminDashboard();
   adminPanel.classList.remove('hidden');
+  renderAdminDashboard();
 };

@@ -458,8 +458,7 @@ class InterviewerAgent:
 
     def _build_personal_data_consent_actions(self) -> list[dict[str, str]]:
         return [
-            {"value": "Согласен", "label": "Согласен"},
-            {"value": "Не согласен", "label": "Не согласен"},
+            {"value": "Согласен", "label": "Согласен, продолжить"},
         ]
 
     def _is_consent_accepted(self, text: str) -> bool:
@@ -3061,8 +3060,7 @@ class InterviewerAgent:
                     user=state.user,
                 )
             reply_text = (
-                "Пожалуйста, подтвердите согласие явно. Напишите «Согласен», чтобы продолжить, "
-                "или «Не согласен», чтобы завершить сценарий."
+                "Пожалуйста, подтвердите согласие явно. Отметьте согласие, чтобы продолжить."
             )
             state.history.append({"role": "assistant", "content": reply_text})
             return AgentReply(
@@ -3299,8 +3297,7 @@ class InterviewerAgent:
                     blocked=True,
                 )
             reply_text = (
-                "Пожалуйста, подтвердите согласие явно. Напишите «Согласен», чтобы продолжить регистрацию, "
-                "или «Не согласен», чтобы завершить сценарий."
+                "Пожалуйста, подтвердите согласие явно. Отметьте согласие, чтобы продолжить регистрацию."
             )
             state.history.append({"role": "assistant", "content": reply_text})
             return AgentReply(
@@ -3448,6 +3445,8 @@ class InterviewerAgent:
             planned_case_duration_minutes=reply.planned_case_duration_minutes,
             case_started_at=reply.case_started_at,
             case_time_remaining_seconds=reply.case_time_remaining_seconds,
+            case_context=reply.case_context,
+            case_task=reply.case_task,
             time_expired=reply.time_expired,
             history_match_case=reply.history_match_case,
             history_match_case_text=reply.history_match_case_text,
@@ -3483,6 +3482,8 @@ class InterviewerAgent:
             planned_case_duration_minutes=reply.planned_case_duration_minutes,
             case_started_at=reply.case_started_at,
             case_time_remaining_seconds=reply.case_time_remaining_seconds,
+            case_context=reply.case_context,
+            case_task=reply.case_task,
             time_expired=reply.time_expired,
             history_match_case=reply.history_match_case,
             history_match_case_text=reply.history_match_case_text,

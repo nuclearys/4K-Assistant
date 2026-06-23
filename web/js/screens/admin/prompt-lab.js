@@ -182,6 +182,12 @@ export const getSelectedPromptLabUser = () => {
   return users.find((item) => Number(item.id) === userId) || null;
 };
 
+export const getSelectedPromptLabDialogUser = () => {
+  const userId = Number(adminPromptLabDialogUserSelect?.value || 0);
+  const users = Array.isArray(state.adminPromptLab?.users) ? state.adminPromptLab.users : [];
+  return users.find((item) => Number(item.id) === userId) || null;
+};
+
 export const getSelectedPromptLabCaseCodes = () => {
   const cases = Array.isArray(state.adminPromptLab?.cases) ? state.adminPromptLab.cases : [];
   const availableCodes = new Set(cases.map((item) => String(item.case_id_code || '').trim()).filter(Boolean));
@@ -1225,6 +1231,21 @@ export const prepareAdminPromptLabDialog = async () => {
   const caseIdCode = String(
     state.adminPromptLabDialogSelectedCaseCode || adminPromptLabDialogCaseSelect?.value || '',
   ).trim();
+  const fullName = adminPromptLabUserName?.value?.trim() || null;
+  const roleId = Number(adminPromptLabRoleSelect?.value || 0) || null;
+  const position = adminPromptLabPosition?.value?.trim() || null;
+  const duties = adminPromptLabDuties?.value?.trim() || null;
+  const companyIndustry = adminPromptLabCompanyIndustry?.value?.trim() || null;
+  let userProfile = null;
+  const rawProfileJson = adminPromptLabProfileJson?.value?.trim() || '';
+  if (rawProfileJson) {
+    try {
+      userProfile = JSON.parse(rawProfileJson);
+    } catch (_error) {
+      setPromptLabDialogStatus('Расширенный профиль должен быть корректным JSON.', 'error');
+      return;
+    }
+  }
   if (!userId || !caseIdCode) {
     setPromptLabDialogStatus('Выберите пользователя и кейс.', 'error');
     return;
@@ -1251,6 +1272,12 @@ export const prepareAdminPromptLabDialog = async () => {
         user_id: userId,
         case_id_code: caseIdCode,
         case_generation_prompt_text: caseGenerationPromptText,
+        full_name: fullName,
+        role_id: roleId,
+        position: position,
+        duties: duties,
+        company_industry: companyIndustry,
+        user_profile: userProfile,
       }),
     });
     const result = await readApiResponse(response, 'Не удалось подготовить моделирование диалога.');

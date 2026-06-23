@@ -255,6 +255,12 @@ class PromptLabDialoguePreviewRequest(BaseModel):
     user_id: int
     case_id_code: str
     case_generation_prompt_text: str | None = None
+    full_name: str | None = None
+    role_id: int | None = None
+    position: str | None = None
+    duties: str | None = None
+    company_industry: str | None = None
+    user_profile: dict | None = None
 
 
 class PromptLabDialoguePreviewResponse(BaseModel):
@@ -719,6 +725,8 @@ class AssessmentStartResponse(BaseModel):
     planned_case_duration_minutes: int | None = None
     case_started_at: datetime | None = None
     case_time_remaining_seconds: int | None = None
+    case_context: str | None = None
+    case_task: str | None = None
     time_expired: bool = False
     history_match_case: bool = False
     history_match_case_text: bool = False
@@ -764,6 +772,8 @@ class AssessmentMessageResponse(BaseModel):
     planned_case_duration_minutes: int | None = None
     case_started_at: datetime | None = None
     case_time_remaining_seconds: int | None = None
+    case_context: str | None = None
+    case_task: str | None = None
     time_expired: bool = False
     history_match_case: bool = False
     history_match_case_text: bool = False

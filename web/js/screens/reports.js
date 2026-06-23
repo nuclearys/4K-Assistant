@@ -117,6 +117,14 @@ export const renderReportsPage = () => {
         '<div class="profile-history-panel' +
         (expanded ? ' expanded' : '') +
         '">' +
+        '<div class="profile-history-panel-actions">' +
+        '<button type="button" class="ghost-button compact-ghost profile-history-report-button" data-session-id="' +
+        item.session_id +
+        '">Открыть отчет</button>' +
+        '<button type="button" class="primary-button compact-primary profile-history-download-button" data-session-id="' +
+        item.session_id +
+        '"><img class="button-icon" src="/web/assets/icons/download-icon.svg" alt="" aria-hidden="true">Скачать PDF</button>' +
+        '</div>' +
         '<div class="profile-history-panel-body">' +
         (item.expert_comment
           ? '<div class="profile-history-expert-comment"><span>Комментарий эксперта</span><p>' +
@@ -124,14 +132,6 @@ export const renderReportsPage = () => {
             '</p></div>'
           : '') +
         (expanded ? buildProfileSkillsMarkup(skills) : '') +
-        '</div>' +
-        '<div class="profile-history-panel-actions">' +
-        '<button type="button" class="ghost-button compact-ghost profile-history-report-button" data-session-id="' +
-        item.session_id +
-        '">Открыть отчет</button>' +
-        '<button type="button" class="primary-button compact-primary profile-history-download-button" data-session-id="' +
-        item.session_id +
-        '">Скачать PDF</button>' +
         '</div>' +
         '</div>';
       card.querySelector('.profile-history-item').addEventListener('click', () => {

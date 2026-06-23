@@ -223,11 +223,13 @@ class BaseCompetencyAgent:
                 structural_elements=structural_elements,
                 payload=case_payload[0],
             )
+            methodical_context_text = self._build_methodical_context_text(case_payload)
             rubric_match_scores = self._score_against_rubric(
                 user_text,
                 rubric,
                 skill_name=skill["skill_name"],
                 agent_prompt_config=agent_prompt_config,
+                methodical_context_text=methodical_context_text,
             )
             red_flags = self._detect_red_flags(user_text, case_payload, structural_elements)
             level_code = self._determine_level(
@@ -332,8 +334,22 @@ class BaseCompetencyAgent:
                 cra.artifact_code AS expected_artifact_code,
                 cra.artifact_name AS expected_artifact,
                 ctp.base_structure_description AS answer_structure_hint,
+                ctp.success_criteria,
+                ctp.interactivity_mode,
+                ctp.max_user_messages,
+                ctp.max_total_turns,
+                ctp.recommended_answer_length,
+                ctp.selection_tags,
+                ctp.role_personalization_rules,
+                ctp.format_control_rules,
+                ctp.scoring_aggregation_rules,
+                ctp.bad_case_risks,
+                ctp.generation_notes,
                 txt.constraints_text,
-                ''::text AS clarifying_questions
+                txt.dialog_turns_hint AS clarifying_questions,
+                txt.facts_data,
+                txt.task_for_user,
+                txt.evaluation_notes
             FROM session_cases sc
             JOIN session_case_skills scs ON scs.session_case_id = sc.id
             JOIN cases_registry cr ON cr.id = sc.case_registry_id
@@ -423,8 +439,22 @@ class BaseCompetencyAgent:
                     "expected_artifact_code": case_row["expected_artifact_code"] or "",
                     "expected_artifact": case_row["expected_artifact"] or "",
                     "answer_structure_hint": case_row["answer_structure_hint"] or "",
+                    "success_criteria": case_row["success_criteria"] or "",
+                    "interactivity_mode": case_row["interactivity_mode"] or "",
+                    "max_user_messages": case_row["max_user_messages"],
+                    "max_total_turns": case_row["max_total_turns"],
+                    "recommended_answer_length": case_row["recommended_answer_length"] or "",
+                    "selection_tags": list(case_row["selection_tags"] or []),
+                    "role_personalization_rules": case_row["role_personalization_rules"] or "",
+                    "format_control_rules": case_row["format_control_rules"] or "",
+                    "scoring_aggregation_rules": case_row["scoring_aggregation_rules"] or "",
+                    "bad_case_risks": case_row["bad_case_risks"] or "",
+                    "generation_notes": case_row["generation_notes"] or "",
                     "constraints_text": case_row["constraints_text"] or "",
                     "clarifying_questions": case_row["clarifying_questions"] or "",
+                    "facts_data": case_row["facts_data"] or "",
+                    "task_for_user": case_row["task_for_user"] or "",
+                    "evaluation_notes": case_row["evaluation_notes"] or "",
                     "required_response_blocks": required_blocks,
                     "methodical_red_flags": methodical_red_flags,
                     "skill_evidence": skill_evidence,
@@ -460,6 +490,35 @@ class BaseCompetencyAgent:
                 "behavior_text": row["behavior_text"] or "",
             }
         return rubric
+
+    def _build_methodical_context_text(self, case_payload: list[dict[str, Any]]) -> str:
+        parts: list[str] = []
+        for payload in case_payload:
+            parts.extend(
+                [
+                    str(payload.get("expected_artifact") or "").strip(),
+                    str(payload.get("answer_structure_hint") or "").strip(),
+                    str(payload.get("success_criteria") or "").strip(),
+                    str(payload.get("constraints_text") or "").strip(),
+                    str(payload.get("clarifying_questions") or "").strip(),
+                    str(payload.get("facts_data") or "").strip(),
+                    str(payload.get("task_for_user") or "").strip(),
+                    str(payload.get("evaluation_notes") or "").strip(),
+                    str(payload.get("interactivity_mode") or "").strip(),
+                    str(payload.get("recommended_answer_length") or "").strip(),
+                    str(payload.get("role_personalization_rules") or "").strip(),
+                    str(payload.get("format_control_rules") or "").strip(),
+                    str(payload.get("scoring_aggregation_rules") or "").strip(),
+                    str(payload.get("bad_case_risks") or "").strip(),
+                    str(payload.get("generation_notes") or "").strip(),
+                    " ".join(str(item) for item in (payload.get("selection_tags") or []) if str(item).strip()),
+                ]
+            )
+            if payload.get("max_user_messages") is not None:
+                parts.append(f"max_user_messages {payload['max_user_messages']}")
+            if payload.get("max_total_turns") is not None:
+                parts.append(f"max_total_turns {payload['max_total_turns']}")
+        return " ".join(part for part in parts if part).strip()
 
     def _detect_required_block_presence(self, user_text: str, case_payload: list[dict[str, Any]]) -> dict[str, bool]:
         normalized = self.normalize_text(user_text)
@@ -506,13 +565,17 @@ class BaseCompetencyAgent:
 
     def _extract_structural_elements(self, user_text: str, case_payload: list[dict[str, Any]]) -> dict[str, bool]:
         normalized = self.normalize_text(user_text)
-        combined_hints = " ".join(
-            payload["expected_artifact"] + " " + payload["answer_structure_hint"] + " " + payload["clarifying_questions"]
-            for payload in case_payload
-        ).lower()
+        combined_hints = self._build_methodical_context_text(case_payload).lower()
         methodical_signal_text = " ".join(
             " ".join(
                 [
+                    payload.get("success_criteria", ""),
+                    payload.get("facts_data", ""),
+                    payload.get("task_for_user", ""),
+                    payload.get("evaluation_notes", ""),
+                    payload.get("format_control_rules", ""),
+                    payload.get("scoring_aggregation_rules", ""),
+                    payload.get("bad_case_risks", ""),
                     " ".join(block.get("block_name", "") for block in payload.get("required_response_blocks", [])),
                     " ".join(item.get("evidence_description", "") for item in payload.get("skill_evidence", [])),
                     " ".join(item.get("expected_signal", "") for item in payload.get("skill_evidence", [])),
@@ -568,6 +631,7 @@ class BaseCompetencyAgent:
         skill_name: str,
         rubric: dict[str, dict[str, str]],
         agent_prompt_config: dict[str, Any] | None,
+        methodical_context_text: str = "",
     ) -> str:
         rules = list((agent_prompt_config or {}).get("rules") or [])
         profile = dict((agent_prompt_config or {}).get("profile") or {})
@@ -577,6 +641,7 @@ class BaseCompetencyAgent:
                 "competency": self.competency_name,
                 "skill_name": skill_name,
                 "user_text": user_text,
+                "methodical_context_text": methodical_context_text,
                 "rubric": rubric,
                 "purpose_prompt": profile.get("purpose_prompt"),
                 "rules": [str(item.get("rule_text") or "").strip() for item in rules],
@@ -614,6 +679,7 @@ class BaseCompetencyAgent:
         *,
         skill_name: str,
         agent_prompt_config: dict[str, Any] | None = None,
+        methodical_context_text: str = "",
     ) -> dict[str, int]:
         if not rubric or not self.normalize_text(user_text):
             return {"L1": 0, "L2": 0, "L3": 0}
@@ -631,6 +697,7 @@ class BaseCompetencyAgent:
             skill_name=skill_name,
             rubric=rubric,
             agent_prompt_config=agent_prompt_config,
+            methodical_context_text=methodical_context_text,
         )
         cached = self._semantic_rubric_cache.get(cache_key)
         if cached is not None:
@@ -681,6 +748,8 @@ class BaseCompetencyAgent:
         user_prompt = (
             f"Компетенция: {self.competency_name}\n"
             f"Навык: {skill_name}\n\n"
+            "Методический контекст кейса:\n"
+            f"{methodical_context_text or 'Не задан'}\n\n"
             "Рубрика уровней:\n"
             f"{chr(10).join(rubric_lines)}\n\n"
             "Ответ пользователя:\n"
@@ -1001,13 +1070,13 @@ class BaseCompetencyAgent:
             return level
 
         if block_coverage_percent == 0:
-            return "N/A"
+            return {"L3": "L2", "L2": "L1", "L1": "L1"}.get(level, level)
         if block_coverage_percent < 40:
             return {"L3": "L2", "L2": "L1", "L1": "L1"}.get(level, level)
         if block_coverage_percent < 70:
             return {"L3": "L2", "L2": "L2", "L1": "L1"}.get(level, level)
         if len(missing_required_blocks) >= 3:
-            return {"L3": "L2", "L2": "L1", "L1": "L1"}.get(level, level)
+            return {"L3": "L2", "L2": "L2", "L1": "L1"}.get(level, level)
         return level
 
     def _adjust_level_by_artifact(
@@ -1020,13 +1089,13 @@ class BaseCompetencyAgent:
         if level == "N/A" or artifact_compliance_percent is None:
             return level
         if artifact_compliance_percent == 0:
-            return "N/A"
+            return {"L3": "L2", "L2": "L1", "L1": "L1"}.get(level, level)
         if artifact_compliance_percent < 40:
             return {"L3": "L2", "L2": "L1", "L1": "L1"}.get(level, level)
         if artifact_compliance_percent < 70:
             return {"L3": "L2", "L2": "L2", "L1": "L1"}.get(level, level)
         if len(missing_artifact_parts) >= 3:
-            return {"L3": "L2", "L2": "L1", "L1": "L1"}.get(level, level)
+            return {"L3": "L2", "L2": "L2", "L1": "L1"}.get(level, level)
         return level
 
     def _build_rationale(

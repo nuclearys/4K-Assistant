@@ -12,6 +12,36 @@ import { hideAllPanels, syncUrlState } from '../router.js';
 import { clearProcessingTimer, buildProcessingAgentsState } from './chat.js';
 import { tryOpenReportAfterProcessing, loadSkillAssessments } from './report.js';
 
+const wait = (ms) =>
+  new Promise((resolve) => {
+    window.setTimeout(resolve, ms);
+  });
+
+const loadSkillAssessmentsWithRetry = async () => {
+  const maxAttempts = 20;
+  const retryDelayMs = 1200;
+  let lastError = null;
+  state.skillAssessments = [];
+  state.reportInterpretation = null;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      await loadSkillAssessments();
+      if (Array.isArray(state.skillAssessments) && state.skillAssessments.length > 0) {
+        return;
+      }
+      lastError = new Error('Оценка навыков еще формируется.');
+    } catch (error) {
+      lastError = error;
+    }
+    processingStatusText.textContent =
+      'Подтягиваем итоговые оценки и формируем профиль компетенций (' + attempt + '/' + maxAttempts + ')...';
+    await wait(retryDelayMs);
+  }
+
+  throw lastError || new Error('Не удалось получить итоговую оценку навыков.');
+};
+
 export const renderProcessingOrbit = () => {
   const nodeIds = {
     communication: 'processing-node-communication',
@@ -154,7 +184,7 @@ export const completeProcessingAndOpenReport = async () => {
   processingStatusText.textContent = 'Подтягиваем итоговые оценки и формируем профиль компетенций.';
 
   try {
-    await loadSkillAssessments();
+    await loadSkillAssessmentsWithRetry();
     state.processingDataLoaded = true;
     tryOpenReportAfterProcessing();
   } catch (error) {

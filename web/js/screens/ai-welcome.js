@@ -28,14 +28,18 @@ export const renderAiWelcomeState = () => {
   const backendLabel = String(state.dashboard?.active_assessment?.button_label || '').toLowerCase();
   const shouldRepeat = !isContinueMode && (hasHistory || backendLabel.includes('снова'));
   const prepared = canReusePreparedAssessment() && !isContinueMode;
-
-  startFirstAssessmentButton.textContent = isContinueMode
+  const primaryLabel = isContinueMode
     ? 'Продолжить ассессмент'
     : prepared
       ? 'Перейти к кейсам'
       : shouldRepeat
         ? 'Пройти ассессмент снова'
         : 'Начать первый ассессмент';
+
+  startFirstAssessmentButton.innerHTML =
+    '<span>' +
+    primaryLabel +
+    '</span><img class="button-arrow" src="/web/assets/icons/forward-arrow-white-icon.svg" alt="" aria-hidden="true">';
   libraryStartButton.textContent = isContinueMode
     ? 'Продолжить'
     : prepared

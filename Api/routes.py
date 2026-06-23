@@ -590,7 +590,7 @@ def _build_dashboard(connection, user: UserResponse) -> UserDashboard:
 
     active_assessment = AssessmentCard(
         code="competencies_4k",
-        title="4K Competency Assessment",
+        title="Компетенции 4К",
         description=(
             "Комплексная оценка критического мышления, креативности, коммуникации и кооперации."
             if assessment_allowed
@@ -850,11 +850,13 @@ def _build_admin_dashboard(connection, period_key: str = "30d") -> AdminDashboar
         FROM (
             SELECT
                 us.id,
-                AVG(COALESCE(alw.percent_value, 0)) AS score_percent
+                AVG(alw.percent_value) AS score_percent
             FROM user_sessions us
-            LEFT JOIN session_skill_assessments ssa ON ssa.session_id = us.id
-            LEFT JOIN assessment_level_weights alw ON alw.level_code = ssa.assessed_level_code
+            JOIN session_skill_assessments ssa ON ssa.session_id = us.id
+            JOIN assessment_level_weights alw ON alw.level_code = ssa.assessed_level_code
             WHERE us.assessment_code = 'competencies_4k'
+              AND us.status = 'completed'
+              AND ssa.assessed_level_code IS NOT NULL
             GROUP BY us.id
         ) AS score_stats
         """
@@ -886,9 +888,13 @@ def _build_admin_dashboard(connection, period_key: str = "30d") -> AdminDashboar
         """
         SELECT
             ssa.competency_name,
-            ROUND(AVG(COALESCE(alw.percent_value, 0)))::int AS avg_percent
+            ROUND(AVG(alw.percent_value))::int AS avg_percent
         FROM session_skill_assessments ssa
-        LEFT JOIN assessment_level_weights alw ON alw.level_code = ssa.assessed_level_code
+        JOIN user_sessions us ON us.id = ssa.session_id
+        JOIN assessment_level_weights alw ON alw.level_code = ssa.assessed_level_code
+        WHERE us.assessment_code = 'competencies_4k'
+          AND us.status = 'completed'
+          AND ssa.assessed_level_code IS NOT NULL
         GROUP BY ssa.competency_name
         ORDER BY ssa.competency_name
         """
@@ -917,12 +923,7 @@ def _build_admin_dashboard(connection, period_key: str = "30d") -> AdminDashboar
         {"name": "Критическое мышление", "value": 0},
     ]
 
-    mbti_distribution = [
-        {"name": "Analysts", "value": 42},
-        {"name": "Diplomats", "value": 28},
-        {"name": "Sentinels", "value": 20},
-        {"name": "Explorers", "value": 10},
-    ]
+    mbti_distribution = []
 
     weakest = min(competency_average, key=lambda item: item["value"])
     strongest = max(competency_average, key=lambda item: item["value"])
@@ -3524,6 +3525,12 @@ def create_prompt_lab_dialog_preview(payload: PromptLabDialoguePreviewRequest, r
             case_id_code=payload.case_id_code,
             use_llm_personalization=True,
             case_generation_prompt_text=payload.case_generation_prompt_text,
+            full_name=payload.full_name,
+            role_id=payload.role_id,
+            position=payload.position,
+            duties=payload.duties,
+            company_industry=payload.company_industry,
+            user_profile_override=payload.user_profile,
         )
     except RuntimeError as exc:
         raise HTTPException(

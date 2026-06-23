@@ -60,6 +60,10 @@ export const renderAssessmentPreparationState = () => {
   const ready = canReusePreparedAssessment();
   const failed = status === 'failed';
   const preparing = status === 'preparing';
+  const backendLabel = String(state.dashboard?.active_assessment?.button_label || '').toLowerCase();
+  const shouldRepeat = !hasIncompleteAssessment() && (Boolean(state.dashboard?.completed_assessments?.length) || backendLabel.includes('снова'));
+  const welcomeDefaultLabel = shouldRepeat ? 'Пройти ассессмент снова' : 'Начать первый ассессмент';
+  const libraryDefaultLabel = shouldRepeat ? 'Снова' : 'Начать';
 
   if (assessmentPreparing) {
     assessmentPreparing.classList.toggle('hidden', !preparing);
@@ -67,9 +71,11 @@ export const renderAssessmentPreparationState = () => {
   if (assessmentActionButton) {
     assessmentActionButton.classList.toggle('hidden', preparing);
     assessmentActionButton.disabled = preparing;
-    if (failed) {
-      assessmentActionButton.textContent = 'Попробовать снова';
-    }
+    assessmentActionButton.textContent = ready
+      ? 'Перейти к кейсам'
+      : failed
+        ? 'Попробовать снова'
+        : state.dashboard?.active_assessment?.button_label || 'Начать';
   }
   if (ready && assessmentStatusLabel) {
     assessmentStatusLabel.textContent = title;
@@ -85,9 +91,11 @@ export const renderAssessmentPreparationState = () => {
   if (startFirstAssessmentButton) {
     startFirstAssessmentButton.classList.toggle('hidden', preparing);
     startFirstAssessmentButton.disabled = preparing;
-    if (failed) {
-      startFirstAssessmentButton.textContent = 'Попробовать снова';
-    }
+    const welcomeButtonLabel = ready ? 'Перейти к кейсам' : failed ? 'Попробовать снова' : welcomeDefaultLabel;
+    startFirstAssessmentButton.innerHTML =
+      '<span>' +
+      welcomeButtonLabel +
+      '</span><img class="button-arrow" src="/web/assets/icons/forward-arrow-white-icon.svg" alt="" aria-hidden="true">';
   }
   if (welcomeAssessmentTitle) {
     welcomeAssessmentTitle.textContent = title;
@@ -103,9 +111,7 @@ export const renderAssessmentPreparationState = () => {
   if (libraryStartButton) {
     libraryStartButton.classList.toggle('hidden', preparing);
     libraryStartButton.disabled = preparing;
-    if (failed) {
-      libraryStartButton.textContent = 'Попробовать снова';
-    }
+    libraryStartButton.textContent = ready ? 'К кейсам' : failed ? 'Попробовать снова' : libraryDefaultLabel;
   }
   updatePreparingRing(libraryAssessmentRing, libraryAssessmentPercent, preparing ? progressPercent : 0);
 
@@ -119,9 +125,7 @@ export const renderAssessmentPreparationState = () => {
   if (dashboardMiniStart) {
     dashboardMiniStart.classList.toggle('hidden', preparing);
     dashboardMiniStart.disabled = preparing;
-    if (failed) {
-      dashboardMiniStart.textContent = 'Попробовать снова';
-    }
+    dashboardMiniStart.textContent = ready ? 'К кейсам' : failed ? 'Попробовать снова' : 'Начать';
   }
   updatePreparingRing(dashboardMiniRing, dashboardMiniPercent, preparing ? progressPercent : 0);
 

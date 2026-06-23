@@ -168,6 +168,10 @@
         grid-template-columns: 1fr;
     }
 
+    .onboarding-panel:has(.radar-visual) .onboarding-shell {
+        gap: var(--space-4);
+    }
+
     .assessment-card,
     .report-card {
         grid-template-columns: 1fr;
@@ -407,11 +411,13 @@
     }
 
     .interview-form {
+        gap: var(--space-2);
         padding: var(--space-2);
     }
 
     .interview-form textarea {
-        min-height: 104px;
+        min-height: 64px;
+        max-height: 104px;
     }
 
     .interview-form-footer {
@@ -435,15 +441,31 @@
     .interview-topbar-head {
         flex-direction: row;
         align-items: center;
+        justify-content: space-between;
+        flex-wrap: nowrap;
+        gap: var(--space-1) var(--space-3);
+    }
+
+    .interview-topbar {
+        gap: var(--space-1);
+    }
+
+    .interview-title-row {
+        flex: 1 1 auto;
+        min-width: 0;
         justify-content: flex-start;
-        flex-wrap: wrap;
-        gap: var(--space-2) var(--space-3);
+    }
+
+    #interview-section-title {
+        display: none;
     }
 
     .interview-topbar-actions {
-        flex: 0 1 auto;
+        flex: 0 0 auto;
         min-width: 0;
-        flex-wrap: wrap;
+        flex-wrap: nowrap;
+        justify-content: flex-end;
+        margin-left: auto;
     }
 
     .interview-layout {
@@ -594,11 +616,13 @@
     }
 
     .interview-form {
+        gap: var(--space-2);
         padding: var(--space-2);
     }
 
     .interview-form textarea {
-        min-height: 104px;
+        min-height: 64px;
+        max-height: 104px;
     }
 
     .interview-form-footer {

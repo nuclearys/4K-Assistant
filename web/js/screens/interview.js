@@ -14,6 +14,7 @@ import {
   interviewSummary,
   interviewCompleteActions,
   interviewCaseBadge,
+  interviewProgressFill,
   interviewCaseTitle,
   interviewCaseStatus,
   interviewTimerBadge,
@@ -23,7 +24,6 @@ import {
   interviewTextarea,
   interviewSubmitButton,
   interviewFinishButton,
-  interviewFooterText,
   interviewError,
   caseProgressList,
   interviewRouteLabel,
@@ -297,6 +297,12 @@ const renderInterviewMeta = () => {
   interviewCaseBadge.textContent = 'Кейс ' + state.assessmentCaseNumber + ' из ' + state.assessmentTotalCases;
   interviewCaseTitle.textContent = state.assessmentCaseTitle || 'Кейс';
   interviewCaseStatus.textContent = '';
+  if (interviewProgressFill) {
+    const totalCases = Math.max(1, Number(state.assessmentTotalCases || 0));
+    const caseNumber = Math.max(1, Math.min(totalCases, Number(state.assessmentCaseNumber || 1)));
+    const caseProgress = totalCases > 1 ? (caseNumber - 1) / (totalCases - 1) : 1;
+    interviewProgressFill.style.width = Math.round(caseProgress * 50) + '%';
+  }
 };
 
 const renderCaseProgress = (assessmentCompleted = false) => {
@@ -333,6 +339,14 @@ const renderCaseProgress = (assessmentCompleted = false) => {
           : outcome === 'Тайм-аут без ответа'
             ? ' outcome-timeout'
             : '';
+    const titleText =
+      index === state.assessmentCaseNumber && state.assessmentCaseTitle
+        ? state.assessmentCaseTitle
+        : statusLabel;
+    const metaText =
+      index === state.assessmentCaseNumber && state.assessmentCaseTitle
+        ? statusLabel
+        : '';
 
     item.innerHTML =
       '<div class="case-progress-index">' +
@@ -342,13 +356,9 @@ const renderCaseProgress = (assessmentCompleted = false) => {
       outcomeClass +
       '">' +
       '<strong>' +
-      (index === state.assessmentCaseNumber && state.assessmentCaseTitle
-        ? state.assessmentCaseTitle
-        : 'Кейс ' + index) +
+      titleText +
       '</strong>' +
-      '<span>' +
-      statusLabel +
-      '</span>' +
+      (metaText ? '<span>' + metaText + '</span>' : '') +
       '</div>';
     caseProgressList.appendChild(item);
   }
@@ -427,16 +437,19 @@ const updateInterviewTimer = () => {
   const remainingMs = getRemainingCaseTimeMs();
   if (remainingMs === null) {
     interviewTimerBadge.textContent = 'Без лимита';
+    interviewTimerBadge.classList.remove('is-low-time');
     return false;
   }
 
   if (remainingMs <= 0) {
     interviewTimerBadge.textContent = '00:00';
+    interviewTimerBadge.classList.add('is-low-time');
     interviewCaseStatus.textContent = 'Кейс завершается автоматически из-за окончания времени.';
     return true;
   }
 
   interviewTimerBadge.textContent = formatRemainingTime(remainingMs);
+  interviewTimerBadge.classList.toggle('is-low-time', remainingMs < 180000);
   return false;
 };
 
@@ -471,6 +484,14 @@ const handleAssessmentResponse = (data) => {
 
   if (caseChanged) {
     interviewMessages.innerHTML = '';
+    state.assessmentCaseContext = '';
+    state.assessmentCaseTask = '';
+  }
+  if (typeof data.case_context === 'string') {
+    state.assessmentCaseContext = data.case_context;
+  }
+  if (typeof data.case_task === 'string') {
+    state.assessmentCaseTask = data.case_task;
   }
 
   let assistantMessage = data.message;
@@ -495,13 +516,37 @@ const handleAssessmentResponse = (data) => {
     renderSingleTurnCaseCard(assistantMessage);
   } else {
     if (isDialogCase) {
-      interviewSummary.classList.add('hidden');
-      interviewSummary.textContent = '';
-      interviewSummary.innerHTML = '';
+      const dialogContext = String(data.case_context || state.assessmentCaseContext || '').trim();
+      const dialogTask = String(data.case_task || state.assessmentCaseTask || '').trim();
+      if (dialogContext || dialogTask) {
+        interviewSummary.innerHTML = '';
+        if (dialogContext) {
+          interviewSummary.appendChild(
+            renderInterviewStructuredBlock({
+              label: 'Ситуация',
+              body: normalizeInterviewSituationText(dialogContext) || dialogContext,
+            }),
+          );
+        }
+        if (dialogTask) {
+          interviewSummary.appendChild(
+            renderInterviewStructuredBlock({
+              label: 'Что нужно сделать',
+              body: normalizeInterviewTaskText(dialogTask) || dialogTask,
+              variant: 'task',
+            }),
+          );
+        }
+        interviewSummary.classList.remove('hidden');
+      } else {
+        interviewSummary.classList.add('hidden');
+        interviewSummary.textContent = '';
+        interviewSummary.innerHTML = '';
+      }
     }
   }
 
-  if (isDialogCase && !suppressAssistantBubble) {
+  if (isDialogCase && assistantMessage && !suppressAssistantBubble) {
     addInterviewMessage('assistant', assistantMessage);
   }
 
@@ -512,7 +557,6 @@ const handleAssessmentResponse = (data) => {
     interviewTextarea.disabled = true;
     interviewSubmitButton.disabled = true;
     interviewFinishButton.disabled = true;
-    interviewFooterText.textContent = 'Ассессмент завершен';
     interviewPanel.classList.add('completed');
     interviewCompleteActions.classList.remove('hidden');
     safeStorage.setItem(STORAGE_KEYS.completionPending, '1');
@@ -527,11 +571,6 @@ const handleAssessmentResponse = (data) => {
     interviewPanel.classList.remove('completed');
     interviewCompleteActions.classList.add('hidden');
     interviewCaseStatus.textContent = 'Кейс будет автоматически завершен.';
-    interviewFooterText.textContent = !isDialogCase
-      ? 'Ответ сохранен. Автоматически завершаем кейс и переходим дальше.'
-      : suppressAssistantBubble
-        ? 'Ответ сохранен. Автоматически завершаем кейс и переходим дальше.'
-        : 'Показываем итоговое сообщение и затем завершаем кейс.';
     const delayMs = Math.max(800, Number(data.auto_finish_delay_ms || 2200));
     state.assessmentAutoFinishTimerId = window.setTimeout(() => {
       state.assessmentAutoFinishTimerId = null;
@@ -569,19 +608,47 @@ const handleAssessmentResponse = (data) => {
   }
 };
 
+const shouldOpenProcessingBeforeAssessmentResponse = (text) => {
+  const totalCases = Number(state.assessmentTotalCases || 0);
+  const caseNumber = Number(state.assessmentCaseNumber || 0);
+  if (!totalCases || caseNumber < totalCases) {
+    return false;
+  }
+  const message = String(text || '').trim();
+  return (
+    message === '__finish_case__' ||
+    message === '__auto_finish_case__' ||
+    message === '__timeout__' ||
+    interviewPanel.classList.contains('single-turn-mode')
+  );
+};
+
 const submitAssessmentMessage = async (text) => {
-  const response = await fetch('/users/assessment/message', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      session_code: state.assessmentSessionCode,
-      message: text,
-    }),
-  });
-  const data = await readApiResponse(response, 'Не удалось обработать ответ по кейсу.');
-  handleAssessmentResponse(data);
+  const shouldOpenProcessing = shouldOpenProcessingBeforeAssessmentResponse(text);
+  if (shouldOpenProcessing) {
+    safeStorage.setItem(STORAGE_KEYS.completionPending, '1');
+    openProcessing();
+  }
+
+  try {
+    const response = await fetch('/users/assessment/message', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        session_code: state.assessmentSessionCode,
+        message: text,
+      }),
+    });
+    const data = await readApiResponse(response, 'Не удалось обработать ответ по кейсу.');
+    handleAssessmentResponse(data);
+  } catch (error) {
+    if (shouldOpenProcessing) {
+      openInterview();
+    }
+    throw error;
+  }
 };
 
 const shouldRedirectToProfileOnAssessmentError = (message) =>

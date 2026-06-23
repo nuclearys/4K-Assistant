@@ -5,6 +5,7 @@ import {
   adminMbtiChart,
   adminMbtiPieChartCanvas,
   adminMbtiChartFallback,
+  adminMbtiPreviewPill,
   adminActivityChart,
   adminActivityBarChartCanvas,
   adminActivityChartFallback,
@@ -15,6 +16,26 @@ import { getCompetencyPalette, getCompetencySortIndex } from '../../utils/compet
 let adminCompetencyBarChart = null;
 let adminMbtiPieChart = null;
 let adminActivityBarChart = null;
+
+const resolveElement = (cachedElement, id) => cachedElement || document.getElementById(id);
+const adminMbtiChartPalette = [
+  '#4648d4',
+  '#16a34a',
+  '#2563eb',
+  '#ea580c',
+  '#0f766e',
+  '#be123c',
+  '#7c3aed',
+  '#ca8a04',
+];
+const adminMbtiPreviewDistribution = [
+  { name: 'Analysts', value: 42 },
+  { name: 'Diplomats', value: 28 },
+  { name: 'Sentinels', value: 20 },
+  { name: 'Explorers', value: 10 },
+];
+const adminActivityEmptyFill = '#eef2ff';
+const adminActivityPrimaryGradientStops = ['#e1e0ff', '#6063ee', '#4648d4'];
 
 const adminCompetencyBarValueLabelsPlugin = {
   id: 'adminCompetencyBarValueLabels',
@@ -142,7 +163,11 @@ const buildAdminCompetencyBarFallbackMarkup = (items) =>
     .join('');
 
 export const renderAdminCompetencyBarChart = (competencies = []) => {
-  if (!adminCompetencyChart) {
+  const chartContainer = resolveElement(adminCompetencyChart, 'admin-competency-chart');
+  const chartCanvas = resolveElement(adminCompetencyBarChartCanvas, 'admin-competency-bar-chart');
+  const fallback = resolveElement(adminCompetencyChartFallback, 'admin-competency-chart-fallback');
+
+  if (!chartContainer) {
     return;
   }
 
@@ -150,40 +175,40 @@ export const renderAdminCompetencyBarChart = (competencies = []) => {
 
   const items = normalizeAdminCompetencyItems(competencies);
 
-  if (adminCompetencyBarChartCanvas) {
-    adminCompetencyBarChartCanvas.classList.add('hidden');
+  if (chartCanvas) {
+    chartCanvas.classList.add('hidden');
   }
-  if (adminCompetencyChartFallback) {
-    adminCompetencyChartFallback.classList.add('hidden');
-    adminCompetencyChartFallback.innerHTML = '';
+  if (fallback) {
+    fallback.classList.add('hidden');
+    fallback.innerHTML = '';
   }
 
   if (!items.length) {
-    if (adminCompetencyChartFallback) {
-      adminCompetencyChartFallback.textContent = 'Данные по компетенциям пока недоступны.';
-      adminCompetencyChartFallback.classList.remove('hidden');
+    if (fallback) {
+      fallback.textContent = 'Данные по компетенциям пока недоступны.';
+      fallback.classList.remove('hidden');
     }
     return;
   }
 
-  if (typeof window.Chart !== 'function' || !adminCompetencyBarChartCanvas) {
-    if (adminCompetencyChartFallback) {
-      adminCompetencyChartFallback.innerHTML = buildAdminCompetencyBarFallbackMarkup(items);
-      adminCompetencyChartFallback.classList.remove('hidden');
+  if (typeof window.Chart !== 'function' || !chartCanvas) {
+    if (fallback) {
+      fallback.innerHTML = buildAdminCompetencyBarFallbackMarkup(items);
+      fallback.classList.remove('hidden');
     }
     return;
   }
 
-  const context = adminCompetencyBarChartCanvas.getContext('2d');
+  const context = chartCanvas.getContext('2d');
   if (!context) {
-    if (adminCompetencyChartFallback) {
-      adminCompetencyChartFallback.innerHTML = buildAdminCompetencyBarFallbackMarkup(items);
-      adminCompetencyChartFallback.classList.remove('hidden');
+    if (fallback) {
+      fallback.innerHTML = buildAdminCompetencyBarFallbackMarkup(items);
+      fallback.classList.remove('hidden');
     }
     return;
   }
 
-  adminCompetencyBarChartCanvas.classList.remove('hidden');
+  chartCanvas.classList.remove('hidden');
   adminCompetencyBarChart = new window.Chart(context, {
     type: 'bar',
     data: {
@@ -315,7 +340,12 @@ const buildAdminMbtiFallbackMarkup = (items) =>
     .join('');
 
 export const renderAdminMbtiPieChart = (distribution = []) => {
-  if (!adminMbtiChart) {
+  const chartContainer = resolveElement(adminMbtiChart, 'admin-mbti-chart');
+  const chartCanvas = resolveElement(adminMbtiPieChartCanvas, 'admin-mbti-pie-chart');
+  const fallback = resolveElement(adminMbtiChartFallback, 'admin-mbti-chart-fallback');
+  const previewPill = resolveElement(adminMbtiPreviewPill, 'admin-mbti-preview-pill');
+
+  if (!chartContainer) {
     return;
   }
 
@@ -327,50 +357,47 @@ export const renderAdminMbtiPieChart = (distribution = []) => {
       value: Math.max(0, Number(item.value) || 0),
     }))
     .filter((item) => item.value > 0);
+  const isPreview = items.length === 0;
+  const chartItems = isPreview ? adminMbtiPreviewDistribution : items;
 
-  if (adminMbtiPieChartCanvas) {
-    adminMbtiPieChartCanvas.classList.add('hidden');
+  if (chartCanvas) {
+    chartCanvas.classList.add('hidden');
   }
-  if (adminMbtiChartFallback) {
-    adminMbtiChartFallback.classList.add('hidden');
-    adminMbtiChartFallback.innerHTML = '';
+  if (fallback) {
+    fallback.classList.add('hidden');
+    fallback.innerHTML = '';
+  }
+  if (previewPill) {
+    previewPill.classList.toggle('hidden', !isPreview);
   }
 
-  if (!items.length) {
-    if (adminMbtiChartFallback) {
-      adminMbtiChartFallback.textContent = 'Данные MBTI пока недоступны.';
-      adminMbtiChartFallback.classList.remove('hidden');
+  if (typeof window.Chart !== 'function' || !chartCanvas) {
+    if (fallback) {
+      fallback.innerHTML = buildAdminMbtiFallbackMarkup(chartItems);
+      fallback.classList.remove('hidden');
     }
     return;
   }
 
-  if (typeof window.Chart !== 'function' || !adminMbtiPieChartCanvas) {
-    if (adminMbtiChartFallback) {
-      adminMbtiChartFallback.innerHTML = buildAdminMbtiFallbackMarkup(items);
-      adminMbtiChartFallback.classList.remove('hidden');
-    }
-    return;
-  }
-
-  const context = adminMbtiPieChartCanvas.getContext('2d');
+  const context = chartCanvas.getContext('2d');
   if (!context) {
-    if (adminMbtiChartFallback) {
-      adminMbtiChartFallback.innerHTML = buildAdminMbtiFallbackMarkup(items);
-      adminMbtiChartFallback.classList.remove('hidden');
+    if (fallback) {
+      fallback.innerHTML = buildAdminMbtiFallbackMarkup(chartItems);
+      fallback.classList.remove('hidden');
     }
     return;
   }
 
-  adminMbtiPieChartCanvas.classList.remove('hidden');
+  chartCanvas.classList.remove('hidden');
   const legendPosition = window.matchMedia('(max-width: 640px)').matches ? 'bottom' : 'right';
   adminMbtiPieChart = new window.Chart(context, {
     type: 'pie',
     data: {
-      labels: items.map((item) => item.name),
+      labels: chartItems.map((item) => item.name),
       datasets: [
         {
-          data: items.map((item) => item.value),
-          backgroundColor: items.map((_, index) => adminMbtiChartPalette[index % adminMbtiChartPalette.length]),
+          data: chartItems.map((item) => item.value),
+          backgroundColor: chartItems.map((_, index) => adminMbtiChartPalette[index % adminMbtiChartPalette.length]),
           borderColor: '#ffffff',
           borderWidth: 4,
           hoverOffset: 8,
@@ -417,7 +444,7 @@ export const renderAdminMbtiPieChart = (distribution = []) => {
           callbacks: {
             label(context) {
               const value = Number(context.raw) || 0;
-              return (context.label || 'Тип') + ': ' + value + '%';
+              return (context.label || 'Тип') + ': ' + value + '%' + (isPreview ? ' · Preview' : '');
             },
           },
         },
@@ -426,13 +453,72 @@ export const renderAdminMbtiPieChart = (distribution = []) => {
   });
 };
 
+const getRootCssColor = (propertyName, fallback) => {
+  if (
+    typeof window === 'undefined' ||
+    !window.getComputedStyle ||
+    typeof document === 'undefined' ||
+    !document.documentElement
+  ) {
+    return fallback;
+  }
+  return window.getComputedStyle(document.documentElement).getPropertyValue(propertyName).trim() || fallback;
+};
+
+const hexToRgb = (hex) => {
+  const normalized = String(hex || '').replace('#', '').trim();
+  const value =
+    normalized.length === 3
+      ? normalized
+          .split('')
+          .map((part) => part + part)
+          .join('')
+      : normalized;
+
+  if (!/^[\da-f]{6}$/i.test(value)) {
+    return null;
+  }
+
+  return {
+    r: parseInt(value.slice(0, 2), 16),
+    g: parseInt(value.slice(2, 4), 16),
+    b: parseInt(value.slice(4, 6), 16),
+  };
+};
+
+const rgbToHex = ({ r, g, b }) =>
+  '#' +
+  [r, g, b]
+    .map((channel) => Math.max(0, Math.min(255, Math.round(channel))).toString(16).padStart(2, '0'))
+    .join('');
+
+const mixHexColors = (start, end, ratio) => {
+  const startRgb = hexToRgb(start);
+  const endRgb = hexToRgb(end);
+  if (!startRgb || !endRgb) {
+    return end;
+  }
+
+  return rgbToHex({
+    r: startRgb.r + (endRgb.r - startRgb.r) * ratio,
+    g: startRgb.g + (endRgb.g - startRgb.g) * ratio,
+    b: startRgb.b + (endRgb.b - startRgb.b) * ratio,
+  });
+};
+
+const getAdminActivityPrimaryStops = () => [
+  getRootCssColor('--accent-soft', adminActivityPrimaryGradientStops[0]),
+  getRootCssColor('--accent-bright', adminActivityPrimaryGradientStops[1]),
+  getRootCssColor('--accent', adminActivityPrimaryGradientStops[2]),
+];
+
 const getAdminActivityShade = (value, maxValue) => {
   if (!value) {
-    return '#dbe3f3';
+    return getRootCssColor('--accent-surface', adminActivityEmptyFill);
   }
   const ratio = Math.max(0, Math.min(1, value / Math.max(maxValue, 1)));
-  const lightness = Math.round(76 - ratio * 28);
-  return 'hsl(241 68% ' + lightness + '%)';
+  const [start, middle, end] = getAdminActivityPrimaryStops();
+  return ratio < 0.55 ? mixHexColors(start, middle, ratio / 0.55) : mixHexColors(middle, end, (ratio - 0.55) / 0.45);
 };
 
 const normalizeAdminActivityItems = (points = [], labels = []) => {
@@ -468,7 +554,11 @@ const buildAdminActivityFallbackMarkup = (items, maxPoint) =>
     .join('');
 
 export const renderAdminActivityBarChart = (adminDashboard = {}) => {
-  if (!adminActivityChart) {
+  const chartContainer = resolveElement(adminActivityChart, 'admin-activity-chart');
+  const chartCanvas = resolveElement(adminActivityBarChartCanvas, 'admin-activity-bar-chart');
+  const fallback = resolveElement(adminActivityChartFallback, 'admin-activity-chart-fallback');
+
+  if (!chartContainer) {
     return;
   }
 
@@ -477,32 +567,32 @@ export const renderAdminActivityBarChart = (adminDashboard = {}) => {
   const items = normalizeAdminActivityItems(adminDashboard.activity_points, adminDashboard.activity_labels);
   const maxPoint = Math.max(Number(adminDashboard.activity_axis_max || 0), ...items.map((item) => item.value), 1);
 
-  if (adminActivityBarChartCanvas) {
-    adminActivityBarChartCanvas.classList.add('hidden');
+  if (chartCanvas) {
+    chartCanvas.classList.add('hidden');
   }
-  if (adminActivityChartFallback) {
-    adminActivityChartFallback.classList.add('hidden');
-    adminActivityChartFallback.innerHTML = '';
+  if (fallback) {
+    fallback.classList.add('hidden');
+    fallback.innerHTML = '';
   }
 
-  if (typeof window.Chart !== 'function' || !adminActivityBarChartCanvas) {
-    if (adminActivityChartFallback) {
-      adminActivityChartFallback.innerHTML = buildAdminActivityFallbackMarkup(items, maxPoint);
-      adminActivityChartFallback.classList.remove('hidden');
+  if (typeof window.Chart !== 'function' || !chartCanvas) {
+    if (fallback) {
+      fallback.innerHTML = buildAdminActivityFallbackMarkup(items, maxPoint);
+      fallback.classList.remove('hidden');
     }
     return;
   }
 
-  const context = adminActivityBarChartCanvas.getContext('2d');
+  const context = chartCanvas.getContext('2d');
   if (!context) {
-    if (adminActivityChartFallback) {
-      adminActivityChartFallback.innerHTML = buildAdminActivityFallbackMarkup(items, maxPoint);
-      adminActivityChartFallback.classList.remove('hidden');
+    if (fallback) {
+      fallback.innerHTML = buildAdminActivityFallbackMarkup(items, maxPoint);
+      fallback.classList.remove('hidden');
     }
     return;
   }
 
-  adminActivityBarChartCanvas.classList.remove('hidden');
+  chartCanvas.classList.remove('hidden');
   adminActivityBarChart = new window.Chart(context, {
     type: 'bar',
     data: {
@@ -512,8 +602,6 @@ export const renderAdminActivityBarChart = (adminDashboard = {}) => {
           label: 'Завершенные ассессменты',
           data: items.map((item) => item.value),
           backgroundColor: items.map((item) => getAdminActivityShade(item.value, maxPoint)),
-          borderColor: items.map((item) => (item.value ? '#4648d4' : '#cbd5e1')),
-          borderWidth: 1,
           borderRadius: {
             topLeft: 12,
             topRight: 12,
